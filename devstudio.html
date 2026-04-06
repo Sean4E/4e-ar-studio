@@ -286,8 +286,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <div class="toast" id="toast"></div>
 
 <!-- Hidden file inputs -->
-<input type="file" id="fi-target" accept="image/*" style="display:none" onchange="handleTargetFile(this.files[0])">
-<input type="file" id="fi-model" accept=".glb,.gltf" style="display:none" onchange="handleModelFile(this.files[0])">
+<input type="file" id="fi-target" accept="image/*" style="display:none" onchange="handleTargetFile(this.files[0]);this.value=''">
+<input type="file" id="fi-model" accept=".glb,.gltf" style="display:none" onchange="handleModelFile(this.files[0]);this.value=''">
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -303,6 +303,9 @@ const PROJECT = {
 };
 let selectedId = null;
 let db = null, fbReady = false;
+
+// Asset library — persists uploaded files even after scene removal
+const assetLibrary = []; // {id, name, type:'model'|'image', file, url}
 
 // ═══════════════════════════════════════════════════════════
 // HELPERS
@@ -577,11 +580,17 @@ async function handleTargetFile(file) {
 
 async function handleModelFile(file) {
   if (!file) return;
+  // Add to asset library
+  const assetId = genId();
+  const blobUrl = URL.createObjectURL(file);
+  assetLibrary.push({ id: assetId, name: file.name.replace(/\.\w+$/, ''), type: 'model', file: file, url: blobUrl });
+
   const obj = {
     id: genId(), name: file.name.replace(/\.\w+$/, ''), type: 'model',
-    file: file, glbUrl: '', mesh: null, clips: [], defaultAnim: '', loop: 'repeat', visible: true
+    file: file, glbUrl: '', mesh: null, clips: [], defaultAnim: '', loop: 'repeat', visible: true,
+    _assetId: assetId
   };
-  await loadModelIntoScene(obj, URL.createObjectURL(file));
+  await loadModelIntoScene(obj, blobUrl);
   PROJECT.objects.push(obj);
   PROJECT.dirty = true;
   selectObject(obj.id);
@@ -803,12 +812,34 @@ function updateProjectAssets() {
   if (PROJECT.target.mindBuffer || PROJECT.target.mindUrl) {
     html += `<div class="asset-card" onclick="viewTargetFullscreen()"><div class="asset-icon">🎯</div>Target</div>`;
   }
-  // Show scene objects
+  // Show scene objects (click to select)
   PROJECT.objects.forEach(obj => {
-    html += `<div class="asset-card" onclick="selectObject('${obj.id}')"><div class="asset-icon">📦</div>${obj.name}</div>`;
+    html += `<div class="asset-card" onclick="selectObject('${obj.id}')" style="border-color:var(--green)"><div class="asset-icon">📦</div>${obj.name}<div style="font-size:9px;color:var(--green)">in scene</div></div>`;
+  });
+  // Show library assets NOT in scene (click to re-add)
+  const sceneAssetIds = new Set(PROJECT.objects.map(o => o._assetId).filter(Boolean));
+  assetLibrary.filter(a => a.type === 'model' && !sceneAssetIds.has(a.id)).forEach(asset => {
+    html += `<div class="asset-card" onclick="addFromLibrary('${asset.id}')" title="Click to add to scene"><div class="asset-icon">📦</div>${asset.name}<div style="font-size:9px;color:var(--orange)">+ add</div></div>`;
   });
   if (!html) html = '<div style="font-size:11px;color:var(--faint);padding:8px">No assets yet</div>';
   grid.innerHTML = html;
+}
+
+async function addFromLibrary(assetId) {
+  const asset = assetLibrary.find(a => a.id === assetId);
+  if (!asset) return;
+  const obj = {
+    id: genId(), name: asset.name, type: 'model',
+    file: asset.file, glbUrl: '', mesh: null, clips: [], defaultAnim: '', loop: 'repeat', visible: true,
+    _assetId: asset.id
+  };
+  await loadModelIntoScene(obj, asset.url);
+  PROJECT.objects.push(obj);
+  PROJECT.dirty = true;
+  selectObject(obj.id);
+  renderHierarchy();
+  updateProjectAssets();
+  toast(asset.name + ' re-added to scene', 'ok');
 }
 
 function updateName(name) {
@@ -839,6 +870,7 @@ function removeSelected() {
   el('insp-content').classList.add('hidden');
   el('insp-empty').classList.remove('hidden');
   renderHierarchy();
+  updateProjectAssets();
   PROJECT.dirty = true;
   log('Removed: ' + obj.name);
 }
@@ -1041,6 +1073,15 @@ async function loadProject(id, data) {
       };
       try {
         await loadModelIntoScene(obj, objData.glbUrl);
+        // Play saved animation if set
+        if (obj.defaultAnim) {
+          const mi = mixers.find(m => m._objId === obj.id);
+          if (mi && mi._clips) {
+            mi.stopAllAction();
+            const clip = mi._clips.find(c => c.name === obj.defaultAnim);
+            if (clip) mi.clipAction(clip).play();
+          }
+        }
         // Apply transform
         if (objData.transform && obj.mesh) {
           const t = objData.transform;
