@@ -392,7 +392,7 @@ function buildAFrameScene() {
     }
 
     assetsHtml += `<a-asset-item id="model-${i}" src="${obj.glbUrl}"></a-asset-item>\n`;
-    entitiesHtml += `<a-gltf-model src="#model-${i}" position="${pos}" rotation="${rot}" scale="${sc}" ${animAttr}${presetAttrs}></a-gltf-model>\n`;
+    entitiesHtml += `<a-gltf-model id="ar-gltf-${i}" src="#model-${i}" position="${pos}" rotation="${rot}" scale="${sc}" ${animAttr}${presetAttrs}></a-gltf-model>\n`;
   });
 
   const html = `
@@ -460,11 +460,22 @@ function setupAREvents(scene) {
 function buildAnimBar() {
   const bar = el('anim-bar');
   bar.innerHTML = '';
-  if (!APP.animations || APP.animations.length < 2) return;
+  // Collect animations from objects (DevStudio) or legacy format
+  let clips = [];
+  let defaultClip = '';
+  if (APP.objects && APP.objects.length) {
+    const first = APP.objects[0];
+    clips = first.clips || [];
+    defaultClip = first.defaultAnim || '';
+  } else {
+    clips = APP.animations || [];
+    defaultClip = APP.defaultAnimation || '';
+  }
+  if (clips.length < 2) return;
 
-  APP.animations.forEach((name, i) => {
+  clips.forEach(name => {
     const pill = document.createElement('button');
-    pill.className = 'anim-pill' + (name === APP.defaultAnimation ? ' active' : '');
+    pill.className = 'anim-pill' + (name === defaultClip ? ' active' : '');
     pill.textContent = name;
     pill.onclick = () => {
       playAnim(name);
@@ -477,9 +488,11 @@ function buildAnimBar() {
 
 function playAnim(clipName) {
   if (!arScene) return;
-  const model = arScene.querySelector('#ar-gltf');
+  // Find first model entity in the scene
+  const model = arScene.querySelector('a-gltf-model');
   if (!model) return;
-  const loop = APP.loopMode === 'once' ? 'once' : 'repeat';
+  const loopMode = APP.objects?.[0]?.loop || APP.loopMode || 'repeat';
+  const loop = loopMode === 'once' ? 'once' : 'repeat';
   model.setAttribute('animation-mixer', `clip: ${clipName}; loop: ${loop}; crossFadeDuration: 0.4`);
 }
 

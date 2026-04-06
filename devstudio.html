@@ -111,13 +111,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <div id="app">
   <!-- Toolbar -->
   <div id="toolbar">
-    <img src="samples/logo_WHT.png" alt="4E" style="height:22px;opacity:.85;margin-right:4px">
+    <img src="samples/logo_WHT.png" alt="4E" onerror="this.style.display='none'" style="height:22px;opacity:.85;margin-right:4px">
     <span style="font-size:13px;font-weight:700;color:var(--purple2);font-family:'Space Mono',monospace;margin-right:8px">AR DevStudio</span>
     <div class="tb-sep"></div>
     <button class="tb-btn" onclick="newProject()">+ New</button>
     <button class="tb-btn" onclick="openProjectList()">Open</button>
     <button class="tb-btn" onclick="saveProject()">Save</button>
-    <input class="finput" id="tb-name" value="Untitled" onchange="PROJECT.name=this.value;PROJECT.dirty=true;renderHierarchy()" style="width:160px;margin:0;padding:3px 8px;font-size:12px;border-radius:4px">
+    <input class="finput" id="tb-name" value="Untitled" maxlength="60" onchange="PROJECT.name=this.value.trim()||'Untitled';PROJECT.dirty=true;renderHierarchy()" style="width:160px;margin:0;padding:3px 8px;font-size:12px;border-radius:4px">
     <div class="tb-sep"></div>
     <div id="gizmo-mode">
       <button class="tb-btn active" onclick="setGizmo('translate')" id="gm-t" title="Move (W)">Move</button>
@@ -920,10 +920,6 @@ function updateName(name) {
   if (obj) { obj.name = name; renderHierarchy(); PROJECT.dirty = true; }
 }
 
-function setObjAnim(clip) {
-  const obj = PROJECT.objects.find(o => o.id === selectedId);
-  if (obj) { obj.defaultAnim = clip; PROJECT.dirty = true; }
-}
 function setObjLoop(mode) {
   const obj = PROJECT.objects.find(o => o.id === selectedId);
   if (obj) { obj.loop = mode; PROJECT.dirty = true; }
@@ -933,6 +929,8 @@ function removeSelected() {
   const idx = PROJECT.objects.findIndex(o => o.id === selectedId);
   if (idx < 0) return;
   const obj = PROJECT.objects[idx];
+  // Stop preset preview animations
+  ['spin','bob','pulse'].forEach(t => stopPresetPreview(obj, t));
   if (obj.mesh) scene.remove(obj.mesh);
   // Remove mixer
   const mi = mixers.findIndex(m => m._objId === obj.id);
@@ -969,9 +967,10 @@ function setGizmo(mode) {
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-  if (e.key === 'w') setGizmo('translate');
-  if (e.key === 'e') setGizmo('rotate');
-  if (e.key === 'r') setGizmo('scale');
+  const k = e.key.toLowerCase();
+  if (k === 'w') setGizmo('translate');
+  if (k === 'e') setGizmo('rotate');
+  if (k === 'r') setGizmo('scale');
   if (e.key === 'Delete' || e.key === 'Backspace') removeSelected();
   if (e.key === 'Escape') { gizmo.detach(); selectedId = null; el('insp-content').classList.add('hidden'); el('insp-empty').classList.remove('hidden'); renderHierarchy(); }
 });
@@ -1290,19 +1289,27 @@ async function publishProject() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
+// Unsaved changes warning
+window.addEventListener('beforeunload', e => {
+  if (PROJECT.dirty) { e.preventDefault(); e.returnValue = 'You have unsaved changes.'; }
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
   initFirebase();
   initViewport();
   renderHierarchy();
+  updateProjectAssets();
   log('4E AR DevStudio ready');
 
   // Check for project ID in URL
   const params = new URLSearchParams(location.search);
   const editId = params.get('edit');
   if (editId && fbReady) {
-    db.collection('ar_apps').doc(editId).get().then(doc => {
-      if (doc.exists) loadProject(doc.id, doc.data());
-    });
+    try {
+      const doc = await db.collection('ar_apps').doc(editId).get();
+      if (doc.exists) await loadProject(doc.id, doc.data());
+      else toast('Project not found: ' + editId, 'err');
+    } catch(e) { toast('Load error: ' + e.message, 'err'); }
   }
 });
 </script>
