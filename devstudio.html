@@ -123,7 +123,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="tb-sep"></div>
     <button class="tb-btn" onclick="addTarget()">+ Target</button>
     <button class="tb-btn" onclick="addModel()">+ Model</button>
-    <span class="tb-title">4E AR DevStudio</span>
+    <img src="samples/logo_WHT.png" alt="4E" style="height:22px;margin-left:auto;opacity:.8">
+    <span class="tb-title">AR DevStudio</span>
     <span class="tb-status" id="tb-status">No project</span>
     <div class="tb-sep"></div>
     <button class="tb-btn primary" onclick="publishProject()">Publish</button>
@@ -204,7 +205,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div class="asset-grid">
         <div class="asset-card" onclick="addTarget()">
           <div class="asset-icon">🎯</div>
-          Image Target
+          Upload Target
+        </div>
+        <div class="asset-card" onclick="generateTarget()">
+          <div class="asset-icon">✨</div>
+          Generate Target
+        </div>
+        <div class="asset-card" onclick="loadSampleTarget()">
+          <div class="asset-icon">📋</div>
+          Sample Target
         </div>
         <div class="asset-card" onclick="loadSample('samples/Duck.glb','Duck')">
           <div class="asset-icon">🦆</div>
@@ -440,6 +449,63 @@ function onViewportClick(e) {
 // ═══════════════════════════════════════════════════════════
 function addTarget() { el('fi-target').click(); }
 function addModel() { el('fi-model').click(); }
+
+async function loadSampleTarget() {
+  toast('Loading sample target…','ok');
+  try {
+    const r = await fetch('samples/target-sample.png');
+    const blob = await r.blob();
+    handleTargetFile(new File([blob], 'target-sample.png', {type:'image/png'}));
+  } catch(e) { toast('Failed: '+e.message,'err'); }
+}
+
+function generateTarget() {
+  // Generate a high-contrast, feature-rich image optimised for AR tracking
+  const canvas = document.createElement('canvas');
+  canvas.width = 800; canvas.height = 600;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  const palettes = [
+    ['#1a1a2e','#16213e','#0f3460','#e94560','#533483','#ff6b6b','#4ecdc4','#ffe66d'],
+    ['#0d1b2a','#1b263b','#415a77','#778da9','#e0e1dd','#ff595e','#ffca3a','#8ac926'],
+    ['#2b2d42','#8d99ae','#edf2f4','#ef233c','#d90429','#3a86ff','#8338ec','#06d6a0'],
+  ];
+  const pal = palettes[Math.floor(Math.random()*palettes.length)];
+  ctx.fillStyle = pal[0]; ctx.fillRect(0,0,800,600);
+
+  // Random shapes for feature points
+  const seed = Date.now();
+  function rng(i) { let x=Math.sin(seed+i)*10000; return x-Math.floor(x); }
+  for(let i=0;i<40;i++){
+    const x=rng(i*3)*760+20, y=rng(i*3+1)*560+20, s=rng(i*3+2)*60+15;
+    ctx.fillStyle = pal[Math.floor(rng(i*7+99)*pal.length)];
+    ctx.globalAlpha = 0.6+rng(i+50)*0.4;
+    if(i%4===0){ctx.beginPath();ctx.arc(x,y,s/2,0,Math.PI*2);ctx.fill();}
+    else if(i%4===1){ctx.fillRect(x,y,s,s);}
+    else if(i%4===2){ctx.beginPath();ctx.moveTo(x,y+s);ctx.lineTo(x+s/2,y);ctx.lineTo(x+s,y+s);ctx.fill();}
+    else{ctx.save();ctx.translate(x,y);ctx.rotate(rng(i+77)*Math.PI);ctx.fillRect(-s/2,-s/4,s,s/2);ctx.restore();}
+  }
+  ctx.globalAlpha=1;
+
+  // Border pattern
+  for(let i=0;i<800;i+=16){ctx.fillStyle=i%32<16?pal[3]:pal[2];ctx.fillRect(i,0,8,6);ctx.fillRect(i,594,8,6);}
+  for(let i=0;i<600;i+=16){ctx.fillStyle=i%32<16?pal[3]:pal[2];ctx.fillRect(0,i,6,8);ctx.fillRect(794,i,6,8);}
+
+  // Text
+  ctx.fillStyle='#fff';ctx.font='bold 52px Syne,sans-serif';ctx.textAlign='center';
+  ctx.fillText('4E AR',400,270);
+  ctx.font='bold 36px Syne,sans-serif';ctx.fillStyle=pal[3];
+  ctx.fillText('STUDIO',400,320);
+  ctx.font='16px Space Mono,monospace';ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.fillText('Scan this image to launch AR',400,370);
+
+  canvas.toBlob(blob => {
+    const file = new File([blob], 'generated-target.png', {type:'image/png'});
+    handleTargetFile(file);
+    toast('Target generated ✓','ok');
+  }, 'image/png');
+}
 
 async function handleTargetFile(file) {
   if (!file) return;

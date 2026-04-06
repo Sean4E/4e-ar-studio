@@ -315,21 +315,32 @@ async function startWebAR() {
 }
 
 function buildAFrameScene() {
-  const scale = APP.scale || 1;
-  const sc    = `${scale} ${scale} ${scale}`;
-  const pos   = `${APP.posX||0} ${APP.posY||0} ${APP.posZ||0}`;
-  const rot   = `${APP.rotX||0} ${APP.rotY||0} ${APP.rotZ||0}`;
+  // Resolve mind URL from either format
+  const mindUrl = APP.mindUrl || (APP.target && APP.target.mindUrl) || '';
 
-  let animAttr = '';
-  if (APP.defaultAnimation && APP.loopMode !== 'none') {
-    const loop = APP.loopMode === 'repeat' ? 'repeat' : 'once';
-    animAttr = `animation-mixer="clip: ${APP.defaultAnimation}; loop: ${loop}; crossFadeDuration: 0.4"`;
-  } else if (APP.loopMode !== 'none' && APP.animations && APP.animations.length > 0) {
-    animAttr = `animation-mixer="clip: *; loop: repeat; crossFadeDuration: 0.4"`;
+  // Build objects list — support both legacy (single model) and DevStudio (objects array)
+  let objects = [];
+  if (APP.objects && APP.objects.length) {
+    // DevStudio format
+    objects = APP.objects.filter(o => o.glbUrl && o.visible !== false);
+  } else if (APP.glbUrl) {
+    // Legacy builder format
+    objects = [{
+      id: 'legacy', name: 'Model', glbUrl: APP.glbUrl,
+      transform: {
+        position: { x: APP.posX||0, y: APP.posY||0, z: APP.posZ||0 },
+        rotation: { x: APP.rotX||0, y: APP.rotY||0, z: APP.rotZ||0 },
+        scale: { x: APP.scale||1, y: APP.scale||1, z: APP.scale||1 }
+      },
+      defaultAnim: APP.defaultAnimation || '', loop: APP.loopMode || 'repeat',
+      clips: APP.animations || []
+    }];
   }
 
+  if (!mindUrl) { showError('No target', 'This experience has no image target configured.'); return; }
+
   const mindarAttr = [
-    `imageTargetSrc: ${APP.mindUrl};`,
+    `imageTargetSrc: ${mindUrl};`,
     `autoStart: true;`,
     `uiLoading: no;`,
     `uiScanning: no;`,
@@ -339,6 +350,26 @@ function buildAFrameScene() {
     `missTolerance: 5;`,
     `warmupTolerance: 5;`,
   ].join(' ');
+
+  // Build assets + entities for all objects
+  let assetsHtml = '';
+  let entitiesHtml = '';
+  objects.forEach((obj, i) => {
+    const t = obj.transform || { position:{x:0,y:0,z:0}, rotation:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} };
+    const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
+    const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
+    const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
+
+    let animAttr = '';
+    if (obj.defaultAnim && obj.loop !== 'none') {
+      animAttr = `animation-mixer="clip: ${obj.defaultAnim}; loop: ${obj.loop||'repeat'}; crossFadeDuration: 0.4"`;
+    } else if (obj.loop !== 'none' && obj.clips && obj.clips.length) {
+      animAttr = `animation-mixer="clip: *; loop: repeat; crossFadeDuration: 0.4"`;
+    }
+
+    assetsHtml += `<a-asset-item id="model-${i}" src="${obj.glbUrl}"></a-asset-item>\n`;
+    entitiesHtml += `<a-gltf-model src="#model-${i}" position="${pos}" rotation="${rot}" scale="${sc}" ${animAttr}></a-gltf-model>\n`;
+  });
 
   const html = `
     <a-scene
@@ -350,20 +381,13 @@ function buildAFrameScene() {
       style="width:100%;height:100vh">
 
       <a-assets timeout="30000">
-        <a-asset-item id="ar-model" src="${APP.glbUrl}"></a-asset-item>
+        ${assetsHtml}
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0" id="ar-target">
-        <a-gltf-model
-          id="ar-gltf"
-          src="#ar-model"
-          position="${pos}"
-          rotation="${rot}"
-          scale="${sc}"
-          ${animAttr}>
-        </a-gltf-model>
+        ${entitiesHtml}
       </a-entity>
     </a-scene>`;
 
