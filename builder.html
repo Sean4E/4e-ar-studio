@@ -249,6 +249,31 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
   </div>
 </div>
 
+<!-- Token modal (one-time setup) -->
+<div class="overlay hidden" id="token-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">🔑 One-Time Setup</div>
+    <div class="modal-sub">
+      A GitHub token is needed to publish AR experiences.<br>
+      This is saved locally and only asked <strong>once</strong>.
+    </div>
+    <div class="frow">
+      <label class="flabel" style="color:var(--cyan)">GitHub Personal Access Token</label>
+      <input class="finput" id="token-input" type="password" placeholder="github_pat_xxxxx...">
+    </div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.4);margin:8px 0 16px;line-height:1.6">
+      <strong>How to create:</strong><br>
+      1. Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--cyan)">github.com/settings/tokens</a><br>
+      2. Generate new token → Fine-grained<br>
+      3. Repository: <strong>4e-ar-studio</strong><br>
+      4. Permission: Contents → Read and write<br>
+      5. Copy and paste above
+    </div>
+    <button class="modal-save" onclick="saveToken()">Save & Publish</button>
+    <button class="modal-cancel" onclick="el('token-modal').classList.add('hidden')">Cancel</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div class="wrap">
@@ -334,6 +359,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
         Avoid plain colours, very dark images, or repeating patterns.
       </div>
 
+      <div style="margin-top:1rem;padding:12px 16px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Sample Target Images</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg" download="sample-ant.jpg" class="tbtn" style="font-size:12px;text-decoration:none">🐜 Ant Photo</a>
+          <a href="https://upload.wikimedia.org/wikipedia/en/thumb/4/4d/Shrek_%28character%29.png/220px-Shrek_%28character%29.png" download="sample-poster.png" class="tbtn" style="font-size:12px;text-decoration:none">🎬 Poster</a>
+          <a href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/examples/image-tracking/assets/card-example/card.png" download="sample-card.png" class="tbtn" style="font-size:12px;text-decoration:none">🃏 MindAR Card</a>
+        </div>
+      </div>
+
       <div class="nav-row">
         <button class="back" onclick="goTo(1)">← Back</button>
         <button class="pub-btn next" id="s2-next" disabled onclick="goTo(3)">Continue →</button>
@@ -369,14 +403,23 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
         <div class="fnote" style="margin-top:.4rem">Click to set as default · None plays the model static</div>
       </div>
 
+      <div style="margin-top:1rem;padding:12px 16px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Sample 3D Models</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb" download="Duck.glb" class="tbtn" style="font-size:12px;text-decoration:none">🦆 Duck</a>
+          <a href="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb" download="Fox.glb" class="tbtn" style="font-size:12px;text-decoration:none">🦊 Fox (animated)</a>
+          <a href="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb" download="DamagedHelmet.glb" class="tbtn" style="font-size:12px;text-decoration:none">⛑️ Helmet (PBR)</a>
+        </div>
+      </div>
+
       <!-- USDZ -->
       <div class="frow" style="margin-top:1.5rem">
-        <label class="flabel">USDZ Model <span class="badge badge-o" style="margin-left:.4rem">Optional · iOS AR Quick Look</span></label>
+        <label class="flabel">USDZ Model <span class="badge badge-o" style="margin-left:.4rem">Auto-converted from GLB · Override optional</span></label>
         <div class="dropzone" id="usdz-drop" onclick="pick('usdz-input')">
           <input type="file" id="usdz-input" accept=".usdz,.reality" style="display:none" onchange="handleUSDZ(this.files[0])">
           <span class="drop-ico">🍎</span>
-          <div class="drop-text">Drop USDZ for native iOS ARKit</div>
-          <div class="drop-hint">iPhone &amp; iPad get full native AR Quick Look · No WebAR needed</div>
+          <div class="drop-text">Drop custom USDZ (or leave empty for auto-convert)</div>
+          <div class="drop-hint">GLB is automatically converted to USDZ for iOS · Drop here only to override</div>
           <div class="drop-name hidden" id="usdz-name"></div>
         </div>
       </div>
@@ -593,6 +636,16 @@ function openModal() {
 }
 function closeModal(){el('cfg-modal').classList.add('hidden');}
 
+function saveToken() {
+  const token = v('token-input').trim();
+  if (!token) { toast('Paste a valid token','err'); return; }
+  localStorage.setItem('4e-ar-gh-token', token);
+  el('token-modal').classList.add('hidden');
+  toast('Token saved ✓','ok');
+  // Auto-retry publish
+  publish();
+}
+
 // ─── Navigation ───────────────────────────────────────────
 function tryGoTo(n) {
   if(n<=S.step||n===S.step+1) goTo(n);
@@ -668,7 +721,7 @@ async function compileMind(file) {
     const img = await fileToImg(file);
     const compiler = new window.MINDAR.IMAGE.Compiler();
     await compiler.compileImageTargets([img], p=>{
-      const pv=Math.round(p*100);
+      const pv=Math.min(100, Math.max(0, Math.round(p*100)));
       bar.style.width=pv+'%';
       pct.textContent=pv+'%';
     });
@@ -849,11 +902,10 @@ async function publish() {
 
   let gh = getGHConfig();
   if (!gh.token) {
-    // One-time inline token prompt
-    const token = prompt('GitHub token required for publishing.\n\nPaste your Personal Access Token (repo Contents scope).\nCreate at: github.com/settings/tokens\n\nThis is saved locally and only asked once.');
-    if (!token) { btn.disabled=false; btn.textContent='🚀 Publish Experience'; return; }
-    localStorage.setItem('4e-ar-gh-token', token);
-    gh = getGHConfig();
+    // Show styled token modal
+    btn.disabled=false; btn.textContent='🚀 Publish Experience';
+    el('token-modal').classList.remove('hidden');
+    return;
   }
 
   const appId=genId();
