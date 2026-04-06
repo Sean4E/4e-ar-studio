@@ -660,7 +660,15 @@ async function compileMind(file) {
 
   if(!window.MINDAR?.IMAGE) {
     msg.textContent='Loading compiler (~3MB)…';
-    await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js');
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.type='module';
+      s.textContent=`import "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js";window.__mindarLoaded=true;window.dispatchEvent(new Event("mindar-ready"));`;
+      document.head.appendChild(s);
+      const check=()=>{if(window.MINDAR?.IMAGE){res();}else{setTimeout(check,100);}};
+      setTimeout(check,500);
+      setTimeout(()=>rej(new Error('MindAR compiler load timeout')),30000);
+    });
   }
   msg.textContent='Compiling image target…';
   try {
