@@ -362,8 +362,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div style="margin-top:1rem;padding:12px 16px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
         <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Try a Sample Image</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="tbtn" style="font-size:12px" onclick="loadSampleImg('https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg','ant.jpg')">🐜 Ant Photo</button>
-          <button class="tbtn" style="font-size:12px" onclick="loadSampleImg('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/examples/image-tracking/assets/card-example/card.png','card.png')">🃏 MindAR Card</button>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleImg('samples/target-sample.png','target-sample.png')">🎯 4E AR Target</button>
         </div>
       </div>
 
@@ -405,9 +404,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       <div style="margin-top:1rem;padding:12px 16px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
         <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Try a Sample Model</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb','Duck.glb')">🦆 Duck</button>
-          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb','Fox.glb')">🦊 Fox (animated)</button>
-          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb','DamagedHelmet.glb')">⛑️ Helmet (PBR)</button>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('samples/Duck.glb','Duck.glb')">🦆 Duck</button>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('samples/Fox.glb','Fox.glb')">🦊 Fox (animated)</button>
         </div>
       </div>
 
@@ -574,6 +572,18 @@ function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
+}
+
+async function verifyAssetLive(url, maxWaitSec=120) {
+  const start = Date.now();
+  while ((Date.now() - start) < maxWaitSec * 1000) {
+    try {
+      const r = await fetch(url, {method:'HEAD', cache:'no-store'});
+      if (r.ok) return true;
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 5000));
+  }
+  return false;
 }
 
 async function fileToBase64(file) {
@@ -980,6 +990,16 @@ async function publish() {
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     setUS('doc','done');
+
+    // Verify assets are live on GitHub Pages (can take 1-3 mins to deploy)
+    btn.textContent='Verifying assets…';
+    toast('Waiting for GitHub Pages to deploy assets…','ok');
+    const verified = await verifyAssetLive(mindUrl, 180);
+    if (!verified) {
+      toast('Assets uploaded but GitHub Pages hasn\'t deployed yet. Try the QR code in a few minutes.','warn');
+    } else {
+      toast('Assets verified live ✓','ok');
+    }
 
     S.appId=appId;
     const base64=(window.AR_BASE_URL||window.location.origin).replace(/\/$/,'');
