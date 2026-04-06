@@ -316,9 +316,9 @@ async function startWebAR() {
 
 function buildAFrameScene() {
   const scale = APP.scale || 1;
-  const yPos  = APP.yPos  || 0;
   const sc    = `${scale} ${scale} ${scale}`;
-  const pos   = `0 ${yPos} 0`;
+  const pos   = `${APP.posX||0} ${APP.posY||0} ${APP.posZ||0}`;
+  const rot   = `${APP.rotX||0} ${APP.rotY||0} ${APP.rotZ||0}`;
 
   let animAttr = '';
   if (APP.defaultAnimation && APP.loopMode !== 'none') {
@@ -331,9 +331,13 @@ function buildAFrameScene() {
   const mindarAttr = [
     `imageTargetSrc: ${APP.mindUrl};`,
     `autoStart: true;`,
-    `uiLoading: yes;`,
-    `uiScanning: yes;`,
-    `uiError: yes;`,
+    `uiLoading: no;`,
+    `uiScanning: no;`,
+    `uiError: no;`,
+    `filterMinCF: 0.001;`,
+    `filterBeta: 1000;`,
+    `missTolerance: 5;`,
+    `warmupTolerance: 5;`,
   ].join(' ');
 
   const html = `
@@ -356,6 +360,7 @@ function buildAFrameScene() {
           id="ar-gltf"
           src="#ar-model"
           position="${pos}"
+          rotation="${rot}"
           scale="${sc}"
           ${animAttr}>
         </a-gltf-model>

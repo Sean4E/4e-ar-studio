@@ -437,25 +437,43 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       </div>
 
       <div class="frow">
-        <label class="flabel">Model Scale</label>
+        <label class="flabel">Scale</label>
         <div class="slider-row">
           <span class="slider-lim">0.1×</span>
-          <input type="range" id="sl-scale" min="0.1" max="5" step="0.05" value="1" oninput="S.scale=+this.value;el('sv-scale').textContent=S.scale.toFixed(2)+'×'">
+          <input type="range" id="sl-scale" min="0.1" max="5" step="0.05" value="1" oninput="updateTransform('scale',+this.value)">
           <span class="slider-lim">5×</span>
           <span class="slider-val" id="sv-scale">1.00×</span>
         </div>
-        <div class="fnote">Start at 1× and test in AR first</div>
       </div>
 
-      <div class="frow" style="margin-top:1.1rem">
-        <label class="flabel">Y Position Offset</label>
-        <div class="slider-row">
-          <span class="slider-lim">−1</span>
-          <input type="range" id="sl-ypos" min="-1" max="1" step="0.05" value="0" oninput="S.yPos=+this.value;el('sv-ypos').textContent=S.yPos.toFixed(2)">
-          <span class="slider-lim">+1</span>
-          <span class="slider-val" id="sv-ypos">0.00</span>
+      <div class="frow" style="margin-top:.8rem">
+        <label class="flabel">Position</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div><span style="color:var(--red);font-size:11px;font-weight:600">X</span>
+          <input type="range" id="sl-px" min="-2" max="2" step="0.01" value="0" oninput="updateTransform('posX',+this.value)" style="width:100%">
+          <span class="slider-val" id="sv-px">0</span></div>
+          <div><span style="color:var(--green);font-size:11px;font-weight:600">Y</span>
+          <input type="range" id="sl-py" min="-2" max="2" step="0.01" value="0" oninput="updateTransform('posY',+this.value)" style="width:100%">
+          <span class="slider-val" id="sv-py">0</span></div>
+          <div><span style="color:var(--cyan);font-size:11px;font-weight:600">Z</span>
+          <input type="range" id="sl-pz" min="-2" max="2" step="0.01" value="0" oninput="updateTransform('posZ',+this.value)" style="width:100%">
+          <span class="slider-val" id="sv-pz">0</span></div>
         </div>
-        <div class="fnote">Shift model up/down relative to the image target</div>
+      </div>
+
+      <div class="frow" style="margin-top:.8rem">
+        <label class="flabel">Rotation (degrees)</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div><span style="color:var(--red);font-size:11px;font-weight:600">X</span>
+          <input type="range" id="sl-rx" min="-180" max="180" step="1" value="0" oninput="updateTransform('rotX',+this.value)" style="width:100%">
+          <span class="slider-val" id="sv-rx">0°</span></div>
+          <div><span style="color:var(--green);font-size:11px;font-weight:600">Y</span>
+          <input type="range" id="sl-ry" min="-180" max="180" step="1" value="0" oninput="updateTransform('rotY',+this.value)" style="width:100%">
+          <span class="slider-val" id="sv-ry">0°</span></div>
+          <div><span style="color:var(--cyan);font-size:11px;font-weight:600">Z</span>
+          <input type="range" id="sl-rz" min="-180" max="180" step="1" value="0" oninput="updateTransform('rotZ',+this.value)" style="width:100%">
+          <span class="slider-val" id="sv-rz">0°</span></div>
+        </div>
       </div>
 
       <div class="frow" style="margin-top:1.1rem">
@@ -524,7 +542,11 @@ const S = {
   imgFile:null, mindBuffer:null,
   glbFile:null, glbAnims:[], defaultAnimation:'',
   usdzFile:null,
-  scale:1, yPos:0, loopMode:'repeat',
+  // Transform: full XYZ
+  posX:0, posY:0, posZ:0,
+  rotX:0, rotY:0, rotZ:0,
+  scale:1,
+  loopMode:'repeat',
   appId:null, appUrl:null
 };
 
@@ -836,10 +858,11 @@ function setupPreview(file) {
     URL.revokeObjectURL(url);
     const model=gltf.scene;
     scene.add(model);
-    // Apply current scale/position settings
-    const sc=S.scale||1;
-    model.scale.set(sc,sc,sc);
-    model.position.set(0,S.yPos||0,0);
+    window._previewModel = model; // Reference for live transform updates
+    // Apply current transform settings
+    model.scale.setScalar(S.scale||1);
+    model.position.set(S.posX||0, S.posY||0, S.posZ||0);
+    model.rotation.set((S.rotX||0)*Math.PI/180, (S.rotY||0)*Math.PI/180, (S.rotZ||0)*Math.PI/180);
     // Fit camera
     const box=new THREE.Box3().setFromObject(model);
     const sz=box.getSize(new THREE.Vector3());
@@ -892,7 +915,26 @@ function handleUSDZ(file) {
   toast('USDZ loaded — iOS users get native ARKit ✓','ok');
 }
 
-// ─── Step 4 ───────────────────────────────────────────────
+// ─── Step 4: Transform ───────────────────────────────────
+function updateTransform(key, val) {
+  S[key] = val;
+  // Update display values
+  if(key==='scale') el('sv-scale').textContent=val.toFixed(2)+'×';
+  if(key==='posX') el('sv-px').textContent=val.toFixed(2);
+  if(key==='posY') el('sv-py').textContent=val.toFixed(2);
+  if(key==='posZ') el('sv-pz').textContent=val.toFixed(2);
+  if(key==='rotX') el('sv-rx').textContent=val+'°';
+  if(key==='rotY') el('sv-ry').textContent=val+'°';
+  if(key==='rotZ') el('sv-rz').textContent=val+'°';
+  // Update 3D preview if model loaded
+  if(window._previewModel) {
+    const m = window._previewModel;
+    m.position.set(S.posX, S.posY, S.posZ);
+    m.rotation.set(S.rotX*Math.PI/180, S.rotY*Math.PI/180, S.rotZ*Math.PI/180);
+    m.scale.setScalar(S.scale);
+  }
+}
+
 function setLoop(m) {
   S.loopMode=m;
   ['repeat','once','none'].forEach(k=>{
@@ -904,7 +946,8 @@ function setLoop(m) {
 function buildSummary() {
   S.name=v('app-name').trim();
   S.scale=+el('sl-scale').value;
-  S.yPos=+el('sl-ypos').value;
+  S.posX=+el('sl-px').value; S.posY=+el('sl-py').value; S.posZ=+el('sl-pz').value;
+  S.rotX=+el('sl-rx').value; S.rotY=+el('sl-ry').value; S.rotZ=+el('sl-rz').value;
   S.defaultAnimation=el('sel-anim').value;
   if(S.usdzFile)el('ui-usdz-row').classList.remove('hidden');
   const rows=[
@@ -943,42 +986,27 @@ async function publish() {
   const appId=genId();
   const base=`assets/${appId}`;
   try {
-    setUS('mind','loading');
-    const mindB64 = arrayBufferToBase64(S.mindBuffer);
-    const mindUrl = await ghUploadFile(`${base}/target.mind`, mindB64);
-    setUS('mind','done');
+    // Prepare files in parallel (base64 encoding)
+    setUS('mind','loading'); setUS('glb','loading');
+    const [mindB64, glbB64] = await Promise.all([
+      Promise.resolve(arrayBufferToBase64(S.mindBuffer)),
+      fileToBase64(S.glbFile)
+    ]);
 
-    setUS('glb','loading');
-    const glbB64 = await fileToBase64(S.glbFile);
-    const glbUrl = await ghUploadFile(`${base}/model.glb`, glbB64);
-    setUS('glb','done');
+    // Upload mind + glb in parallel
+    const [mindUrl, glbUrl] = await Promise.all([
+      ghUploadFile(`${base}/target.mind`, mindB64),
+      ghUploadFile(`${base}/model.glb`, glbB64)
+    ]);
+    setUS('mind','done'); setUS('glb','done');
 
-    // Auto-convert GLB → USDZ for iOS native AR
+    // USDZ: only if user provided one (skip auto-convert for speed)
     let usdzUrl=null;
-    setUS('usdz','loading');
-    try {
-      if(S.usdzFile) {
-        // User provided USDZ manually
-        const usdzB64 = await fileToBase64(S.usdzFile);
-        usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
-      } else {
-        // Auto-convert GLB → USDZ via Three.js USDZExporter
-        if(!window._usdzExporterLoaded) {
-          await loadScript('https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/exporters/USDZExporter.js');
-          window._usdzExporterLoaded=true;
-        }
-        const tmpUrl=URL.createObjectURL(S.glbFile);
-        const gltf = await new Promise((res,rej)=>{new THREE.GLTFLoader().load(tmpUrl,res,null,rej);});
-        URL.revokeObjectURL(tmpUrl);
-        const exporter=new THREE.USDZExporter();
-        const usdzBlob=await exporter.parse(gltf.scene);
-        const usdzB64=arrayBufferToBase64(await usdzBlob.arrayBuffer());
-        usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
-      }
+    if(S.usdzFile){
+      setUS('usdz','loading');
+      const usdzB64 = await fileToBase64(S.usdzFile);
+      usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
       setUS('usdz','done');
-    } catch(e) {
-      console.warn('USDZ conversion failed:',e);
-      setUS('usdz','done'); // Non-fatal — iOS will fallback to WebAR
     }
 
     setUS('doc','loading');
@@ -986,20 +1014,15 @@ async function publish() {
       name:S.name, trackingMode:S.mode,
       mindUrl, glbUrl, usdzUrl,
       animations:S.glbAnims, defaultAnimation:S.defaultAnimation,
-      loopMode:S.loopMode, scale:S.scale, yPos:S.yPos,
+      loopMode:S.loopMode,
+      scale:S.scale,
+      posX:S.posX, posY:S.posY, posZ:S.posZ,
+      rotX:S.rotX, rotY:S.rotY, rotZ:S.rotZ,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     setUS('doc','done');
 
-    // Verify assets are live on GitHub Pages (can take 1-3 mins to deploy)
-    btn.textContent='Verifying assets…';
-    toast('Waiting for GitHub Pages to deploy assets…','ok');
-    const verified = await verifyAssetLive(mindUrl, 180);
-    if (!verified) {
-      toast('Assets uploaded but GitHub Pages hasn\'t deployed yet. Try the QR code in a few minutes.','warn');
-    } else {
-      toast('Assets verified live ✓','ok');
-    }
+    toast('Published! Assets may take 1-2 min to go live on GitHub Pages.','ok');
 
     S.appId=appId;
     const base64=(window.AR_BASE_URL||window.location.origin).replace(/\/$/,'');
