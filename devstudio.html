@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E AR DevStudio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/TransformControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/DRACOLoader.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--bg2:#0f1424;--bg3:#141a2e;--bg4:#1a2038;
+  --border:#1e2844;--border2:#2a3456;
+  --text:#d4daf0;--muted:#6b7a9e;--faint:#3a4568;
+  --purple:#8b5cf6;--purple2:#a78bfa;--purple3:rgba(139,92,246,0.12);
+  --cyan:#22d3ee;--green:#34d399;--red:#f87171;--orange:#fb923c;--yellow:#fbbf24;
+  --panel-w:240px;--toolbar-h:42px;--bottom-h:180px;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;font-size:13px}
+/* Layout Grid */
+#app{display:grid;height:100vh;grid-template-rows:var(--toolbar-h) 1fr var(--bottom-h);grid-template-columns:var(--panel-w) 1fr var(--panel-w);grid-template-areas:"toolbar toolbar toolbar" "hierarchy viewport inspector" "bottom bottom inspector"}
+/* Toolbar */
+#toolbar{grid-area:toolbar;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:8px;z-index:10}
+.tb-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 12px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;transition:all .15s}
+.tb-btn:hover{background:var(--bg4);border-color:var(--border2)}
+.tb-btn.primary{background:var(--purple);border-color:var(--purple);color:#fff}
+.tb-btn.primary:hover{background:#7c4ddb}
+.tb-sep{width:1px;height:24px;background:var(--border);margin:0 4px}
+.tb-title{font-size:14px;font-weight:700;color:var(--purple2);margin-left:auto;font-family:'Space Mono',monospace;letter-spacing:.04em}
+.tb-status{font-size:11px;color:var(--muted);margin-left:8px}
+#gizmo-mode{display:flex;gap:2px;background:var(--bg);border-radius:6px;padding:2px}
+#gizmo-mode .tb-btn{padding:4px 10px;border:none;border-radius:4px;font-size:11px}
+#gizmo-mode .tb-btn.active{background:var(--purple3);color:var(--purple2)}
+/* Panels */
+.panel{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;overflow-x:hidden}
+.panel-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:10px 12px 6px;border-bottom:1px solid var(--border)}
+/* Hierarchy */
+#hierarchy{grid-area:hierarchy}
+.h-item{display:flex;align-items:center;padding:5px 12px;cursor:pointer;gap:6px;font-size:12px;border-left:2px solid transparent;transition:all .1s}
+.h-item:hover{background:var(--bg3)}
+.h-item.selected{background:var(--purple3);border-left-color:var(--purple);color:#fff}
+.h-item .h-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0}
+.h-item .h-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.h-item .h-vis{opacity:.4;cursor:pointer;font-size:12px;flex-shrink:0}
+.h-item .h-vis:hover{opacity:1}
+.h-item .h-vis.off{color:var(--red)}
+.h-add{padding:8px 12px}
+.h-add button{width:100%;padding:6px;background:var(--bg3);border:1px dashed var(--border2);color:var(--muted);border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px}
+.h-add button:hover{border-color:var(--purple);color:var(--purple2)}
+/* Viewport */
+#viewport{grid-area:viewport;position:relative;background:#080c16;overflow:hidden}
+#viewport canvas{width:100%!important;height:100%!important;display:block}
+.vp-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--faint);pointer-events:none}
+/* Inspector */
+#inspector{grid-area:inspector;background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto}
+.insp-section{padding:10px 12px;border-bottom:1px solid var(--border)}
+.insp-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+.insp-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.insp-row label{font-size:11px;color:var(--muted);width:14px;text-align:center;font-weight:700}
+.insp-row label.x{color:var(--red)} .insp-row label.y{color:var(--green)} .insp-row label.z{color:var(--cyan)}
+.insp-row input[type=number]{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-family:'Space Mono',monospace;font-size:11px;width:0}
+.insp-row input[type=number]:focus{border-color:var(--purple);outline:none}
+.insp-select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-family:inherit;font-size:12px}
+.insp-check{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:2px 0}
+.insp-btn{width:100%;padding:6px;background:var(--purple);border:none;color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;margin-top:6px}
+.insp-btn:hover{background:#7c4ddb}
+.insp-btn.danger{background:var(--red)}
+/* Bottom Panel */
+#bottom-panel{grid-area:bottom;background:var(--bg2);border-top:1px solid var(--border);display:flex;flex-direction:column}
+.bp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.bp-tab{padding:6px 14px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:.05em}
+.bp-tab.active{color:var(--purple2);border-bottom-color:var(--purple)}
+.bp-content{flex:1;overflow-y:auto;padding:10px 14px}
+.bp-content.hidden{display:none}
+.asset-grid{display:flex;flex-wrap:wrap;gap:8px}
+.asset-card{width:80px;text-align:center;padding:8px 4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .15s;font-size:10px;color:var(--muted)}
+.asset-card:hover{border-color:var(--purple);color:var(--text)}
+.asset-card .asset-icon{font-size:28px;margin-bottom:4px}
+/* Toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;transition:opacity .3s;opacity:0;pointer-events:none;background:var(--bg4);color:var(--text);border:1px solid var(--border2)}
+.toast.show{opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+.toast.warn{border-color:var(--orange);color:var(--orange)}
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100}
+.overlay.hidden{display:none}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto}
+.modal h3{font-size:16px;margin-bottom:12px;color:var(--purple2)}
+.modal-list{list-style:none}
+.modal-list li{padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all .15s}
+.modal-list li:hover{border-color:var(--purple);background:var(--purple3)}
+.modal-list li .ml-name{font-weight:600}
+.modal-list li .ml-date{font-size:11px;color:var(--muted)}
+.finput{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;margin-bottom:8px}
+.finput:focus{border-color:var(--purple);outline:none}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <button class="tb-btn" onclick="newProject()">+ New</button>
+    <button class="tb-btn" onclick="openProjectList()">Open</button>
+    <button class="tb-btn" onclick="saveProject()">Save</button>
+    <div class="tb-sep"></div>
+    <div id="gizmo-mode">
+      <button class="tb-btn active" onclick="setGizmo('translate')" id="gm-t" title="Move (W)">Move</button>
+      <button class="tb-btn" onclick="setGizmo('rotate')" id="gm-r" title="Rotate (E)">Rotate</button>
+      <button class="tb-btn" onclick="setGizmo('scale')" id="gm-s" title="Scale (R)">Scale</button>
+    </div>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="addTarget()">+ Target</button>
+    <button class="tb-btn" onclick="addModel()">+ Model</button>
+    <span class="tb-title">4E AR DevStudio</span>
+    <span class="tb-status" id="tb-status">No project</span>
+    <div class="tb-sep"></div>
+    <button class="tb-btn primary" onclick="publishProject()">Publish</button>
+  </div>
+
+  <!-- Hierarchy -->
+  <div id="hierarchy" class="panel">
+    <div class="panel-title">Scene Hierarchy</div>
+    <div id="h-list"></div>
+    <div class="h-add">
+      <button onclick="addModel()">+ Add Object</button>
+    </div>
+  </div>
+
+  <!-- Viewport -->
+  <div id="viewport">
+    <canvas id="vp-canvas"></canvas>
+    <span class="vp-hint">LMB orbit · MMB pan · Scroll zoom · W/E/R gizmo mode</span>
+  </div>
+
+  <!-- Inspector -->
+  <div id="inspector" class="panel">
+    <div class="panel-title">Inspector</div>
+    <div id="insp-empty" style="padding:20px 12px;color:var(--faint);text-align:center">
+      Select an object to inspect
+    </div>
+    <div id="insp-content" class="hidden">
+      <!-- Name -->
+      <div class="insp-section">
+        <div class="insp-label">Name</div>
+        <input class="finput" id="insp-name" onchange="updateName(this.value)" style="margin-bottom:0">
+      </div>
+      <!-- Transform -->
+      <div class="insp-section">
+        <div class="insp-label">Position</div>
+        <div class="insp-row"><label class="x">X</label><input type="number" step="0.01" id="ip-px" onchange="inspSet('px',this.value)"></div>
+        <div class="insp-row"><label class="y">Y</label><input type="number" step="0.01" id="ip-py" onchange="inspSet('py',this.value)"></div>
+        <div class="insp-row"><label class="z">Z</label><input type="number" step="0.01" id="ip-pz" onchange="inspSet('pz',this.value)"></div>
+      </div>
+      <div class="insp-section">
+        <div class="insp-label">Rotation</div>
+        <div class="insp-row"><label class="x">X</label><input type="number" step="1" id="ip-rx" onchange="inspSet('rx',this.value)"></div>
+        <div class="insp-row"><label class="y">Y</label><input type="number" step="1" id="ip-ry" onchange="inspSet('ry',this.value)"></div>
+        <div class="insp-row"><label class="z">Z</label><input type="number" step="1" id="ip-rz" onchange="inspSet('rz',this.value)"></div>
+      </div>
+      <div class="insp-section">
+        <div class="insp-label">Scale</div>
+        <div class="insp-row"><label class="x">X</label><input type="number" step="0.01" id="ip-sx" onchange="inspSet('sx',this.value)"></div>
+        <div class="insp-row"><label class="y">Y</label><input type="number" step="0.01" id="ip-sy" onchange="inspSet('sy',this.value)"></div>
+        <div class="insp-row"><label class="z">Z</label><input type="number" step="0.01" id="ip-sz" onchange="inspSet('sz',this.value)"></div>
+      </div>
+      <!-- Animation -->
+      <div class="insp-section" id="insp-anim-sec" class="hidden">
+        <div class="insp-label">Animation</div>
+        <select class="insp-select" id="insp-anim" onchange="setObjAnim(this.value)">
+          <option value="">None</option>
+        </select>
+        <select class="insp-select" id="insp-loop" onchange="setObjLoop(this.value)" style="margin-top:4px">
+          <option value="repeat">Loop</option>
+          <option value="once">Once</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+      <!-- Actions -->
+      <div class="insp-section">
+        <button class="insp-btn danger" onclick="removeSelected()">Delete Object</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Panel -->
+  <div id="bottom-panel">
+    <div class="bp-tabs">
+      <div class="bp-tab active" onclick="showBP('assets')">Assets</div>
+      <div class="bp-tab" onclick="showBP('console')">Console</div>
+    </div>
+    <div class="bp-content" id="bp-assets">
+      <div class="asset-grid">
+        <div class="asset-card" onclick="addTarget()">
+          <div class="asset-icon">🎯</div>
+          Image Target
+        </div>
+        <div class="asset-card" onclick="loadSample('samples/Duck.glb','Duck')">
+          <div class="asset-icon">🦆</div>
+          Duck
+        </div>
+        <div class="asset-card" onclick="loadSample('samples/Fox.glb','Fox')">
+          <div class="asset-icon">🦊</div>
+          Fox
+        </div>
+        <div class="asset-card" onclick="addModel()">
+          <div class="asset-icon">📦</div>
+          Upload GLB
+        </div>
+      </div>
+    </div>
+    <div class="bp-content hidden" id="bp-console">
+      <div id="console-log" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Open Project Modal -->
+<div class="overlay hidden" id="open-modal">
+  <div class="modal">
+    <h3>Open Project</h3>
+    <ul class="modal-list" id="project-list"></ul>
+    <button class="tb-btn" onclick="el('open-modal').classList.add('hidden')" style="margin-top:12px;width:100%">Cancel</button>
+  </div>
+</div>
+
+<!-- Publish Result Modal -->
+<div class="overlay hidden" id="pub-modal">
+  <div class="modal" style="text-align:center">
+    <h3>Published!</h3>
+    <div id="qr-code" style="display:inline-block;margin:16px 0"></div>
+    <div style="margin:8px 0"><input class="finput" id="pub-url" readonly style="text-align:center"></div>
+    <button class="tb-btn" onclick="navigator.clipboard.writeText(el('pub-url').value);toast('Copied!','ok')" style="margin-right:8px">Copy URL</button>
+    <button class="tb-btn" onclick="window.open(el('pub-url').value,'_blank')">Open</button>
+    <button class="tb-btn" onclick="el('pub-modal').classList.add('hidden')" style="margin-top:12px;width:100%;display:block">Close</button>
+  </div>
+</div>
+
+<!-- Token Modal -->
+<div class="overlay hidden" id="token-modal">
+  <div class="modal">
+    <h3>GitHub Token Required</h3>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:12px">One-time setup. Create a fine-grained token at <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--cyan)">github.com/settings/tokens</a> with Contents read/write on the 4e-ar-studio repo.</p>
+    <input class="finput" id="ds-token" type="password" placeholder="github_pat_xxxxx...">
+    <button class="insp-btn" onclick="saveToken()">Save & Continue</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="fi-target" accept="image/*" style="display:none" onchange="handleTargetFile(this.files[0])">
+<input type="file" id="fi-model" accept=".glb,.gltf" style="display:none" onchange="handleModelFile(this.files[0])">
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+const PROJECT = {
+  id: null,
+  name: 'Untitled',
+  trackingMode: 'image',
+  target: { mindUrl: '', imageUrl: '', mindBuffer: null, imgFile: null },
+  objects: [],   // {id, name, type, file, glbUrl, mesh, clips, defaultAnim, loop, visible}
+  dirty: false
+};
+let selectedId = null;
+let db = null, fbReady = false;
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+const el = id => document.getElementById(id);
+function toast(msg, type='') {
+  const t = el('toast'); t.textContent = msg; t.className = 'toast show ' + type;
+  clearTimeout(t._t); t._t = setTimeout(() => t.className = 'toast', 3200);
+}
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function log(msg) {
+  const c = el('console-log');
+  c.innerHTML += `<div style="margin-bottom:2px">${new Date().toLocaleTimeString()} — ${msg}</div>`;
+  c.scrollTop = c.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════
+// FIREBASE
+// ═══════════════════════════════════════════════════════════
+function initFirebase() {
+  const cfg = window.AR_FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey || cfg.apiKey.includes('YOUR_')) { toast('Firebase not configured','err'); return; }
+  try {
+    if (firebase.apps.length) firebase.app().delete();
+    firebase.initializeApp(cfg);
+    db = firebase.firestore();
+    fbReady = true;
+    log('Firebase connected');
+  } catch(e) { toast('Firebase error: ' + e.message, 'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// GITHUB
+// ═══════════════════════════════════════════════════════════
+function getGHConfig() {
+  const w = window.AR_GITHUB_CONFIG || {};
+  const ls = localStorage.getItem('4e-ar-gh-token');
+  return { owner: w.owner||'Sean4E', repo: w.repo||'4e-ar-studio', branch: w.branch||'main', token: w.token||ls||'' };
+}
+async function ghUpload(path, b64) {
+  const gh = getGHConfig();
+  if (!gh.token) throw new Error('No GitHub token');
+  const url = `https://api.github.com/repos/${gh.owner}/${gh.repo}/contents/${path}`;
+  let sha;
+  try { const r = await fetch(url, {headers:{Authorization:`token ${gh.token}`}}); if(r.ok) sha=(await r.json()).sha; } catch(e){}
+  const body = { message: `Upload ${path}`, content: b64, branch: gh.branch };
+  if (sha) body.sha = sha;
+  const r = await fetch(url, { method:'PUT', headers:{Authorization:`token ${gh.token}`,'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (!r.ok) throw new Error((await r.json()).message || r.statusText);
+  return `https://${gh.owner}.github.io/${gh.repo}/${path}`;
+}
+function ab2b64(buf) { let b=''; const u=new Uint8Array(buf); for(let i=0;i<u.byteLength;i++) b+=String.fromCharCode(u[i]); return btoa(b); }
+function file2b64(file) { return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(btoa(new Uint8Array(r.result).reduce((s,b)=>s+String.fromCharCode(b),''))); r.onerror=rej; r.readAsArrayBuffer(file); }); }
+
+function saveToken() {
+  const t = el('ds-token').value.trim();
+  if (!t) { toast('Paste a valid token','err'); return; }
+  localStorage.setItem('4e-ar-gh-token', t);
+  el('token-modal').classList.add('hidden');
+  toast('Token saved','ok');
+  publishProject(); // retry
+}
+
+// ═══════════════════════════════════════════════════════════
+// THREE.JS VIEWPORT
+// ═══════════════════════════════════════════════════════════
+let renderer, scene, camera, orbit, gizmo, raycaster, mouse;
+let targetPlane = null;
+const clock = new THREE.Clock();
+const mixers = [];
+
+function initViewport() {
+  const container = el('viewport');
+  const canvas = el('vp-canvas');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x080c16);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.01, 100);
+  camera.position.set(0, 1.5, 3);
+
+  orbit = new THREE.OrbitControls(camera, canvas);
+  orbit.enableDamping = true;
+  orbit.dampingFactor = 0.08;
+  orbit.target.set(0, 0.3, 0);
+
+  // Gizmo
+  gizmo = new THREE.TransformControls(camera, canvas);
+  gizmo.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; });
+  gizmo.addEventListener('objectChange', () => { syncInspectorFromGizmo(); PROJECT.dirty = true; });
+  scene.add(gizmo);
+
+  // Lighting
+  const amb = new THREE.AmbientLight(0xffffff, 0.7);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(3, 5, 4);
+  dir.castShadow = true;
+  scene.add(dir);
+
+  // Grid + axes
+  const grid = new THREE.GridHelper(4, 20, 0x222244, 0x1a1a3a);
+  scene.add(grid);
+  const axes = new THREE.AxesHelper(0.5);
+  axes.position.set(-2, 0, -2);
+  scene.add(axes);
+
+  // Raycaster for selection
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+  canvas.addEventListener('pointerdown', onViewportClick);
+
+  // Resize
+  function resize() {
+    const w = container.clientWidth, h = container.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  resize();
+  new ResizeObserver(resize).observe(container);
+
+  // Render loop
+  function tick() {
+    requestAnimationFrame(tick);
+    const dt = clock.getDelta();
+    mixers.forEach(m => m.update(dt));
+    orbit.update();
+    renderer.render(scene, camera);
+  }
+  tick();
+  log('Viewport ready');
+}
+
+function onViewportClick(e) {
+  if (gizmo.dragging) return;
+  const rect = el('vp-canvas').getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  // Test against scene objects only
+  const meshes = [];
+  PROJECT.objects.forEach(obj => { if (obj.mesh) obj.mesh.traverse(c => { if (c.isMesh) meshes.push(c); }); });
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (hits.length > 0) {
+    // Find which project object this mesh belongs to
+    let hit = hits[0].object;
+    while (hit.parent && !hit.userData._objId) hit = hit.parent;
+    if (hit.userData._objId) selectObject(hit.userData._objId);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCENE MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+function addTarget() { el('fi-target').click(); }
+function addModel() { el('fi-model').click(); }
+
+async function handleTargetFile(file) {
+  if (!file) return;
+  PROJECT.target.imgFile = file;
+  toast('Compiling image target…','ok');
+  log('Compiling target: ' + file.name);
+
+  // Show image as ground plane
+  if (targetPlane) scene.remove(targetPlane);
+  const texUrl = URL.createObjectURL(file);
+  const tex = new THREE.TextureLoader().load(texUrl);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const img = new Image(); img.src = texUrl;
+  img.onload = () => {
+    const aspect = img.width / img.height;
+    const pw = 1.5, ph = pw / aspect;
+    const geo = new THREE.PlaneGeometry(pw, ph);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+    targetPlane = new THREE.Mesh(geo, mat);
+    targetPlane.rotation.x = -Math.PI / 2;
+    targetPlane.position.y = 0.001;
+    targetPlane.receiveShadow = true;
+    scene.add(targetPlane);
+  };
+
+  // Compile with MindAR
+  try {
+    if (!window.MINDAR?.IMAGE) {
+      log('Loading MindAR compiler…');
+      await new Promise((res, rej) => {
+        const s = document.createElement('script'); s.type = 'module';
+        s.textContent = `import "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js";window.dispatchEvent(new Event("mindar-ready"));`;
+        document.head.appendChild(s);
+        const check = () => { if (window.MINDAR?.IMAGE) res(); else setTimeout(check, 100); };
+        setTimeout(check, 500); setTimeout(() => rej(new Error('Timeout')), 30000);
+      });
+    }
+    const imgEl = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+    const compiler = new window.MINDAR.IMAGE.Compiler();
+    await compiler.compileImageTargets([imgEl], p => {});
+    PROJECT.target.mindBuffer = await compiler.exportData();
+    toast('Target compiled ✓', 'ok');
+    log('Target compiled: ' + (PROJECT.target.mindBuffer.byteLength / 1024).toFixed(0) + ' KB');
+    renderHierarchy();
+  } catch (e) {
+    toast('Compile failed: ' + e.message, 'err');
+    log('ERROR: ' + e.message);
+  }
+}
+
+async function handleModelFile(file) {
+  if (!file) return;
+  const obj = {
+    id: genId(), name: file.name.replace(/\.\w+$/, ''), type: 'model',
+    file: file, glbUrl: '', mesh: null, clips: [], defaultAnim: '', loop: 'repeat', visible: true
+  };
+  await loadModelIntoScene(obj, URL.createObjectURL(file));
+  PROJECT.objects.push(obj);
+  PROJECT.dirty = true;
+  selectObject(obj.id);
+  renderHierarchy();
+  toast('Model added: ' + obj.name, 'ok');
+  log('Added: ' + obj.name);
+}
+
+async function loadSample(url, name) {
+  toast('Loading ' + name + '…', 'ok');
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const file = new File([blob], name + '.glb', { type: 'model/gltf-binary' });
+    const obj = {
+      id: genId(), name: name, type: 'model',
+      file: file, glbUrl: '', mesh: null, clips: [], defaultAnim: '', loop: 'repeat', visible: true
+    };
+    await loadModelIntoScene(obj, url);
+    PROJECT.objects.push(obj);
+    PROJECT.dirty = true;
+    selectObject(obj.id);
+    renderHierarchy();
+    toast(name + ' added ✓', 'ok');
+    log('Added sample: ' + name);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+function loadModelIntoScene(obj, url) {
+  return new Promise((res, rej) => {
+    const loader = new THREE.GLTFLoader();
+    if (THREE.DRACOLoader) {
+      const draco = new THREE.DRACOLoader();
+      draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.147.0/examples/jsm/libs/draco/');
+      loader.setDRACOLoader(draco);
+    }
+    loader.load(url, gltf => {
+      const model = gltf.scene;
+      model.userData._objId = obj.id;
+      model.traverse(c => { c.userData._objId = obj.id; if (c.isMesh) c.castShadow = true; });
+      scene.add(model);
+      obj.mesh = model;
+
+      // Extract animations
+      if (gltf.animations.length) {
+        obj.clips = gltf.animations.map(a => a.name).filter(n => n);
+        const mixer = new THREE.AnimationMixer(model);
+        mixer.clipAction(gltf.animations[0]).play();
+        mixers.push(mixer);
+        mixer._objId = obj.id;
+      }
+      res();
+    }, null, rej);
+  });
+}
+
+function selectObject(id) {
+  selectedId = id;
+  const obj = PROJECT.objects.find(o => o.id === id);
+  if (!obj || !obj.mesh) { gizmo.detach(); return; }
+
+  gizmo.attach(obj.mesh);
+  el('insp-empty').classList.add('hidden');
+  el('insp-content').classList.remove('hidden');
+
+  // Populate inspector
+  el('insp-name').value = obj.name;
+  syncInspectorFromMesh(obj.mesh);
+
+  // Animations
+  const sec = el('insp-anim-sec');
+  const sel = el('insp-anim');
+  sel.innerHTML = '<option value="">None</option>';
+  if (obj.clips.length) {
+    obj.clips.forEach(c => { sel.innerHTML += `<option value="${c}" ${c===obj.defaultAnim?'selected':''}>${c}</option>`; });
+  }
+  el('insp-loop').value = obj.loop;
+
+  renderHierarchy();
+}
+
+function syncInspectorFromMesh(mesh) {
+  if (!mesh) return;
+  el('ip-px').value = +mesh.position.x.toFixed(3);
+  el('ip-py').value = +mesh.position.y.toFixed(3);
+  el('ip-pz').value = +mesh.position.z.toFixed(3);
+  el('ip-rx').value = +THREE.MathUtils.radToDeg(mesh.rotation.x).toFixed(1);
+  el('ip-ry').value = +THREE.MathUtils.radToDeg(mesh.rotation.y).toFixed(1);
+  el('ip-rz').value = +THREE.MathUtils.radToDeg(mesh.rotation.z).toFixed(1);
+  el('ip-sx').value = +mesh.scale.x.toFixed(3);
+  el('ip-sy').value = +mesh.scale.y.toFixed(3);
+  el('ip-sz').value = +mesh.scale.z.toFixed(3);
+}
+
+function syncInspectorFromGizmo() {
+  if (!gizmo.object) return;
+  syncInspectorFromMesh(gizmo.object);
+}
+
+function inspSet(key, val) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj || !obj.mesh) return;
+  const v = parseFloat(val) || 0;
+  const m = obj.mesh;
+  if (key === 'px') m.position.x = v;
+  if (key === 'py') m.position.y = v;
+  if (key === 'pz') m.position.z = v;
+  if (key === 'rx') m.rotation.x = THREE.MathUtils.degToRad(v);
+  if (key === 'ry') m.rotation.y = THREE.MathUtils.degToRad(v);
+  if (key === 'rz') m.rotation.z = THREE.MathUtils.degToRad(v);
+  if (key === 'sx') m.scale.x = v;
+  if (key === 'sy') m.scale.y = v;
+  if (key === 'sz') m.scale.z = v;
+  PROJECT.dirty = true;
+}
+
+function updateName(name) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (obj) { obj.name = name; renderHierarchy(); PROJECT.dirty = true; }
+}
+
+function setObjAnim(clip) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (obj) { obj.defaultAnim = clip; PROJECT.dirty = true; }
+}
+function setObjLoop(mode) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (obj) { obj.loop = mode; PROJECT.dirty = true; }
+}
+
+function removeSelected() {
+  const idx = PROJECT.objects.findIndex(o => o.id === selectedId);
+  if (idx < 0) return;
+  const obj = PROJECT.objects[idx];
+  if (obj.mesh) scene.remove(obj.mesh);
+  // Remove mixer
+  const mi = mixers.findIndex(m => m._objId === obj.id);
+  if (mi >= 0) mixers.splice(mi, 1);
+  gizmo.detach();
+  PROJECT.objects.splice(idx, 1);
+  selectedId = null;
+  el('insp-content').classList.add('hidden');
+  el('insp-empty').classList.remove('hidden');
+  renderHierarchy();
+  PROJECT.dirty = true;
+  log('Removed: ' + obj.name);
+}
+
+function toggleVisibility(id) {
+  const obj = PROJECT.objects.find(o => o.id === id);
+  if (!obj) return;
+  obj.visible = !obj.visible;
+  if (obj.mesh) obj.mesh.visible = obj.visible;
+  renderHierarchy();
+}
+
+// ═══════════════════════════════════════════════════════════
+// GIZMO
+// ═══════════════════════════════════════════════════════════
+function setGizmo(mode) {
+  gizmo.setMode(mode);
+  ['translate','rotate','scale'].forEach(m => {
+    el('gm-' + m[0]).classList.toggle('active', m === mode);
+  });
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'w') setGizmo('translate');
+  if (e.key === 'e') setGizmo('rotate');
+  if (e.key === 'r') setGizmo('scale');
+  if (e.key === 'Delete' || e.key === 'Backspace') removeSelected();
+  if (e.key === 'Escape') { gizmo.detach(); selectedId = null; el('insp-content').classList.add('hidden'); el('insp-empty').classList.remove('hidden'); renderHierarchy(); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// HIERARCHY
+// ═══════════════════════════════════════════════════════════
+function renderHierarchy() {
+  const list = el('h-list');
+  let html = '';
+
+  // Target
+  const hasTarget = PROJECT.target.mindBuffer || PROJECT.target.mindUrl;
+  html += `<div class="h-item${hasTarget?'':' disabled'}" style="opacity:${hasTarget?1:0.4}">
+    <span class="h-icon">🎯</span><span class="h-name">Image Target</span>
+    ${hasTarget ? '<span style="color:var(--green);font-size:10px">✓</span>' : '<span style="color:var(--faint);font-size:10px">none</span>'}
+  </div>`;
+
+  // Objects
+  PROJECT.objects.forEach(obj => {
+    const sel = obj.id === selectedId;
+    const icon = obj.type === 'model' ? '📦' : '🔲';
+    html += `<div class="h-item${sel?' selected':''}" onclick="selectObject('${obj.id}')">
+      <span class="h-icon">${icon}</span>
+      <span class="h-name">${obj.name}</span>
+      <span class="h-vis${obj.visible?'':' off'}" onclick="event.stopPropagation();toggleVisibility('${obj.id}')">${obj.visible?'👁':'🚫'}</span>
+    </div>`;
+  });
+
+  list.innerHTML = html;
+  el('tb-status').textContent = PROJECT.name + (PROJECT.dirty ? ' *' : '');
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOTTOM PANEL
+// ═══════════════════════════════════════════════════════════
+function showBP(tab) {
+  document.querySelectorAll('.bp-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase().includes(tab)));
+  document.querySelectorAll('.bp-content').forEach(c => c.classList.add('hidden'));
+  el('bp-' + tab).classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PROJECT MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+function newProject() {
+  // Clear scene
+  PROJECT.objects.forEach(o => { if (o.mesh) scene.remove(o.mesh); });
+  mixers.length = 0;
+  if (targetPlane) { scene.remove(targetPlane); targetPlane = null; }
+  gizmo.detach();
+
+  PROJECT.id = null;
+  PROJECT.name = 'Untitled';
+  PROJECT.target = { mindUrl: '', imageUrl: '', mindBuffer: null, imgFile: null };
+  PROJECT.objects = [];
+  PROJECT.dirty = false;
+  selectedId = null;
+
+  el('insp-content').classList.add('hidden');
+  el('insp-empty').classList.remove('hidden');
+  renderHierarchy();
+  log('New project');
+}
+
+async function saveProject() {
+  if (!fbReady) { toast('Firebase not connected','err'); return; }
+  if (!PROJECT.id) PROJECT.id = genId();
+  PROJECT.name = PROJECT.name || 'Untitled';
+
+  // Serialise objects (without mesh/file refs)
+  const objData = PROJECT.objects.map(o => ({
+    id: o.id, name: o.name, type: o.type, glbUrl: o.glbUrl,
+    clips: o.clips, defaultAnim: o.defaultAnim, loop: o.loop, visible: o.visible,
+    transform: o.mesh ? {
+      position: { x: +o.mesh.position.x.toFixed(4), y: +o.mesh.position.y.toFixed(4), z: +o.mesh.position.z.toFixed(4) },
+      rotation: { x: +THREE.MathUtils.radToDeg(o.mesh.rotation.x).toFixed(2), y: +THREE.MathUtils.radToDeg(o.mesh.rotation.y).toFixed(2), z: +THREE.MathUtils.radToDeg(o.mesh.rotation.z).toFixed(2) },
+      scale: { x: +o.mesh.scale.x.toFixed(4), y: +o.mesh.scale.y.toFixed(4), z: +o.mesh.scale.z.toFixed(4) }
+    } : { position:{x:0,y:0,z:0}, rotation:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} }
+  }));
+
+  await db.collection('ar_apps').doc(PROJECT.id).set({
+    name: PROJECT.name,
+    trackingMode: PROJECT.trackingMode,
+    target: { mindUrl: PROJECT.target.mindUrl, imageUrl: PROJECT.target.imageUrl },
+    objects: objData,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  PROJECT.dirty = false;
+  renderHierarchy();
+  toast('Saved ✓', 'ok');
+  log('Saved: ' + PROJECT.id);
+}
+
+async function openProjectList() {
+  if (!fbReady) { toast('Firebase not connected','err'); return; }
+  const snap = await db.collection('ar_apps').orderBy('updatedAt', 'desc').limit(20).get();
+  const list = el('project-list');
+  list.innerHTML = '';
+  snap.forEach(doc => {
+    const d = doc.data();
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="ml-name">${d.name || doc.id}</span><span class="ml-date">${d.updatedAt?.toDate?.()?.toLocaleDateString?.() || ''}</span>`;
+    li.onclick = () => { loadProject(doc.id, d); el('open-modal').classList.add('hidden'); };
+    list.appendChild(li);
+  });
+  el('open-modal').classList.remove('hidden');
+}
+
+async function loadProject(id, data) {
+  newProject();
+  PROJECT.id = id;
+  PROJECT.name = data.name || 'Untitled';
+  PROJECT.trackingMode = data.trackingMode || 'image';
+
+  // Load target
+  if (data.target?.mindUrl) {
+    PROJECT.target.mindUrl = data.target.mindUrl;
+    PROJECT.target.imageUrl = data.target.imageUrl;
+  }
+  // Legacy single-object format
+  if (data.mindUrl && !data.objects) {
+    PROJECT.target.mindUrl = data.mindUrl;
+  }
+
+  // Load objects
+  const objects = data.objects || [];
+  if (!objects.length && data.glbUrl) {
+    // Legacy format: single model
+    objects.push({
+      id: genId(), name: data.name || 'Model', type: 'model', glbUrl: data.glbUrl,
+      clips: data.animations || [], defaultAnim: data.defaultAnimation || '', loop: data.loopMode || 'repeat', visible: true,
+      transform: {
+        position: { x: data.posX||0, y: data.posY||0, z: data.posZ||0 },
+        rotation: { x: data.rotX||0, y: data.rotY||0, z: data.rotZ||0 },
+        scale: { x: data.scale||1, y: data.scale||1, z: data.scale||1 }
+      }
+    });
+  }
+
+  for (const objData of objects) {
+    if (objData.glbUrl) {
+      const obj = {
+        id: objData.id || genId(), name: objData.name, type: objData.type || 'model',
+        file: null, glbUrl: objData.glbUrl, mesh: null,
+        clips: objData.clips || [], defaultAnim: objData.defaultAnim || '', loop: objData.loop || 'repeat',
+        visible: objData.visible !== false
+      };
+      try {
+        await loadModelIntoScene(obj, objData.glbUrl);
+        // Apply transform
+        if (objData.transform && obj.mesh) {
+          const t = objData.transform;
+          obj.mesh.position.set(t.position.x, t.position.y, t.position.z);
+          obj.mesh.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
+          obj.mesh.scale.set(t.scale.x, t.scale.y, t.scale.z);
+          obj.mesh.visible = obj.visible;
+        }
+        PROJECT.objects.push(obj);
+      } catch(e) { log('ERROR loading model: ' + e.message); }
+    }
+  }
+
+  renderHierarchy();
+  log('Loaded project: ' + PROJECT.name);
+  toast('Opened: ' + PROJECT.name, 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PUBLISH
+// ═══════════════════════════════════════════════════════════
+async function publishProject() {
+  if (!fbReady) { toast('Firebase not connected','err'); return; }
+  if (!PROJECT.target.mindBuffer && !PROJECT.target.mindUrl) { toast('No image target — add one first','err'); return; }
+  if (PROJECT.objects.length === 0) { toast('No models in scene','err'); return; }
+
+  const gh = getGHConfig();
+  if (!gh.token) { el('token-modal').classList.remove('hidden'); return; }
+
+  if (!PROJECT.id) PROJECT.id = genId();
+  const base = `assets/${PROJECT.id}`;
+  toast('Publishing…','ok');
+
+  try {
+    // Upload target if new
+    if (PROJECT.target.mindBuffer) {
+      log('Uploading target…');
+      PROJECT.target.mindUrl = await ghUpload(`${base}/target.mind`, ab2b64(PROJECT.target.mindBuffer));
+    }
+    if (PROJECT.target.imgFile) {
+      PROJECT.target.imageUrl = await ghUpload(`${base}/target.png`, await file2b64(PROJECT.target.imgFile));
+    }
+
+    // Upload models (parallel)
+    const uploads = PROJECT.objects.filter(o => o.file && !o.glbUrl).map(async (o, i) => {
+      log('Uploading ' + o.name + '…');
+      o.glbUrl = await ghUpload(`${base}/model_${i}.glb`, await file2b64(o.file));
+    });
+    await Promise.all(uploads);
+
+    // Save to Firestore
+    await saveProject();
+
+    // Generate URL + QR
+    const url = (window.AR_BASE_URL || location.origin) + '/player.html?id=' + PROJECT.id;
+    el('pub-url').value = url;
+    el('qr-code').innerHTML = '';
+    new QRCode(el('qr-code'), { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+    el('pub-modal').classList.remove('hidden');
+
+    toast('Published ✓', 'ok');
+    log('Published: ' + url);
+  } catch (e) {
+    toast('Publish failed: ' + e.message, 'err');
+    log('ERROR: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initFirebase();
+  initViewport();
+  renderHierarchy();
+  log('4E AR DevStudio ready');
+
+  // Check for project ID in URL
+  const params = new URLSearchParams(location.search);
+  const editId = params.get('edit');
+  if (editId && fbReady) {
+    db.collection('ar_apps').doc(editId).get().then(doc => {
+      if (doc.exists) loadProject(doc.id, doc.data());
+    });
+  }
+});
+</script>
+</body>
+</html>
