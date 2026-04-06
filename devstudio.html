@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>4E AR DevStudio</title>
+<title>4E AR DevStudio — Scene Editor</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -112,7 +112,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   <!-- Toolbar -->
   <div id="toolbar">
     <img src="samples/logo_WHT.png" alt="4E" style="height:22px;opacity:.85;margin-right:4px">
-    <span style="font-size:13px;font-weight:700;color:var(--purple2);font-family:'Space Mono',monospace;margin-right:8px">DevStudio</span>
+    <span style="font-size:13px;font-weight:700;color:var(--purple2);font-family:'Space Mono',monospace;margin-right:8px">AR DevStudio</span>
     <div class="tb-sep"></div>
     <button class="tb-btn" onclick="newProject()">+ New</button>
     <button class="tb-btn" onclick="openProjectList()">Open</button>
@@ -129,6 +129,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <button class="tb-btn" onclick="addModel()">+ Model</button>
     <span class="tb-status" id="tb-status" style="margin-left:auto">No project</span>
     <div class="tb-sep"></div>
+    <a href="projects.html" class="tb-btn" style="text-decoration:none">📁 Projects</a>
     <button class="tb-btn primary" onclick="publishProject()">Publish</button>
   </div>
 
@@ -137,7 +138,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="panel-title">Scene Hierarchy</div>
     <div id="h-list"></div>
     <div class="h-add">
-      <button onclick="addModel()">+ Add Object</button>
+      <button onclick="addModel()">+ Add 3D Model</button>
+      <button onclick="addTarget()" style="margin-top:4px">🎯 Set Image Target</button>
     </div>
   </div>
 
@@ -173,22 +175,35 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div class="insp-row"><label class="z">Z</label><input type="number" step="1" id="ip-rz" onchange="inspSet('rz',this.value)"></div>
       </div>
       <div class="insp-section">
-        <div class="insp-label">Scale</div>
-        <div class="insp-row"><label class="x">X</label><input type="number" step="0.01" id="ip-sx" onchange="inspSet('sx',this.value)"></div>
-        <div class="insp-row"><label class="y">Y</label><input type="number" step="0.01" id="ip-sy" onchange="inspSet('sy',this.value)"></div>
-        <div class="insp-row"><label class="z">Z</label><input type="number" step="0.01" id="ip-sz" onchange="inspSet('sz',this.value)"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="insp-label" style="margin-bottom:0">Scale</div>
+          <label class="insp-check" style="font-size:10px;gap:4px">
+            <input type="checkbox" id="ip-uniform" checked onchange="window._uniformScale=this.checked"> Uniform
+          </label>
+        </div>
+        <div class="insp-row"><label class="x">X</label><input type="number" step="0.01" id="ip-sx" onchange="inspSetScale('sx',this.value)"></div>
+        <div class="insp-row"><label class="y">Y</label><input type="number" step="0.01" id="ip-sy" onchange="inspSetScale('sy',this.value)"></div>
+        <div class="insp-row"><label class="z">Z</label><input type="number" step="0.01" id="ip-sz" onchange="inspSetScale('sz',this.value)"></div>
       </div>
       <!-- Animation -->
-      <div class="insp-section" id="insp-anim-sec" class="hidden">
+      <div class="insp-section" id="insp-anim-sec">
         <div class="insp-label">Animation</div>
-        <select class="insp-select" id="insp-anim" onchange="setObjAnim(this.value)">
-          <option value="">None</option>
+        <select class="insp-select" id="insp-anim" onchange="playClip(this.value)">
+          <option value="">— None (static) —</option>
         </select>
         <select class="insp-select" id="insp-loop" onchange="setObjLoop(this.value)" style="margin-top:4px">
           <option value="repeat">Loop</option>
           <option value="once">Once</option>
           <option value="none">None</option>
         </select>
+        <div class="insp-label" style="margin-top:8px">Preset Animations</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          <button class="pc-btn" onclick="togglePresetAnim('spin')" id="pa-spin" style="font-size:10px">🔄 Spin</button>
+          <button class="pc-btn" onclick="togglePresetAnim('bob')" id="pa-bob" style="font-size:10px">↕ Bob</button>
+          <button class="pc-btn" onclick="togglePresetAnim('pulse')" id="pa-pulse" style="font-size:10px">💓 Pulse</button>
+          <button class="pc-btn" onclick="clearPresetAnims()" style="font-size:10px;color:var(--red)">✕ Clear</button>
+        </div>
+        <div id="preset-controls" style="margin-top:6px"></div>
       </div>
       <!-- Actions -->
       <div class="insp-section">
@@ -203,31 +218,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div class="bp-tab active" onclick="showBP('assets')">Assets</div>
       <div class="bp-tab" onclick="showBP('console')">Console</div>
     </div>
-    <div class="bp-content" id="bp-assets">
-      <div class="asset-grid">
-        <div class="asset-card" onclick="addTarget()">
-          <div class="asset-icon">🎯</div>
-          Upload Target
+    <div class="bp-content" id="bp-assets" style="display:flex;gap:16px">
+      <!-- Image Targets -->
+      <div style="min-width:180px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Image Targets</div>
+        <div class="asset-grid">
+          <div class="asset-card" onclick="addTarget()"><div class="asset-icon">📤</div>Upload</div>
+          <div class="asset-card" onclick="generateTarget()"><div class="asset-icon">✨</div>Generate</div>
+          <div class="asset-card" onclick="loadSampleTarget()"><div class="asset-icon">📋</div>Sample</div>
         </div>
-        <div class="asset-card" onclick="generateTarget()">
-          <div class="asset-icon">✨</div>
-          Generate Target
+        <div id="target-preview" style="margin-top:8px;cursor:pointer" onclick="viewTargetFullscreen()"></div>
+      </div>
+      <!-- 3D Models -->
+      <div style="min-width:180px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">3D Models</div>
+        <div class="asset-grid">
+          <div class="asset-card" onclick="addModel()"><div class="asset-icon">📤</div>Upload GLB</div>
+          <div class="asset-card" onclick="loadSample('samples/Duck.glb','Duck')"><div class="asset-icon">🦆</div>Duck</div>
+          <div class="asset-card" onclick="loadSample('samples/Fox.glb','Fox')"><div class="asset-icon">🦊</div>Fox</div>
         </div>
-        <div class="asset-card" onclick="loadSampleTarget()">
-          <div class="asset-icon">📋</div>
-          Sample Target
-        </div>
-        <div class="asset-card" onclick="loadSample('samples/Duck.glb','Duck')">
-          <div class="asset-icon">🦆</div>
-          Duck
-        </div>
-        <div class="asset-card" onclick="loadSample('samples/Fox.glb','Fox')">
-          <div class="asset-icon">🦊</div>
-          Fox
-        </div>
-        <div class="asset-card" onclick="addModel()">
-          <div class="asset-icon">📦</div>
-          Upload GLB
+      </div>
+      <!-- Project Assets -->
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Project Assets</div>
+        <div class="asset-grid" id="project-assets">
+          <div style="font-size:11px;color:var(--faint);padding:8px">Upload or add assets to see them here</div>
         </div>
       </div>
     </div>
@@ -552,6 +567,8 @@ async function handleTargetFile(file) {
     toast('Target compiled ✓', 'ok');
     log('Target compiled: ' + (PROJECT.target.mindBuffer.byteLength / 1024).toFixed(0) + ' KB');
     renderHierarchy();
+    updateTargetPreview();
+    updateProjectAssets();
   } catch (e) {
     toast('Compile failed: ' + e.message, 'err');
     log('ERROR: ' + e.message);
@@ -569,6 +586,7 @@ async function handleModelFile(file) {
   PROJECT.dirty = true;
   selectObject(obj.id);
   renderHierarchy();
+  updateProjectAssets();
   toast('Model added: ' + obj.name, 'ok');
   log('Added: ' + obj.name);
 }
@@ -588,6 +606,7 @@ async function loadSample(url, name) {
     PROJECT.dirty = true;
     selectObject(obj.id);
     renderHierarchy();
+    updateProjectAssets();
     toast(name + ' added ✓', 'ok');
     log('Added sample: ' + name);
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
@@ -612,6 +631,7 @@ function loadModelIntoScene(obj, url) {
       if (gltf.animations.length) {
         obj.clips = gltf.animations.map(a => a.name).filter(n => n);
         const mixer = new THREE.AnimationMixer(model);
+        mixer._clips = gltf.animations; // Store clips for playback selector
         mixer.clipAction(gltf.animations[0]).play();
         mixers.push(mixer);
         mixer._objId = obj.id;
@@ -679,6 +699,116 @@ function inspSet(key, val) {
   if (key === 'sy') m.scale.y = v;
   if (key === 'sz') m.scale.z = v;
   PROJECT.dirty = true;
+}
+
+window._uniformScale = true;
+function inspSetScale(key, val) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj || !obj.mesh) return;
+  const v = parseFloat(val) || 1;
+  const m = obj.mesh;
+  if (window._uniformScale) {
+    m.scale.set(v, v, v);
+    el('ip-sx').value = v; el('ip-sy').value = v; el('ip-sz').value = v;
+  } else {
+    if (key === 'sx') m.scale.x = v;
+    if (key === 'sy') m.scale.y = v;
+    if (key === 'sz') m.scale.z = v;
+  }
+  PROJECT.dirty = true;
+}
+
+// ─── Animation Playback ──────────────────────────────────
+function playClip(clipName) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj) return;
+  obj.defaultAnim = clipName;
+  PROJECT.dirty = true;
+  // Find and update mixer
+  const mi = mixers.find(m => m._objId === obj.id);
+  if (mi) {
+    mi.stopAllAction();
+    if (clipName && obj.mesh) {
+      // Find the clip in the original GLTF
+      const clip = mi._clips?.find(c => c.name === clipName);
+      if (clip) mi.clipAction(clip).play();
+    }
+  }
+}
+
+// ─── Preset Animations (CSS-style, applied via Three.js) ──
+const presetAnims = {};
+function togglePresetAnim(type) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj || !obj.mesh) return;
+  const key = obj.id + '_' + type;
+  if (presetAnims[key]) {
+    cancelAnimationFrame(presetAnims[key].raf);
+    delete presetAnims[key];
+    el('pa-'+type).style.borderColor = '';
+    return;
+  }
+  el('pa-'+type).style.borderColor = 'var(--purple)';
+  const mesh = obj.mesh;
+  const origin = { y: mesh.position.y, sx: mesh.scale.x, sy: mesh.scale.y, sz: mesh.scale.z };
+  const anim = { raf: 0, speed: 1 };
+  presetAnims[key] = anim;
+
+  function tick() {
+    anim.raf = requestAnimationFrame(tick);
+    const t = performance.now() * 0.001 * anim.speed;
+    if (type === 'spin') mesh.rotation.y = t * 1.5;
+    if (type === 'bob') mesh.position.y = origin.y + Math.sin(t * 2) * 0.05;
+    if (type === 'pulse') { const s = 1 + Math.sin(t * 3) * 0.08; mesh.scale.set(origin.sx*s, origin.sy*s, origin.sz*s); }
+  }
+  tick();
+}
+
+function clearPresetAnims() {
+  Object.keys(presetAnims).forEach(k => {
+    cancelAnimationFrame(presetAnims[k].raf);
+    delete presetAnims[k];
+  });
+  ['spin','bob','pulse'].forEach(t => el('pa-'+t).style.borderColor = '');
+}
+
+// ─── Target Preview ──────────────────────────────────────
+function updateTargetPreview() {
+  const prev = el('target-preview');
+  if (PROJECT.target.imgFile) {
+    const url = URL.createObjectURL(PROJECT.target.imgFile);
+    prev.innerHTML = `<img src="${url}" style="width:100%;border-radius:6px;border:1px solid var(--border);cursor:pointer" title="Click to view fullscreen">`;
+  } else if (PROJECT.target.imageUrl) {
+    prev.innerHTML = `<img src="${PROJECT.target.imageUrl}" style="width:100%;border-radius:6px;border:1px solid var(--border);cursor:pointer" title="Click to view fullscreen">`;
+  } else {
+    prev.innerHTML = '';
+  }
+}
+
+function viewTargetFullscreen() {
+  const src = PROJECT.target.imgFile ? URL.createObjectURL(PROJECT.target.imgFile) : PROJECT.target.imageUrl;
+  if (!src) return;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `<img src="${src}" style="max-width:90%;max-height:90%;border-radius:8px">`;
+  document.body.appendChild(overlay);
+}
+
+// ─── Project Assets List ─────────────────────────────────
+function updateProjectAssets() {
+  const grid = el('project-assets');
+  let html = '';
+  // Show target
+  if (PROJECT.target.mindBuffer || PROJECT.target.mindUrl) {
+    html += `<div class="asset-card" onclick="viewTargetFullscreen()"><div class="asset-icon">🎯</div>Target</div>`;
+  }
+  // Show scene objects
+  PROJECT.objects.forEach(obj => {
+    html += `<div class="asset-card" onclick="selectObject('${obj.id}')"><div class="asset-icon">📦</div>${obj.name}</div>`;
+  });
+  if (!html) html = '<div style="font-size:11px;color:var(--faint);padding:8px">No assets yet</div>';
+  grid.innerHTML = html;
 }
 
 function updateName(name) {
@@ -864,6 +994,27 @@ async function loadProject(id, data) {
   if (data.mindUrl && !data.objects) {
     PROJECT.target.mindUrl = data.mindUrl;
   }
+
+  // Render target image as ground plane in viewport
+  const imgUrl = PROJECT.target.imageUrl;
+  if (imgUrl) {
+    if (targetPlane) scene.remove(targetPlane);
+    const tex = new THREE.TextureLoader().load(imgUrl);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const img = new Image(); img.crossOrigin = 'anonymous'; img.src = imgUrl;
+    img.onload = () => {
+      const aspect = img.width / img.height;
+      const pw = 1.5, ph = pw / aspect;
+      const geo = new THREE.PlaneGeometry(pw, ph);
+      const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+      targetPlane = new THREE.Mesh(geo, mat);
+      targetPlane.rotation.x = -Math.PI / 2;
+      targetPlane.position.y = 0.001;
+      scene.add(targetPlane);
+    };
+  }
+  updateTargetPreview();
+  updateProjectAssets();
 
   // Load objects
   const objects = data.objects || [];
