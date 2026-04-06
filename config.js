@@ -11,7 +11,7 @@ window.AR_FIREBASE_CONFIG = {
 };
 
 // GitHub (asset storage via repo)
-// Token loaded from localStorage by builder — never committed to repo
+// Token is entered once via the builder UI and saved to localStorage
 window.AR_GITHUB_CONFIG = {
   owner: "Sean4E",
   repo:  "4e-ar-studio",

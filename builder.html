@@ -551,13 +551,6 @@ function loadConfig() {
     if (ls) { try { initFB(JSON.parse(ls)); } catch(e){} }
     else { toast('Firebase not configured — check config.js','err'); }
   }
-  // Check GitHub token — prompt if missing
-  const gh = getGHConfig();
-  if (!gh.token) {
-    setTimeout(() => {
-      toast('GitHub token needed for publishing — click ⚙ Settings','warn');
-    }, 1500);
-  }
 }
 
 function initFB(cfg) {
@@ -854,8 +847,14 @@ async function publish() {
   btn.disabled=true; btn.textContent='Publishing…';
   el('upload-list').classList.add('show');
 
-  const gh = getGHConfig();
-  if (!gh.token) { toast('Set GitHub token in Settings','err'); btn.disabled=false; btn.textContent='🚀 Publish Experience'; return; }
+  let gh = getGHConfig();
+  if (!gh.token) {
+    // One-time inline token prompt
+    const token = prompt('GitHub token required for publishing.\n\nPaste your Personal Access Token (repo Contents scope).\nCreate at: github.com/settings/tokens\n\nThis is saved locally and only asked once.');
+    if (!token) { btn.disabled=false; btn.textContent='🚀 Publish Experience'; return; }
+    localStorage.setItem('4e-ar-gh-token', token);
+    gh = getGHConfig();
+  }
 
   const appId=genId();
   const base=`assets/${appId}`;
@@ -870,12 +869,32 @@ async function publish() {
     const glbUrl = await ghUploadFile(`${base}/model.glb`, glbB64);
     setUS('glb','done');
 
+    // Auto-convert GLB → USDZ for iOS native AR
     let usdzUrl=null;
-    if(S.usdzFile){
-      setUS('usdz','loading');
-      const usdzB64 = await fileToBase64(S.usdzFile);
-      usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
+    setUS('usdz','loading');
+    try {
+      if(S.usdzFile) {
+        // User provided USDZ manually
+        const usdzB64 = await fileToBase64(S.usdzFile);
+        usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
+      } else {
+        // Auto-convert GLB → USDZ via Three.js USDZExporter
+        if(!window._usdzExporterLoaded) {
+          await loadScript('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/exporters/USDZExporter.js');
+          window._usdzExporterLoaded=true;
+        }
+        const tmpUrl=URL.createObjectURL(S.glbFile);
+        const gltf = await new Promise((res,rej)=>{new THREE.GLTFLoader().load(tmpUrl,res,null,rej);});
+        URL.revokeObjectURL(tmpUrl);
+        const exporter=new THREE.USDZExporter();
+        const usdzBlob=await exporter.parse(gltf.scene);
+        const usdzB64=arrayBufferToBase64(await usdzBlob.arrayBuffer());
+        usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
+      }
       setUS('usdz','done');
+    } catch(e) {
+      console.warn('USDZ conversion failed:',e);
+      setUS('usdz','done'); // Non-fatal — iOS will fallback to WebAR
     }
 
     setUS('doc','loading');
