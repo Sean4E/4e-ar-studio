@@ -360,11 +360,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       </div>
 
       <div style="margin-top:1rem;padding:12px 16px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
-        <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Sample Target Images</div>
+        <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Try a Sample Image</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <a href="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg" download="sample-ant.jpg" class="tbtn" style="font-size:12px;text-decoration:none">🐜 Ant Photo</a>
-          <a href="https://upload.wikimedia.org/wikipedia/en/thumb/4/4d/Shrek_%28character%29.png/220px-Shrek_%28character%29.png" download="sample-poster.png" class="tbtn" style="font-size:12px;text-decoration:none">🎬 Poster</a>
-          <a href="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/examples/image-tracking/assets/card-example/card.png" download="sample-card.png" class="tbtn" style="font-size:12px;text-decoration:none">🃏 MindAR Card</a>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleImg('https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg','ant.jpg')">🐜 Ant Photo</button>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleImg('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/examples/image-tracking/assets/card-example/card.png','card.png')">🃏 MindAR Card</button>
         </div>
       </div>
 
@@ -404,11 +403,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
       </div>
 
       <div style="margin-top:1rem;padding:12px 16px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
-        <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Sample 3D Models</div>
+        <div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--purple2);margin-bottom:8px">Try a Sample Model</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <a href="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb" download="Duck.glb" class="tbtn" style="font-size:12px;text-decoration:none">🦆 Duck</a>
-          <a href="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb" download="Fox.glb" class="tbtn" style="font-size:12px;text-decoration:none">🦊 Fox (animated)</a>
-          <a href="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb" download="DamagedHelmet.glb" class="tbtn" style="font-size:12px;text-decoration:none">⛑️ Helmet (PBR)</a>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb','Duck.glb')">🦆 Duck</button>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb','Fox.glb')">🦊 Fox (animated)</button>
+          <button class="tbtn" style="font-size:12px" onclick="loadSampleGLB('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/DamagedHelmet/glTF-Binary/DamagedHelmet.glb','DamagedHelmet.glb')">⛑️ Helmet (PBR)</button>
         </div>
       </div>
 
@@ -680,6 +679,29 @@ function setMode(m) {
 function step1Next() {
   if(!v('app-name').trim()){toast('Enter an experience name','err');return;}
   goTo(2,true);
+}
+
+// ─── Sample Loaders ──────────────────────────────────────
+async function loadSampleImg(url, name) {
+  toast('Loading sample image…','ok');
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Fetch failed');
+    const blob = await resp.blob();
+    const file = new File([blob], name, {type: blob.type || 'image/png'});
+    await handleImg(file);
+  } catch(e) { toast('Failed to load sample: '+e.message,'err'); }
+}
+
+async function loadSampleGLB(url, name) {
+  toast('Loading sample model…','ok');
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Fetch failed');
+    const blob = await resp.blob();
+    const file = new File([blob], name, {type: 'model/gltf-binary'});
+    await handleGLB(file);
+  } catch(e) { toast('Failed to load sample: '+e.message,'err'); }
 }
 
 // ─── Step 2: Image Target ─────────────────────────────────
