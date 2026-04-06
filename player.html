@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>4E AR Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#060a18;--purple:#8b5cf6;--purple2:#a78bfa;
+  --cyan:#22d3ee;--orange:#fb923c;--green:#34d399;--red:#f87171;
+  --text:#e2e8f0;--muted:#8899b0;--faint:#3d4f6a;
+  --glass:rgba(255,255,255,0.07);--border:rgba(255,255,255,0.1);
+}
+html,body{height:100%;overflow:hidden;background:#000;font-family:'Syne',sans-serif;color:var(--text)}
+
+/* ─── Loading / Splash Screen ────────────────────────────── */
+#splash{
+  position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:2rem;
+  background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(139,92,246,0.18) 0%,transparent 60%),#060a18;
+}
+#splash.fade{animation:fadeOut .5s ease forwards}
+@keyframes fadeOut{to{opacity:0;pointer-events:none}}
+.splash-logo{width:60px;height:60px;border-radius:15px;background:linear-gradient(135deg,var(--purple),#6366f1,var(--cyan));display:flex;align-items:center;justify-content:center;font-size:1.75rem;margin:0 auto 1.5rem;box-shadow:0 0 40px rgba(139,92,246,0.4);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 30px rgba(139,92,246,0.3)}50%{box-shadow:0 0 50px rgba(139,92,246,0.6)}}
+.splash-title{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.35rem}
+.splash-brand{background:linear-gradient(90deg,var(--purple2),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.splash-sub{font-size:.82rem;color:var(--muted);margin-bottom:2rem;line-height:1.6}
+.splash-dots{display:flex;gap:.5rem;justify-content:center;margin-top:1rem}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--purple);animation:bounce 1.2s ease-in-out infinite}
+.dot:nth-child(2){animation-delay:.15s}
+.dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{opacity:.3;transform:scale(0.8)}50%{opacity:1;transform:scale(1)}}
+.splash-status{font-family:'Space Mono',monospace;font-size:.7rem;color:var(--faint);margin-top:1.2rem;min-height:1.2em}
+
+/* ─── Error Screen ────────────────────────────────────────── */
+#error-screen{
+  position:fixed;inset:0;z-index:90;display:none;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:2rem;
+  background:var(--navy);
+}
+#error-screen.show{display:flex}
+.err-icon{font-size:3rem;margin-bottom:1rem}
+.err-title{font-size:1.2rem;font-weight:700;color:var(--red);margin-bottom:.5rem}
+.err-msg{font-size:.85rem;color:var(--muted);line-height:1.65;max-width:340px}
+
+/* ─── iOS USDZ Overlay ────────────────────────────────────── */
+#ios-screen{
+  position:fixed;inset:0;z-index:80;display:none;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:2rem;
+  background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(139,92,246,0.15) 0%,transparent 60%),#060a18;
+}
+#ios-screen.show{display:flex}
+.ios-icon{font-size:3rem;margin-bottom:1rem}
+.ios-title{font-size:1.35rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.4rem}
+.ios-sub{font-size:.83rem;color:var(--muted);margin-bottom:2rem;line-height:1.65;max-width:300px}
+.ios-ar-btn{
+  display:flex;align-items:center;gap:.65rem;
+  background:linear-gradient(135deg,var(--purple),#6366f1);
+  border:none;border-radius:14px;padding:1rem 2rem;
+  color:#fff;font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;
+  cursor:pointer;margin-bottom:1rem;
+  box-shadow:0 6px 28px rgba(139,92,246,0.45);
+  transition:all .2s;
+}
+.ios-ar-btn:hover{transform:translateY(-1px);box-shadow:0 10px 36px rgba(139,92,246,.55)}
+.ios-ar-btn .ar-icon{font-size:1.3rem}
+.ios-web-btn{
+  background:none;border:1px solid rgba(255,255,255,0.12);border-radius:11px;
+  padding:.7rem 1.75rem;color:var(--muted);
+  font-family:'Space Mono',monospace;font-size:.75rem;cursor:pointer;
+  transition:all .2s;
+}
+.ios-web-btn:hover{border-color:rgba(255,255,255,0.22);color:var(--text)}
+.ios-note{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--faint);margin-top:1.5rem;line-height:1.6;max-width:280px}
+
+/* ─── AR Scene Container ──────────────────────────────────── */
+#ar-container{position:fixed;inset:0;z-index:10;display:none}
+#ar-container.show{display:block}
+
+/* ─── AR UI Overlay ───────────────────────────────────────── */
+#ar-ui{
+  position:fixed;inset:0;z-index:50;pointer-events:none;
+  display:none;
+}
+#ar-ui.show{display:block}
+
+/* Top bar */
+.ar-topbar{
+  position:absolute;top:0;left:0;right:0;
+  padding:env(safe-area-inset-top,1rem) 1rem 1rem;
+  background:linear-gradient(180deg,rgba(0,0,0,0.65) 0%,transparent 100%);
+  display:flex;align-items:center;justify-content:space-between;
+  pointer-events:all;
+}
+.ar-app-name{font-size:.9rem;font-weight:700;letter-spacing:-.01em;color:#fff}
+.ar-brand{font-family:'Space Mono',monospace;font-size:.62rem;color:rgba(255,255,255,0.4)}
+.ar-close{
+  width:34px;height:34px;border-radius:50%;
+  background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);
+  color:#fff;font-size:1rem;cursor:pointer;pointer-events:all;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .2s;
+}
+.ar-close:hover{background:rgba(0,0,0,0.65)}
+
+/* Scan hint */
+#scan-hint{
+  position:absolute;bottom:120px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.12);border-radius:100px;
+  padding:.5rem 1.25rem;font-size:.8rem;color:rgba(255,255,255,0.85);
+  white-space:nowrap;transition:opacity .5s;pointer-events:none;
+}
+#scan-hint.hidden{opacity:0}
+
+/* Animation controls */
+#anim-bar{
+  position:absolute;bottom:max(env(safe-area-inset-bottom,0px),1rem);
+  left:50%;transform:translateX(-50%);
+  display:flex;gap:.5rem;pointer-events:all;
+}
+.anim-pill{
+  background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.12);border-radius:100px;
+  padding:.45rem .9rem;font-family:'Space Mono',monospace;font-size:.7rem;
+  color:rgba(255,255,255,0.7);cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.anim-pill:hover,.anim-pill.active{background:rgba(139,92,246,0.5);border-color:rgba(139,92,246,0.5);color:#fff}
+
+/* Scan frame decoration */
+#scan-frame{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:200px;height:200px;pointer-events:none;
+  transition:opacity .4s;
+}
+#scan-frame.hidden{opacity:0}
+.sf-corner{position:absolute;width:24px;height:24px;border-color:rgba(139,92,246,0.7);border-style:solid}
+.sf-tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0}
+.sf-tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0}
+.sf-bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px}
+.sf-br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0}
+</style>
+</head>
+<body>
+
+<!-- Loading / Splash -->
+<div id="splash">
+  <div class="splash-logo">◈</div>
+  <div class="splash-title"><span class="splash-brand">4E AR</span></div>
+  <div class="splash-sub" id="splash-name">Loading experience…</div>
+  <div class="splash-dots">
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <div class="splash-status" id="splash-status">Connecting…</div>
+</div>
+
+<!-- Error Screen -->
+<div id="error-screen">
+  <div class="err-icon">⚠️</div>
+  <div class="err-title" id="err-title">Something went wrong</div>
+  <div class="err-msg" id="err-msg">Unable to load this AR experience.</div>
+</div>
+
+<!-- iOS USDZ Screen -->
+<div id="ios-screen">
+  <div class="ios-icon">📱</div>
+  <div class="ios-title" id="ios-app-name"></div>
+  <div class="ios-sub">Launch native AR using Apple's ARKit for the best experience on your device.</div>
+  <button class="ios-ar-btn" id="ios-ar-btn" onclick="launchUSDZ()">
+    <span class="ar-icon">🥽</span> View in AR
+  </button>
+  <button class="ios-web-btn" onclick="startWebAR()">Use WebAR instead</button>
+  <div class="ios-note" id="ios-note">Tap "View in AR" to launch ARKit.<br>Point at your target image when prompted.</div>
+</div>
+
+<!-- AR container (A-Frame injected here) -->
+<div id="ar-container"></div>
+
+<!-- AR UI Overlay -->
+<div id="ar-ui">
+  <div class="ar-topbar">
+    <div>
+      <div class="ar-app-name" id="ar-title"></div>
+      <div class="ar-brand">4E AR Studio</div>
+    </div>
+    <button class="ar-close" onclick="exitAR()" title="Exit AR">✕</button>
+  </div>
+  <div id="scan-frame">
+    <div class="sf-corner sf-tl"></div>
+    <div class="sf-corner sf-tr"></div>
+    <div class="sf-corner sf-bl"></div>
+    <div class="sf-corner sf-br"></div>
+  </div>
+  <div id="scan-hint">Point camera at target image</div>
+  <div id="anim-bar"></div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────
+let APP = null;
+let arScene = null;
+
+// ─── Init ─────────────────────────────────────────────────
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const appId = params.get('id');
+
+  if (!appId) {
+    showError('No App ID', 'Scan a valid 4E AR QR code to launch an experience.');
+    return;
+  }
+
+  setSplashStatus('Loading Firebase…');
+  const cfg = getFirebaseConfig();
+  if (!cfg) {
+    showError('Not configured', 'Firebase credentials not found. Ensure config.js is set up correctly.');
+    return;
+  }
+
+  try {
+    firebase.initializeApp(cfg);
+    const db = firebase.firestore();
+    setSplashStatus('Fetching experience…');
+    const doc = await db.collection('ar_apps').doc(appId).get();
+
+    if (!doc.exists) {
+      showError('App not found', 'This experience does not exist or has been deleted.');
+      return;
+    }
+
+    APP = doc.data();
+    APP.id = appId;
+
+    el('splash-name').textContent = APP.name || 'AR Experience';
+    el('ar-title').textContent = APP.name || 'AR Experience';
+    el('ios-app-name').textContent = APP.name || 'AR Experience';
+
+    setSplashStatus('Detecting device…');
+    await new Promise(r => setTimeout(r, 400));
+
+    // iOS + USDZ → show native AR screen
+    if (isIOS() && APP.usdzUrl) {
+      hideSplash();
+      showIOSScreen();
+      return;
+    }
+
+    // All other devices → WebAR
+    await startWebAR();
+
+  } catch (e) {
+    showError('Load error', e.message);
+  }
+}
+
+// ─── Device detection ─────────────────────────────────────
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// ─── iOS USDZ Quick Look ───────────────────────────────────
+function showIOSScreen() {
+  el('ios-screen').classList.add('show');
+  // Check if no USDZ fallback available
+  if (!APP.usdzUrl) {
+    el('ios-ar-btn').style.display = 'none';
+  }
+}
+
+function launchUSDZ() {
+  if (!APP.usdzUrl) return;
+  const a = document.createElement('a');
+  a.rel = 'ar';
+  a.href = APP.usdzUrl;
+  // A small image child is required by Safari for the AR button to work
+  const img = document.createElement('img');
+  img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  a.appendChild(img);
+  a.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => document.body.removeChild(a), 500);
+}
+
+// ─── WebAR ────────────────────────────────────────────────
+async function startWebAR() {
+  // Hide iOS screen if showing
+  el('ios-screen').classList.remove('show');
+  setSplashStatus('Loading AR engine…');
+  el('splash').style.display = 'flex';
+
+  // Load A-Frame + MindAR
+  try {
+    await loadScript('https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js');
+    setSplashStatus('Loading MindAR…');
+    await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/aframe-extras@7.0.0/dist/aframe-extras.min.js');
+  } catch (e) {
+    showError('Script load failed', 'Could not load AR libraries. Check your internet connection.');
+    return;
+  }
+
+  setSplashStatus('Initialising scene…');
+  buildAFrameScene();
+}
+
+function buildAFrameScene() {
+  const scale = APP.scale || 1;
+  const yPos  = APP.yPos  || 0;
+  const sc    = `${scale} ${scale} ${scale}`;
+  const pos   = `0 ${yPos} 0`;
+
+  let animAttr = '';
+  if (APP.defaultAnimation && APP.loopMode !== 'none') {
+    const loop = APP.loopMode === 'repeat' ? 'repeat' : 'once';
+    animAttr = `animation-mixer="clip: ${APP.defaultAnimation}; loop: ${loop}; crossFadeDuration: 0.4"`;
+  } else if (APP.loopMode !== 'none' && APP.animations && APP.animations.length > 0) {
+    animAttr = `animation-mixer="clip: *; loop: repeat; crossFadeDuration: 0.4"`;
+  }
+
+  const mindarAttr = [
+    `imageTargetSrc: ${APP.mindUrl};`,
+    `autoStart: true;`,
+    `uiLoading: yes;`,
+    `uiScanning: yes;`,
+    `uiError: yes;`,
+  ].join(' ');
+
+  const html = `
+    <a-scene
+      mindar-image="${mindarAttr}"
+      color-space="sRGB"
+      renderer="colorManagement: true; physicallyCorrectLights: true;"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+      style="width:100%;height:100vh">
+
+      <a-assets timeout="30000">
+        <a-asset-item id="ar-model" src="${APP.glbUrl}"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity mindar-image-target="targetIndex: 0" id="ar-target">
+        <a-gltf-model
+          id="ar-gltf"
+          src="#ar-model"
+          position="${pos}"
+          scale="${sc}"
+          ${animAttr}>
+        </a-gltf-model>
+      </a-entity>
+    </a-scene>`;
+
+  const container = el('ar-container');
+  container.innerHTML = html;
+  container.classList.add('show');
+
+  // Wait for scene ready
+  const scene = container.querySelector('a-scene');
+  arScene = scene;
+
+  scene.addEventListener('loaded', () => {
+    hideSplash();
+    showARUI();
+    setupAREvents(scene);
+    buildAnimBar();
+  });
+
+  // Fallback if loaded event doesn't fire
+  setTimeout(() => {
+    if (el('splash').style.display !== 'none') {
+      hideSplash();
+      showARUI();
+    }
+  }, 8000);
+}
+
+function setupAREvents(scene) {
+  const target = scene.querySelector('#ar-target');
+  if (!target) return;
+
+  target.addEventListener('targetFound', () => {
+    el('scan-hint').classList.add('hidden');
+    el('scan-frame').classList.add('hidden');
+  });
+
+  target.addEventListener('targetLost', () => {
+    el('scan-hint').classList.remove('hidden');
+    el('scan-frame').classList.remove('hidden');
+  });
+}
+
+function buildAnimBar() {
+  const bar = el('anim-bar');
+  bar.innerHTML = '';
+  if (!APP.animations || APP.animations.length < 2) return;
+
+  APP.animations.forEach((name, i) => {
+    const pill = document.createElement('button');
+    pill.className = 'anim-pill' + (name === APP.defaultAnimation ? ' active' : '');
+    pill.textContent = name;
+    pill.onclick = () => {
+      playAnim(name);
+      bar.querySelectorAll('.anim-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    };
+    bar.appendChild(pill);
+  });
+}
+
+function playAnim(clipName) {
+  if (!arScene) return;
+  const model = arScene.querySelector('#ar-gltf');
+  if (!model) return;
+  const loop = APP.loopMode === 'once' ? 'once' : 'repeat';
+  model.setAttribute('animation-mixer', `clip: ${clipName}; loop: ${loop}; crossFadeDuration: 0.4`);
+}
+
+function showARUI() {
+  el('ar-ui').classList.add('show');
+}
+
+function exitAR() {
+  if (arScene) {
+    try { arScene.systems['mindar-image-system']?.stop(); } catch(e) {}
+  }
+  el('ar-container').classList.remove('show');
+  el('ar-container').innerHTML = '';
+  el('ar-ui').classList.remove('show');
+
+  // Show iOS screen again if iOS + USDZ
+  if (isIOS() && APP && APP.usdzUrl) {
+    showIOSScreen();
+  } else {
+    location.reload();
+  }
+}
+
+// ─── Firebase config ──────────────────────────────────────
+function getFirebaseConfig() {
+  const w = window.AR_FIREBASE_CONFIG;
+  if (w && w.apiKey && !w.apiKey.includes('YOUR_')) return w;
+  const ls = localStorage.getItem('4e-ar-fb');
+  if (ls) { try { return JSON.parse(ls); } catch(e) {} }
+  return null;
+}
+
+// ─── UI helpers ───────────────────────────────────────────
+function hideSplash() {
+  const s = el('splash');
+  s.classList.add('fade');
+  setTimeout(() => s.style.display = 'none', 500);
+}
+
+function setSplashStatus(msg) {
+  el('splash-status').textContent = msg;
+}
+
+function showError(title, msg) {
+  el('splash').style.display = 'none';
+  el('err-title').textContent = title;
+  el('err-msg').textContent = msg;
+  el('error-screen').classList.add('show');
+}
+
+// ─── Utils ────────────────────────────────────────────────
+const el = id => document.getElementById(id);
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => rej(new Error('Failed to load: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+// ─── Boot ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

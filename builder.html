@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E AR Studio — Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- Storage handled via GitHub API -->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#060a18;--navy2:#0b1025;--navy3:#101830;--navy4:#151e3a;
+  --glass:rgba(255,255,255,0.04);--glass2:rgba(255,255,255,0.07);
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --purple:#8b5cf6;--purple2:#a78bfa;--purple3:rgba(139,92,246,0.15);
+  --cyan:#22d3ee;--cyan2:rgba(34,211,238,0.12);
+  --orange:#fb923c;--orange2:rgba(251,146,60,0.12);
+  --green:#34d399;--green2:rgba(52,211,153,0.12);
+  --red:#f87171;--text:#e2e8f0;--muted:#8899b0;--faint:#3d4f6a;
+}
+html{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh}
+body{
+  min-height:100vh;
+  background:
+    radial-gradient(ellipse 70% 45% at 15% 0%, rgba(139,92,246,0.11) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 40% at 85% 90%, rgba(34,211,238,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(139,92,246,0.03) 0%, transparent 60%),
+    var(--navy);
+  background-attachment:fixed;
+}
+
+/* ─── Layout ─────────────────────────────────────────────── */
+.wrap{max-width:720px;margin:0 auto;padding:2rem 1.25rem 6rem}
+
+/* ─── Header ─────────────────────────────────────────────── */
+.header{display:flex;align-items:center;gap:.85rem;margin-bottom:2.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.logo{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,var(--purple) 0%,#6366f1 50%,var(--cyan) 100%);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;box-shadow:0 0 20px rgba(139,92,246,0.3)}
+.header-text h1{font-size:1.25rem;font-weight:800;letter-spacing:-.02em}
+.header-text h1 span{background:linear-gradient(90deg,var(--purple2),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-text p{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--muted);margin-top:.15rem}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:.6rem}
+.fb-status{display:flex;align-items:center;gap:.45rem;font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted)}
+.fb-dot{width:7px;height:7px;border-radius:50%;background:var(--faint);transition:all .3s}
+.fb-dot.ok{background:var(--green);box-shadow:0 0 8px rgba(52,211,153,0.5)}
+.fb-dot.err{background:var(--red)}
+.cfg-btn{background:var(--glass);border:1px solid var(--border);color:var(--muted);padding:.38rem .8rem;border-radius:7px;cursor:pointer;font-family:'Space Mono',monospace;font-size:.68rem;transition:all .2s;white-space:nowrap}
+.cfg-btn:hover{border-color:var(--border2);color:var(--text)}
+
+/* ─── Step nav ───────────────────────────────────────────── */
+.steps{display:flex;gap:0;margin-bottom:2.5rem;position:relative}
+.steps::before{content:'';position:absolute;top:13px;left:16px;right:16px;height:1px;background:var(--border);z-index:0}
+.step-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:.45rem;cursor:pointer;position:relative;z-index:1}
+.step-num{width:27px;height:27px;border-radius:50%;border:1.5px solid var(--border);background:var(--navy3);display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:.65rem;transition:all .3s;color:var(--faint)}
+.step-label{font-family:'Space Mono',monospace;font-size:.6rem;color:var(--faint);text-transform:uppercase;letter-spacing:.07em;transition:color .3s}
+.step-item.active .step-num{border-color:var(--purple);background:rgba(139,92,246,.18);color:var(--purple2)}
+.step-item.active .step-label{color:var(--muted)}
+.step-item.done .step-num{border-color:var(--green);background:rgba(52,211,153,.15);color:var(--green)}
+.step-item.done .step-label{color:rgba(52,211,153,.6)}
+
+/* ─── Cards ──────────────────────────────────────────────── */
+.card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.65rem;margin-bottom:1rem;transition:border-color .25s}
+.card.active-card{border-color:rgba(139,92,246,.25);background:rgba(139,92,246,.02)}
+.card-head{display:flex;align-items:flex-start;gap:.7rem;margin-bottom:1.5rem}
+.card-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.ico-p{background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.22)}
+.ico-c{background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.18)}
+.ico-o{background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.18)}
+.ico-g{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.18)}
+.card-title{font-size:1rem;font-weight:700;margin-bottom:.2rem}
+.card-sub{font-size:.8rem;color:var(--muted)}
+
+/* ─── Form ───────────────────────────────────────────────── */
+.frow{margin-bottom:1.1rem}
+.frow:last-child{margin-bottom:0}
+.flabel{display:block;font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.45rem}
+.finput{width:100%;background:var(--navy3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:.6rem .9rem;font-size:.88rem;font-family:'Syne',sans-serif;outline:none;transition:border-color .2s}
+.finput:focus{border-color:rgba(139,92,246,.45)}
+.fnote{font-family:'Space Mono',monospace;font-size:.66rem;color:var(--faint);margin-top:.4rem}
+select.finput option{background:var(--navy3)}
+.frow-2{display:grid;grid-template-columns:1fr 1fr;gap:.85rem}
+
+/* ─── Toggle buttons ─────────────────────────────────────── */
+.tbgroup{display:flex;gap:.45rem;flex-wrap:wrap}
+.tbtn{background:var(--navy3);border:1.5px solid var(--border);border-radius:8px;padding:.5rem 1rem;font-family:'Space Mono',monospace;font-size:.73rem;color:var(--muted);cursor:pointer;transition:all .2s;user-select:none}
+.tbtn:hover{border-color:var(--border2);color:var(--text)}
+.tbtn.active{background:var(--purple3);border-color:var(--purple);color:var(--purple2)}
+.tbtn.active-cyan{background:var(--cyan2);border-color:var(--cyan);color:var(--cyan)}
+.tbtn.active-green{background:var(--green2);border-color:var(--green);color:var(--green)}
+.tbtn.soon{opacity:.35;pointer-events:none;position:relative}
+.tbtn.soon::after{content:'soon';position:absolute;top:3px;right:3px;font-size:.5rem;color:var(--orange);background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.2);border-radius:3px;padding:1px 4px}
+
+/* ─── Drop zones ─────────────────────────────────────────── */
+.dropzone{border:2px dashed var(--border);border-radius:12px;padding:2.25rem 1.5rem;text-align:center;cursor:pointer;transition:all .25s;position:relative;user-select:none}
+.dropzone:hover,.dropzone.drag{border-color:rgba(139,92,246,.4);background:rgba(139,92,246,.03)}
+.dropzone.has-file{border-style:solid;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.03)}
+.drop-ico{font-size:1.8rem;display:block;margin-bottom:.6rem;line-height:1}
+.drop-text{font-size:.84rem;color:var(--muted);margin-bottom:.3rem}
+.drop-hint{font-family:'Space Mono',monospace;font-size:.66rem;color:var(--faint)}
+.drop-name{font-family:'Space Mono',monospace;font-size:.72rem;color:var(--green);margin-top:.5rem}
+
+/* ─── Progress ───────────────────────────────────────────── */
+.prog-wrap{margin-top:1rem;display:none}
+.prog-wrap.show{display:block}
+.prog-top{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted);margin-bottom:.4rem}
+.prog-track{background:var(--navy4);border-radius:100px;height:5px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--cyan));border-radius:100px;transition:width .15s;width:0%}
+.prog-fill.done{background:var(--green)}
+
+/* ─── 3D Preview ─────────────────────────────────────────── */
+.preview-3d{width:100%;height:200px;border-radius:10px;border:1px solid var(--border);background:var(--navy3);margin-top:.9rem;position:relative;overflow:hidden;display:none}
+.preview-3d canvas{width:100%;height:100%}
+.preview-hint{position:absolute;bottom:.5rem;left:50%;transform:translateX(-50%);font-family:'Space Mono',monospace;font-size:.6rem;color:var(--faint);white-space:nowrap;pointer-events:none}
+.preview-img{max-width:180px;max-height:140px;border-radius:8px;border:1px solid var(--border);display:block;margin:.85rem auto 0}
+
+/* ─── Anim chips ─────────────────────────────────────────── */
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.65rem}
+.chip{padding:.3rem .65rem;border-radius:6px;border:1.5px solid var(--border);background:var(--navy3);font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted);cursor:pointer;transition:all .2s}
+.chip:hover{border-color:var(--border2)}
+.chip.sel{border-color:var(--cyan);color:var(--cyan);background:var(--cyan2)}
+
+/* ─── Sliders ────────────────────────────────────────────── */
+.slider-row{display:flex;align-items:center;gap:.85rem}
+.slider-val{font-family:'Space Mono',monospace;font-size:.78rem;color:var(--purple2);min-width:3.2rem;text-align:right}
+input[type=range]{-webkit-appearance:none;flex:1;height:3px;background:var(--navy4);border-radius:100px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--purple);cursor:pointer;box-shadow:0 0 6px rgba(139,92,246,.4)}
+.slider-lim{font-family:'Space Mono',monospace;font-size:.63rem;color:var(--faint)}
+
+/* ─── Publish button ─────────────────────────────────────── */
+.pub-btn{display:block;width:100%;padding:.9rem 2rem;background:linear-gradient(135deg,var(--purple),#6366f1 60%,#5b55f5);border:none;border-radius:11px;color:#fff;font-family:'Syne',sans-serif;font-size:.95rem;font-weight:700;cursor:pointer;transition:all .22s;margin-top:1.5rem;box-shadow:0 4px 20px rgba(139,92,246,.25);letter-spacing:.01em}
+.pub-btn:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(139,92,246,.38)}
+.pub-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.sec-btn{display:block;width:100%;padding:.7rem 1.5rem;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-size:.88rem;cursor:pointer;transition:all .2s;margin-top:.65rem}
+.sec-btn:hover{border-color:var(--border2);color:var(--text)}
+.nav-row{display:flex;gap:.75rem;margin-top:1.5rem}
+.nav-row .back{flex:0 0 auto;background:var(--glass);border:1px solid var(--border);border-radius:9px;padding:.6rem 1.1rem;color:var(--muted);font-family:'Space Mono',monospace;font-size:.75rem;cursor:pointer;transition:all .2s}
+.nav-row .back:hover{border-color:var(--border2);color:var(--text)}
+.nav-row .next{flex:1}
+
+/* ─── Upload steps ───────────────────────────────────────── */
+.upload-list{margin:1.1rem 0;display:none}
+.upload-list.show{display:block}
+.upl-row{display:flex;align-items:center;gap:.7rem;padding:.55rem 0;border-bottom:1px solid var(--border);font-size:.82rem}
+.upl-row:last-child{border-bottom:none}
+.upl-ico{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.62rem;flex-shrink:0;transition:all .3s;color:var(--faint)}
+.upl-ico.loading{border-color:var(--purple);color:var(--purple);animation:spin .7s linear infinite}
+.upl-ico.done{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.1);animation:none}
+.upl-ico.err{border-color:var(--red);color:var(--red);animation:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Summary block ──────────────────────────────────────── */
+.summary{background:var(--navy3);border:1px solid var(--border);border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.1rem}
+.sum-row{display:flex;justify-content:space-between;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.82rem}
+.sum-row:last-child{border-bottom:none}
+.sum-k{font-family:'Space Mono',monospace;font-size:.67rem;color:var(--muted)}
+.sum-v{color:var(--text);max-width:60%;text-align:right;font-size:.8rem;word-break:break-all}
+
+/* ─── Result card ────────────────────────────────────────── */
+.result{background:linear-gradient(145deg,rgba(139,92,246,.09),rgba(34,211,238,.05));border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:2rem;text-align:center;margin-top:1rem}
+.result-emoji{font-size:2.5rem;display:block;margin-bottom:.65rem}
+.result-title{font-size:1.35rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.3rem}
+.result-sub{font-size:.82rem;color:var(--muted);margin-bottom:1.75rem}
+.qr-box{display:inline-block;padding:.9rem;background:#fff;border-radius:13px;margin-bottom:1.4rem;line-height:0}
+.url-box{background:var(--navy3);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;font-family:'Space Mono',monospace;font-size:.73rem;color:var(--cyan);word-break:break-all;text-align:left;margin-bottom:.9rem;cursor:pointer;transition:border-color .2s}
+.url-box:hover{border-color:var(--border2)}
+.url-btns{display:flex;gap:.55rem;justify-content:center;flex-wrap:wrap}
+.url-btn{background:var(--glass2);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.1rem;color:var(--text);font-family:'Space Mono',monospace;font-size:.73rem;cursor:pointer;transition:all .2s}
+.url-btn:hover{border-color:var(--border2)}
+.url-btn.pri{background:rgba(139,92,246,.18);border-color:var(--purple);color:var(--purple2)}
+
+/* ─── Badge ──────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:.2rem .55rem;border-radius:100px;font-family:'Space Mono',monospace;font-size:.63rem}
+.badge-p{background:rgba(139,92,246,.14);border:1px solid rgba(139,92,246,.28);color:var(--purple2)}
+.badge-c{background:rgba(34,211,238,.09);border:1px solid rgba(34,211,238,.22);color:var(--cyan)}
+.badge-o{background:rgba(251,146,60,.09);border:1px solid rgba(251,146,60,.22);color:var(--orange)}
+.badge-g{background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.22);color:var(--green)}
+
+/* ─── Toast ──────────────────────────────────────────────── */
+.toast{position:fixed;bottom:1.75rem;right:1.75rem;background:var(--navy2);border:1px solid var(--border2);border-radius:9px;padding:.65rem 1.1rem;font-size:.82rem;z-index:500;transform:translateY(80px);opacity:0;transition:all .28s;pointer-events:none;max-width:280px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.ok{border-color:rgba(52,211,153,.35);color:var(--green)}
+.toast.err{border-color:rgba(248,113,113,.35);color:var(--red)}
+
+/* ─── Config modal ───────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(6,10,24,.88);backdrop-filter:blur(10px);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+.overlay.hidden{display:none}
+.modal{background:var(--navy2);border:1px solid var(--border2);border-radius:20px;padding:2rem;max-width:500px;width:100%;max-height:92vh;overflow-y:auto}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:.35rem;display:flex;align-items:center;gap:.55rem}
+.modal-sub{color:var(--muted);font-size:.8rem;margin-bottom:1.65rem;line-height:1.6}
+.modal-sub a{color:var(--cyan);text-decoration:none}
+.modal-save{width:100%;padding:.72rem;background:linear-gradient(135deg,var(--purple),#6366f1);border:none;border-radius:9px;color:#fff;font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer;margin-top:.4rem}
+.modal-cancel{width:100%;padding:.62rem;background:none;border:1px solid var(--border);border-radius:9px;color:var(--muted);font-family:'Syne',sans-serif;font-size:.85rem;cursor:pointer;margin-top:.5rem}
+
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- Firebase Config Modal -->
+<div class="overlay" id="cfg-modal">
+  <div class="modal">
+    <div class="modal-title">🔥 Firebase Setup</div>
+    <div class="modal-sub">
+      Paste your Firebase Web App credentials below.<br>
+      <a href="https://console.firebase.google.com" target="_blank">Create a free Firebase project →</a><br>
+      Console → Project Settings → Your Apps → Add Web App
+    </div>
+    <div class="frow">
+      <label class="flabel">API Key</label>
+      <input class="finput" id="ci-key" placeholder="AIzaSy...">
+    </div>
+    <div class="frow">
+      <label class="flabel">Auth Domain</label>
+      <input class="finput" id="ci-auth" placeholder="your-project.firebaseapp.com">
+    </div>
+    <div class="frow-2">
+      <div class="frow">
+        <label class="flabel">Project ID</label>
+        <input class="finput" id="ci-pid" placeholder="your-project-id">
+      </div>
+      <div class="frow">
+        <label class="flabel">Storage Bucket</label>
+        <input class="finput" id="ci-bucket" placeholder="your-project.appspot.com">
+      </div>
+    </div>
+    <div class="frow-2">
+      <div class="frow">
+        <label class="flabel">Messaging Sender ID</label>
+        <input class="finput" id="ci-msid" placeholder="123456789">
+      </div>
+      <div class="frow">
+        <label class="flabel">App ID</label>
+        <input class="finput" id="ci-appid" placeholder="1:123:web:abc...">
+      </div>
+    </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1)">
+      <label class="flabel" style="color:var(--cyan)">GitHub Token (for asset uploads)</label>
+      <input class="finput" id="ci-ghtoken" type="password" placeholder="ghp_xxxxx... (repo scope)">
+      <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:4px">
+        Create at github.com/settings/tokens → Fine-grained → repo Contents read/write
+      </div>
+    </div>
+    <button class="modal-save" onclick="saveConfig()">Save &amp; Connect</button>
+    <button class="modal-cancel hidden" id="cfg-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">◈</div>
+    <div class="header-text">
+      <h1>4E <span>AR Studio</span></h1>
+      <p>Build · Deploy · Experience</p>
+    </div>
+    <div class="header-right">
+      <div class="fb-status">
+        <div class="fb-dot" id="fb-dot"></div>
+        <span id="fb-label">Not connected</span>
+      </div>
+      <button class="cfg-btn" onclick="openModal()">⚙ Settings</button>
+    </div>
+  </div>
+
+  <!-- Step nav -->
+  <div class="steps">
+    <div class="step-item active" id="si-1" onclick="tryGoTo(1)"><div class="step-num" id="sn-1">01</div><div class="step-label">Basics</div></div>
+    <div class="step-item" id="si-2" onclick="tryGoTo(2)"><div class="step-num" id="sn-2">02</div><div class="step-label">Target</div></div>
+    <div class="step-item" id="si-3" onclick="tryGoTo(3)"><div class="step-num" id="sn-3">03</div><div class="step-label">Model</div></div>
+    <div class="step-item" id="si-4" onclick="tryGoTo(4)"><div class="step-num" id="sn-4">04</div><div class="step-label">Settings</div></div>
+    <div class="step-item" id="si-5" onclick="tryGoTo(5)"><div class="step-num" id="sn-5">05</div><div class="step-label">Publish</div></div>
+  </div>
+
+  <!-- ─── STEP 1: Basics ─────────────────────────────────── -->
+  <div id="s1">
+    <div class="card active-card">
+      <div class="card-head">
+        <div class="card-ico ico-p">✦</div>
+        <div><div class="card-title">App Basics</div><div class="card-sub">Name your experience and choose a tracking mode</div></div>
+      </div>
+      <div class="frow">
+        <label class="flabel">Experience Name</label>
+        <input class="finput" id="app-name" placeholder="e.g. Dún na Sí Heritage Trail" maxlength="60">
+        <div class="fnote">This appears as the title on the AR player screen</div>
+      </div>
+      <div class="frow" style="margin-top:1.1rem">
+        <label class="flabel">Tracking Mode</label>
+        <div class="tbgroup">
+          <button class="tbtn active" id="m-img" onclick="setMode('image')">📷 Image Target</button>
+          <button class="tbtn soon" id="m-slam">🌐 SLAM / Surface</button>
+        </div>
+        <div class="fnote" id="mode-note" style="margin-top:.5rem">AR activates when the camera sees your target image</div>
+      </div>
+      <button class="pub-btn" onclick="step1Next()">Continue →</button>
+    </div>
+  </div>
+
+  <!-- ─── STEP 2: Image Target ───────────────────────────── -->
+  <div id="s2" class="hidden">
+    <div class="card active-card">
+      <div class="card-head">
+        <div class="card-ico ico-c">◎</div>
+        <div><div class="card-title">Image Target</div><div class="card-sub">Upload the image that will trigger your AR experience</div></div>
+      </div>
+
+      <div class="dropzone" id="img-drop" onclick="pick('img-input')">
+        <input type="file" id="img-input" accept="image/png,image/jpeg" style="display:none" onchange="handleImg(this.files[0])">
+        <span class="drop-ico">🎯</span>
+        <div class="drop-text">Drop your target image here</div>
+        <div class="drop-hint">PNG or JPG · High contrast · Avoid repeating textures</div>
+        <div class="drop-name hidden" id="img-name"></div>
+      </div>
+
+      <img id="img-prev" class="preview-img hidden" alt="Target preview">
+
+      <div class="prog-wrap" id="compile-prog">
+        <div class="prog-top"><span id="compile-msg">Compiling image target…</span><span id="compile-pct">0%</span></div>
+        <div class="prog-track"><div class="prog-fill" id="compile-bar"></div></div>
+      </div>
+
+      <div id="compile-ok" class="hidden" style="margin-top:.85rem">
+        <span class="badge badge-g">✓ Target compiled successfully</span>
+      </div>
+
+      <div id="img-tip" class="fnote" style="margin-top:.9rem;line-height:1.7">
+        💡 <strong>Best results:</strong> Rich textures (photos, posters, logos), high contrast, not too symmetric.<br>
+        Avoid plain colours, very dark images, or repeating patterns.
+      </div>
+
+      <div class="nav-row">
+        <button class="back" onclick="goTo(1)">← Back</button>
+        <button class="pub-btn next" id="s2-next" disabled onclick="goTo(3)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── STEP 3: 3D Model ───────────────────────────────── -->
+  <div id="s3" class="hidden">
+    <div class="card active-card">
+      <div class="card-head">
+        <div class="card-ico ico-o">◈</div>
+        <div><div class="card-title">3D Model</div><div class="card-sub">Upload your GLB model. USDZ is optional for native iOS AR.</div></div>
+      </div>
+
+      <!-- GLB -->
+      <div class="frow">
+        <label class="flabel">GLB Model <span class="badge badge-p" style="margin-left:.4rem">Required</span></label>
+        <div class="dropzone" id="glb-drop" onclick="pick('glb-input')">
+          <input type="file" id="glb-input" accept=".glb,.gltf" style="display:none" onchange="handleGLB(this.files[0])">
+          <span class="drop-ico">🧊</span>
+          <div class="drop-text">Drop your GLB or GLTF file</div>
+          <div class="drop-hint">Binary GLB preferred · Embedded textures · Up to 50 MB</div>
+          <div class="drop-name hidden" id="glb-name"></div>
+        </div>
+      </div>
+
+      <div class="preview-3d" id="preview3d"><canvas id="prev-canvas"></canvas><div class="preview-hint">Drag to orbit · Scroll to zoom</div></div>
+
+      <div id="anim-section" class="hidden" style="margin-top:1rem">
+        <label class="flabel">Detected Animations <span id="anim-badge"></span></label>
+        <div class="chips" id="anim-chips"></div>
+        <div class="fnote" style="margin-top:.4rem">Click to set as default · None plays the model static</div>
+      </div>
+
+      <!-- USDZ -->
+      <div class="frow" style="margin-top:1.5rem">
+        <label class="flabel">USDZ Model <span class="badge badge-o" style="margin-left:.4rem">Optional · iOS AR Quick Look</span></label>
+        <div class="dropzone" id="usdz-drop" onclick="pick('usdz-input')">
+          <input type="file" id="usdz-input" accept=".usdz,.reality" style="display:none" onchange="handleUSDZ(this.files[0])">
+          <span class="drop-ico">🍎</span>
+          <div class="drop-text">Drop USDZ for native iOS ARKit</div>
+          <div class="drop-hint">iPhone &amp; iPad get full native AR Quick Look · No WebAR needed</div>
+          <div class="drop-name hidden" id="usdz-name"></div>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="back" onclick="goTo(2)">← Back</button>
+        <button class="pub-btn next" id="s3-next" disabled onclick="goTo(4)">Continue →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── STEP 4: Settings ───────────────────────────────── -->
+  <div id="s4" class="hidden">
+    <div class="card active-card">
+      <div class="card-head">
+        <div class="card-ico ico-g">◐</div>
+        <div><div class="card-title">Configure</div><div class="card-sub">Adjust scale, position, and animation playback</div></div>
+      </div>
+
+      <div class="frow">
+        <label class="flabel">Model Scale</label>
+        <div class="slider-row">
+          <span class="slider-lim">0.1×</span>
+          <input type="range" id="sl-scale" min="0.1" max="5" step="0.05" value="1" oninput="S.scale=+this.value;el('sv-scale').textContent=S.scale.toFixed(2)+'×'">
+          <span class="slider-lim">5×</span>
+          <span class="slider-val" id="sv-scale">1.00×</span>
+        </div>
+        <div class="fnote">Start at 1× and test in AR first</div>
+      </div>
+
+      <div class="frow" style="margin-top:1.1rem">
+        <label class="flabel">Y Position Offset</label>
+        <div class="slider-row">
+          <span class="slider-lim">−1</span>
+          <input type="range" id="sl-ypos" min="-1" max="1" step="0.05" value="0" oninput="S.yPos=+this.value;el('sv-ypos').textContent=S.yPos.toFixed(2)">
+          <span class="slider-lim">+1</span>
+          <span class="slider-val" id="sv-ypos">0.00</span>
+        </div>
+        <div class="fnote">Shift model up/down relative to the image target</div>
+      </div>
+
+      <div class="frow" style="margin-top:1.1rem">
+        <label class="flabel">Default Animation</label>
+        <select class="finput" id="sel-anim" onchange="S.defaultAnimation=this.value">
+          <option value="">— None (static model) —</option>
+        </select>
+        <div class="fnote" id="sel-anim-note">No animations detected</div>
+      </div>
+
+      <div class="frow" style="margin-top:1.1rem">
+        <label class="flabel">Animation Loop</label>
+        <div class="tbgroup">
+          <button class="tbtn active" id="lp-repeat" onclick="setLoop('repeat')">↻ Loop</button>
+          <button class="tbtn" id="lp-once" onclick="setLoop('once')">▶ Once</button>
+          <button class="tbtn" id="lp-none" onclick="setLoop('none')">⏸ Static</button>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <button class="back" onclick="goTo(3)">← Back</button>
+        <button class="pub-btn next" onclick="goTo(5)">Review &amp; Publish →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── STEP 5: Publish ────────────────────────────────── -->
+  <div id="s5" class="hidden">
+    <div class="card active-card" id="s5-card">
+      <div class="card-head">
+        <div class="card-ico ico-p">◈</div>
+        <div><div class="card-title">Publish Experience</div><div class="card-sub">Review and upload your AR app to Firebase</div></div>
+      </div>
+      <div class="summary" id="pub-summary"></div>
+      <div class="upload-list" id="upload-list">
+        <div class="upl-row"><div class="upl-ico" id="ui-mind">○</div><span>Uploading image target (.mind)</span></div>
+        <div class="upl-row"><div class="upl-ico" id="ui-glb">○</div><span>Uploading 3D model (.glb)</span></div>
+        <div class="upl-row hidden" id="ui-usdz-row"><div class="upl-ico" id="ui-usdz">○</div><span>Uploading iOS model (.usdz)</span></div>
+        <div class="upl-row"><div class="upl-ico" id="ui-doc">○</div><span>Creating app record in Firestore</span></div>
+      </div>
+      <button class="pub-btn" id="pub-btn" onclick="publish()">🚀 Publish Experience</button>
+      <button class="sec-btn" onclick="goTo(4)">← Back to Settings</button>
+    </div>
+
+    <!-- Result -->
+    <div class="result hidden" id="result">
+      <span class="result-emoji">🎉</span>
+      <div class="result-title" id="r-name"></div>
+      <div class="result-sub">Live and ready to scan.</div>
+      <div class="qr-box"><div id="qr"></div></div>
+      <div class="url-box" id="r-url" onclick="copyURL()"></div>
+      <div class="url-btns">
+        <button class="url-btn" onclick="copyURL()">📋 Copy URL</button>
+        <button class="url-btn pri" onclick="openPlayer()">▶ Open Player</button>
+        <button class="url-btn" onclick="location.reload()">+ New App</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ─── State ────────────────────────────────────────────────
+const S = {
+  step:1, name:'', mode:'image',
+  imgFile:null, mindBuffer:null,
+  glbFile:null, glbAnims:[], defaultAnimation:'',
+  usdzFile:null,
+  scale:1, yPos:0, loopMode:'repeat',
+  appId:null, appUrl:null
+};
+
+// ─── Firebase + GitHub ────────────────────────────────────
+let db, fbReady=false;
+
+function getGHConfig() {
+  const w = window.AR_GITHUB_CONFIG || {};
+  const ls = localStorage.getItem('4e-ar-gh-token');
+  return {
+    owner:  w.owner  || 'Sean4E',
+    repo:   w.repo   || '4e-ar-studio',
+    branch: w.branch || 'main',
+    token:  w.token  || ls || ''
+  };
+}
+
+async function ghUploadFile(path, content, isBase64=true) {
+  const gh = getGHConfig();
+  if (!gh.token) throw new Error('GitHub token not set — open Settings');
+  const url = `https://api.github.com/repos/${gh.owner}/${gh.repo}/contents/${path}`;
+  // Check if file exists (for SHA)
+  let sha;
+  try {
+    const existing = await fetch(url, { headers: { Authorization: `token ${gh.token}` } });
+    if (existing.ok) { sha = (await existing.json()).sha; }
+  } catch(e) {}
+  const body = { message: `Upload ${path}`, content: isBase64 ? content : btoa(content), branch: gh.branch };
+  if (sha) body.sha = sha;
+  const resp = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `token ${gh.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    const err = await resp.json();
+    throw new Error(`GitHub upload failed: ${err.message || resp.statusText}`);
+  }
+  // Return raw GitHub Pages URL
+  return `https://${gh.owner}.github.io/${gh.repo}/${path}`;
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+async function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(btoa(new Uint8Array(reader.result).reduce((s,b)=>s+String.fromCharCode(b),'')));
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function loadConfig() {
+  const w = window.AR_FIREBASE_CONFIG;
+  if (w && w.apiKey && !w.apiKey.includes('YOUR_')) { initFB(w); return; }
+  const ls = localStorage.getItem('4e-ar-fb');
+  if (ls) { try { initFB(JSON.parse(ls)); return; } catch(e){} }
+  openModal();
+}
+
+function initFB(cfg) {
+  try {
+    if (firebase.apps.length) firebase.app().delete();
+    firebase.initializeApp(cfg);
+    db = firebase.firestore();
+    fbReady = true;
+    el('fb-dot').className='fb-dot ok';
+    el('fb-label').textContent='Connected';
+    toast('Firebase connected ✓','ok');
+  } catch(e) {
+    el('fb-dot').className='fb-dot err';
+    el('fb-label').textContent='Error';
+    toast('Firebase: '+e.message,'err');
+  }
+}
+
+function saveConfig() {
+  const cfg={
+    apiKey:v('ci-key'),authDomain:v('ci-auth'),projectId:v('ci-pid'),
+    storageBucket:v('ci-bucket'),messagingSenderId:v('ci-msid'),appId:v('ci-appid')
+  };
+  if(!cfg.apiKey||!cfg.projectId){toast('API Key and Project ID required','err');return;}
+  localStorage.setItem('4e-ar-fb',JSON.stringify(cfg));
+  // Save GitHub token
+  const ghToken = v('ci-ghtoken');
+  if (ghToken) localStorage.setItem('4e-ar-gh-token', ghToken);
+  initFB(cfg);
+  closeModal();
+}
+
+function openModal() {
+  const ls=localStorage.getItem('4e-ar-fb');
+  if(ls){try{const c=JSON.parse(ls);['key','auth','pid','bucket','msid','appid'].forEach((k,i)=>{const fk=['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'][i];const inp=document.getElementById('ci-'+k);if(inp&&c[fk])inp.value=c[fk];});el('cfg-cancel').classList.remove('hidden');}catch(e){}}
+  // Restore GitHub token
+  const ght = localStorage.getItem('4e-ar-gh-token');
+  if (ght) el('ci-ghtoken').value = ght;
+  el('cfg-modal').classList.remove('hidden');
+}
+function closeModal(){el('cfg-modal').classList.add('hidden');}
+
+// ─── Navigation ───────────────────────────────────────────
+function tryGoTo(n) {
+  if(n<=S.step||n===S.step+1) goTo(n);
+}
+
+function goTo(n, force=false) {
+  if(!force && n>S.step) {
+    if(S.step===1 && !v('app-name').trim()){toast('Enter a name first','err');return;}
+    if(S.step===2 && !S.mindBuffer){toast('Compile an image target first','err');return;}
+    if(S.step===3 && !S.glbFile){toast('Upload a GLB model first','err');return;}
+  }
+  S.name = v('app-name').trim();
+  S.step=n;
+  for(let i=1;i<=5;i++){
+    el('s'+i).classList.toggle('hidden',i!==n);
+    const si=el('si-'+i);
+    si.className='step-item'+(i<n?' done':i===n?' active':'');
+  }
+  if(n===5) buildSummary();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ─── Step 1 ───────────────────────────────────────────────
+function setMode(m) {
+  S.mode=m;
+  el('m-img').className='tbtn'+(m==='image'?' active':'');
+  el('mode-note').textContent=m==='image'
+    ?'AR activates when the camera sees your target image'
+    :'AR places content on detected surfaces (coming soon)';
+}
+
+function step1Next() {
+  if(!v('app-name').trim()){toast('Enter an experience name','err');return;}
+  goTo(2,true);
+}
+
+// ─── Step 2: Image Target ─────────────────────────────────
+async function handleImg(file) {
+  if(!file)return;
+  S.imgFile=file; S.mindBuffer=null;
+  el('s2-next').disabled=true;
+  el('img-drop').classList.add('has-file');
+  el('img-name').textContent='✓ '+file.name;
+  el('img-name').classList.remove('hidden');
+  const url=URL.createObjectURL(file);
+  el('img-prev').src=url;
+  el('img-prev').classList.remove('hidden');
+  el('img-tip').classList.add('hidden');
+  await compileMind(file);
+}
+
+async function compileMind(file) {
+  const prog=el('compile-prog'), bar=el('compile-bar'), pct=el('compile-pct'), msg=el('compile-msg');
+  prog.classList.add('show');
+  el('compile-ok').classList.add('hidden');
+  bar.style.width='0%';
+  bar.classList.remove('done');
+
+  if(!window.MINDAR?.IMAGE) {
+    msg.textContent='Loading compiler (~3MB)…';
+    await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js');
+  }
+  msg.textContent='Compiling image target…';
+  try {
+    const img = await fileToImg(file);
+    const compiler = new window.MINDAR.IMAGE.Compiler();
+    await compiler.compileImageTargets([img], p=>{
+      const pv=Math.round(p*100);
+      bar.style.width=pv+'%';
+      pct.textContent=pv+'%';
+    });
+    S.mindBuffer = await compiler.exportData();
+    bar.classList.add('done');
+    bar.style.width='100%';
+    pct.textContent='100%';
+    el('compile-ok').classList.remove('hidden');
+    el('s2-next').disabled=false;
+    toast('Image compiled ✓','ok');
+  } catch(e) {
+    toast('Compile failed: '+e.message,'err');
+  }
+}
+
+// ─── Step 3: GLB ──────────────────────────────────────────
+async function handleGLB(file) {
+  if(!file)return;
+  S.glbFile=file; S.glbAnims=[]; S.defaultAnimation='';
+  el('glb-drop').classList.add('has-file');
+  el('glb-name').textContent='✓ '+file.name+' ('+(file.size/1024/1024).toFixed(1)+' MB)';
+  el('glb-name').classList.remove('hidden');
+  el('s3-next').disabled=false;
+  el('preview3d').style.display='block';
+
+  if(!window.THREE){
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/loaders/GLTFLoader.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/controls/OrbitControls.js');
+  }
+  setupPreview(file);
+  detectAnims(file);
+}
+
+let rafId, previewRenderer;
+function setupPreview(file) {
+  const canvas=el('prev-canvas'), cont=el('preview3d');
+  if(rafId){cancelAnimationFrame(rafId);}
+  if(previewRenderer){previewRenderer.dispose();}
+  const w=cont.clientWidth, h=cont.clientHeight||200;
+  canvas.width=w; canvas.height=h;
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  previewRenderer=renderer;
+  renderer.setSize(w,h); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  const scene=new THREE.Scene();
+  const cam=new THREE.PerspectiveCamera(45,w/h,0.001,1000);
+  const ctrl=new THREE.OrbitControls(cam,canvas);
+  ctrl.enableDamping=true;
+  scene.add(new THREE.AmbientLight(0xffffff,0.9));
+  const dl=new THREE.DirectionalLight(0xffffff,1.4); dl.position.set(2,4,3); scene.add(dl);
+  const url=URL.createObjectURL(file);
+  new THREE.GLTFLoader().load(url,gltf=>{
+    URL.revokeObjectURL(url);
+    const model=gltf.scene;
+    const box=new THREE.Box3().setFromObject(model);
+    const c=box.getCenter(new THREE.Vector3()), sz=box.getSize(new THREE.Vector3());
+    const maxD=Math.max(sz.x,sz.y,sz.z), sc=2/maxD;
+    model.scale.setScalar(sc); model.position.sub(c.multiplyScalar(sc));
+    cam.position.set(0,sz.y*sc*0.4,maxD*sc*2.2);
+    ctrl.target.set(0,0,0); scene.add(model);
+    let mixer,clock;
+    if(gltf.animations.length){clock=new THREE.Clock();mixer=new THREE.AnimationMixer(model);mixer.clipAction(gltf.animations[0]).play();}
+    const tick=()=>{rafId=requestAnimationFrame(tick);mixer&&clock&&mixer.update(clock.getDelta());ctrl.update();renderer.render(scene,cam);};
+    tick();
+  });
+}
+
+function detectAnims(file) {
+  const url=URL.createObjectURL(file);
+  new THREE.GLTFLoader().load(url,gltf=>{
+    URL.revokeObjectURL(url);
+    S.glbAnims=gltf.animations.map(a=>a.name).filter(n=>n);
+    const sec=el('anim-section'), chips=el('anim-chips'), sel=el('sel-anim'), note=el('sel-anim-note');
+    sec.classList.remove('hidden');
+    chips.innerHTML='';
+    sel.innerHTML='<option value="">— None (static model) —</option>';
+    if(S.glbAnims.length){
+      el('anim-badge').innerHTML=`<span class="badge badge-c">${S.glbAnims.length} found</span>`;
+      S.glbAnims.forEach((name,i)=>{
+        const chip=document.createElement('div');
+        chip.className='chip'+(i===0?' sel':'');
+        chip.textContent=name;
+        chip.onclick=()=>{S.defaultAnimation=name;document.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));chip.classList.add('sel');sel.value=name;};
+        chips.appendChild(chip);
+        const opt=document.createElement('option');
+        opt.value=name;opt.textContent=name;if(i===0)opt.selected=true;
+        sel.appendChild(opt);
+      });
+      if(S.glbAnims.length){S.defaultAnimation=S.glbAnims[0];note.textContent=S.glbAnims.length+' animation'+(S.glbAnims.length>1?'s':'')+' detected';}
+    } else {
+      el('anim-badge').innerHTML='<span class="badge" style="background:rgba(61,79,106,.3);border-color:var(--faint);color:var(--faint)">None</span>';
+      chips.innerHTML='<span style="font-size:.78rem;color:var(--faint)">No animations — static model</span>';
+      note.textContent='No animations in this GLB';
+    }
+  });
+}
+
+function handleUSDZ(file) {
+  if(!file)return;
+  S.usdzFile=file;
+  el('usdz-drop').classList.add('has-file');
+  el('usdz-name').textContent='✓ '+file.name+' ('+(file.size/1024/1024).toFixed(1)+' MB)';
+  el('usdz-name').classList.remove('hidden');
+  toast('USDZ loaded — iOS users get native ARKit ✓','ok');
+}
+
+// ─── Step 4 ───────────────────────────────────────────────
+function setLoop(m) {
+  S.loopMode=m;
+  ['repeat','once','none'].forEach(k=>{
+    el('lp-'+k).className='tbtn'+(k===m?' active':'');
+  });
+}
+
+// ─── Step 5: Publish ──────────────────────────────────────
+function buildSummary() {
+  S.name=v('app-name').trim();
+  S.scale=+el('sl-scale').value;
+  S.yPos=+el('sl-ypos').value;
+  S.defaultAnimation=el('sel-anim').value;
+  if(S.usdzFile)el('ui-usdz-row').classList.remove('hidden');
+  const rows=[
+    ['Name',S.name||'—'],
+    ['Tracking',S.mode==='image'?'📷 Image Target':'🌐 SLAM'],
+    ['GLB Model',S.glbFile?S.glbFile.name:'—'],
+    ['USDZ (iOS)',S.usdzFile?S.usdzFile.name:'Not provided'],
+    ['Animations',S.glbAnims.length?S.glbAnims.slice(0,3).join(', ')+(S.glbAnims.length>3?'…':''):'None'],
+    ['Default Anim',S.defaultAnimation||'None'],
+    ['Scale',S.scale+'×'],
+    ['Loop Mode',S.loopMode],
+  ];
+  el('pub-summary').innerHTML=rows.map(([k,vl])=>
+    `<div class="sum-row"><span class="sum-k">${k}</span><span class="sum-v">${vl}</span></div>`
+  ).join('');
+}
+
+async function publish() {
+  if(!fbReady){toast('Connect Firebase first','err');openModal();return;}
+  if(!S.mindBuffer){toast('No compiled image target','err');return;}
+  if(!S.glbFile){toast('No GLB model','err');return;}
+  S.name=v('app-name').trim()||'AR Experience';
+
+  const btn=el('pub-btn');
+  btn.disabled=true; btn.textContent='Publishing…';
+  el('upload-list').classList.add('show');
+
+  const gh = getGHConfig();
+  if (!gh.token) { toast('Set GitHub token in Settings','err'); btn.disabled=false; btn.textContent='🚀 Publish Experience'; return; }
+
+  const appId=genId();
+  const base=`assets/${appId}`;
+  try {
+    setUS('mind','loading');
+    const mindB64 = arrayBufferToBase64(S.mindBuffer);
+    const mindUrl = await ghUploadFile(`${base}/target.mind`, mindB64);
+    setUS('mind','done');
+
+    setUS('glb','loading');
+    const glbB64 = await fileToBase64(S.glbFile);
+    const glbUrl = await ghUploadFile(`${base}/model.glb`, glbB64);
+    setUS('glb','done');
+
+    let usdzUrl=null;
+    if(S.usdzFile){
+      setUS('usdz','loading');
+      const usdzB64 = await fileToBase64(S.usdzFile);
+      usdzUrl = await ghUploadFile(`${base}/model.usdz`, usdzB64);
+      setUS('usdz','done');
+    }
+
+    setUS('doc','loading');
+    await db.collection('ar_apps').doc(appId).set({
+      name:S.name, trackingMode:S.mode,
+      mindUrl, glbUrl, usdzUrl,
+      animations:S.glbAnims, defaultAnimation:S.defaultAnimation,
+      loopMode:S.loopMode, scale:S.scale, yPos:S.yPos,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    setUS('doc','done');
+
+    S.appId=appId;
+    const base64=(window.AR_BASE_URL||window.location.origin).replace(/\/$/,'');
+    S.appUrl=base64+'/player.html?id='+appId;
+
+    el('s5-card').classList.add('hidden');
+    const res=el('result');
+    res.classList.remove('hidden');
+    el('r-name').textContent=S.name;
+    el('r-url').textContent=S.appUrl;
+    el('qr').innerHTML='';
+    new QRCode(el('qr'),{text:S.appUrl,width:192,height:192,colorDark:'#7c3aed',colorLight:'#ffffff'});
+
+  } catch(e) {
+    toast('Publish failed: '+e.message,'err');
+    btn.disabled=false; btn.textContent='🚀 Publish Experience';
+  }
+}
+
+function setUS(k,s){
+  const ico=el('ui-'+k);
+  ico.className='upl-ico '+s;
+  ico.textContent=s==='loading'?'◌':s==='done'?'✓':s==='err'?'✕':'○';
+}
+
+function copyURL(){navigator.clipboard.writeText(S.appUrl).then(()=>toast('URL copied ✓','ok'));}
+function openPlayer(){window.open(S.appUrl,'_blank');}
+
+// ─── Drag & Drop ──────────────────────────────────────────
+function setupDZ(id, handler) {
+  const el_=document.getElementById(id);
+  el_.addEventListener('dragover',e=>{e.preventDefault();el_.classList.add('drag');});
+  el_.addEventListener('dragleave',()=>el_.classList.remove('drag'));
+  el_.addEventListener('drop',e=>{e.preventDefault();el_.classList.remove('drag');if(e.dataTransfer.files[0])handler(e.dataTransfer.files[0]);});
+}
+
+// ─── Utils ────────────────────────────────────────────────
+const el=id=>document.getElementById(id);
+const v=id=>document.getElementById(id).value;
+function pick(id){document.getElementById(id).click();}
+function toast(msg,type=''){
+  const t=el('toast');t.textContent=msg;t.className='toast show'+(type?' '+type:'');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3200);
+}
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+function fileToImg(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i);};i.onerror=rej;i.src=u;});}
+
+// ─── Init ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  loadConfig();
+  setupDZ('img-drop', handleImg);
+  setupDZ('glb-drop', handleGLB);
+  setupDZ('usdz-drop', handleUSDZ);
+});
+</script>
+</body>
+</html>
