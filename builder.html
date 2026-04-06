@@ -545,10 +545,19 @@ async function fileToBase64(file) {
 
 function loadConfig() {
   const w = window.AR_FIREBASE_CONFIG;
-  if (w && w.apiKey && !w.apiKey.includes('YOUR_')) { initFB(w); return; }
-  const ls = localStorage.getItem('4e-ar-fb');
-  if (ls) { try { initFB(JSON.parse(ls)); return; } catch(e){} }
-  openModal();
+  if (w && w.apiKey && !w.apiKey.includes('YOUR_')) { initFB(w); }
+  else {
+    const ls = localStorage.getItem('4e-ar-fb');
+    if (ls) { try { initFB(JSON.parse(ls)); } catch(e){} }
+    else { toast('Firebase not configured — check config.js','err'); }
+  }
+  // Check GitHub token — prompt if missing
+  const gh = getGHConfig();
+  if (!gh.token) {
+    setTimeout(() => {
+      toast('GitHub token needed for publishing — click ⚙ Settings','warn');
+    }, 1500);
+  }
 }
 
 function initFB(cfg) {
