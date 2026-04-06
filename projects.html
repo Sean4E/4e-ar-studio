@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E AR Studio — Projects</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--bg2:#0f1424;--bg3:#141a2e;--bg4:#1a2038;
+  --border:#1e2844;--border2:#2a3456;
+  --text:#d4daf0;--muted:#6b7a9e;--faint:#3a4568;
+  --purple:#8b5cf6;--purple2:#a78bfa;--purple3:rgba(139,92,246,0.12);
+  --cyan:#22d3ee;--green:#34d399;--red:#f87171;--orange:#fb923c;
+}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh}
+.header{display:flex;align-items:center;padding:16px 32px;border-bottom:1px solid var(--border);gap:12px}
+.header img{height:28px;opacity:.85}
+.header h1{font-size:20px;font-weight:700;color:var(--purple2);font-family:'Space Mono',monospace}
+.header .nav{margin-left:auto;display:flex;gap:8px}
+.header .nav a{color:var(--muted);text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;transition:all .15s}
+.header .nav a:hover{color:var(--text);background:var(--bg3)}
+.header .nav a.active{color:var(--purple2);background:var(--purple3)}
+.wrap{max-width:1000px;margin:0 auto;padding:32px}
+.section-title{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title span{font-size:20px}
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.project-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;transition:all .2s;cursor:pointer;position:relative}
+.project-card:hover{border-color:var(--purple);transform:translateY(-2px);box-shadow:0 8px 24px rgba(139,92,246,0.1)}
+.pc-name{font-size:16px;font-weight:700;margin-bottom:4px}
+.pc-id{font-size:11px;font-family:'Space Mono',monospace;color:var(--faint);margin-bottom:10px}
+.pc-info{font-size:12px;color:var(--muted);line-height:1.6}
+.pc-info strong{color:var(--text)}
+.pc-actions{display:flex;gap:6px;margin-top:14px}
+.pc-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
+.pc-btn:hover{border-color:var(--purple);background:var(--purple3)}
+.pc-btn.primary{background:var(--purple);border-color:var(--purple);color:#fff}
+.pc-btn.danger{color:var(--red);border-color:transparent}
+.pc-btn.danger:hover{border-color:var(--red);background:rgba(248,113,113,0.1)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--faint)}
+.empty-state .big{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:14px;margin-bottom:20px;color:var(--muted)}
+.empty-state a{color:var(--purple2);text-decoration:none;padding:10px 24px;border:1px solid var(--purple);border-radius:8px;font-weight:600;display:inline-block;transition:all .15s}
+.empty-state a:hover{background:var(--purple3)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;transition:opacity .3s;opacity:0;pointer-events:none;background:var(--bg4);color:var(--text);border:1px solid var(--border2)}
+.toast.show{opacity:1}.toast.ok{border-color:var(--green);color:var(--green)}.toast.err{border-color:var(--red);color:var(--red)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100}
+.overlay.hidden{display:none}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:28px;max-width:400px;width:90%}
+.modal h3{font-size:16px;margin-bottom:12px;color:var(--purple2)}
+.modal p{font-size:13px;color:var(--muted);margin-bottom:16px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="samples/logo_WHT.png" alt="4E">
+  <h1>AR Studio</h1>
+  <div class="nav">
+    <a href="builder.html">Builder</a>
+    <a href="devstudio.html">DevStudio</a>
+    <a href="projects.html" class="active">Projects</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="section-title"><span>📁</span> My Projects</div>
+  <div id="project-grid" class="project-grid">
+    <div class="empty-state" id="loading">
+      <div class="big">⏳</div>
+      <p>Loading projects…</p>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="overlay hidden" id="del-modal">
+  <div class="modal">
+    <h3>Delete Project?</h3>
+    <p>This will permanently remove <strong id="del-name"></strong> and its data. Assets in the GitHub repo will remain.</p>
+    <div class="modal-actions">
+      <button class="pc-btn" onclick="el('del-modal').classList.add('hidden')">Cancel</button>
+      <button class="pc-btn danger" id="del-confirm" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const el = id => document.getElementById(id);
+function toast(msg, type='') {
+  const t = el('toast'); t.textContent = msg; t.className = 'toast show ' + type;
+  clearTimeout(t._t); t._t = setTimeout(() => t.className = 'toast', 3200);
+}
+
+let db = null;
+let deleteId = null;
+
+// Init Firebase
+(function(){
+  const cfg = window.AR_FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey || cfg.apiKey.includes('YOUR_')) return;
+  try {
+    firebase.initializeApp(cfg);
+    db = firebase.firestore();
+    loadProjects();
+  } catch(e) { toast('Firebase error: '+e.message,'err'); }
+})();
+
+async function loadProjects() {
+  const grid = el('project-grid');
+  try {
+    const snap = await db.collection('ar_apps').orderBy('updatedAt','desc').get();
+    if (snap.empty) {
+      grid.innerHTML = `<div class="empty-state">
+        <div class="big">🚀</div>
+        <p>No projects yet. Create your first AR experience!</p>
+        <a href="devstudio.html">Open DevStudio</a>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = '';
+    snap.forEach(doc => {
+      const d = doc.data();
+      const id = doc.id;
+      const name = d.name || 'Untitled';
+      const date = d.updatedAt?.toDate?.()?.toLocaleDateString?.() || d.createdAt?.toDate?.()?.toLocaleDateString?.() || '—';
+      const mode = d.trackingMode || 'image';
+      const objCount = d.objects ? d.objects.length : (d.glbUrl ? 1 : 0);
+      const hasTarget = !!(d.mindUrl || d.target?.mindUrl);
+      const playerUrl = (window.AR_BASE_URL||location.origin) + '/player.html?id=' + id;
+
+      const card = document.createElement('div');
+      card.className = 'project-card';
+      card.innerHTML = `
+        <div class="pc-name">${name}</div>
+        <div class="pc-id">${id}</div>
+        <div class="pc-info">
+          <strong>Tracking:</strong> ${mode === 'image' ? '📷 Image' : '🌐 SLAM'}<br>
+          <strong>Objects:</strong> ${objCount} model${objCount!==1?'s':''}<br>
+          <strong>Target:</strong> ${hasTarget ? '✅ Compiled' : '❌ None'}<br>
+          <strong>Updated:</strong> ${date}
+        </div>
+        <div class="pc-actions">
+          <a class="pc-btn primary" href="devstudio.html?edit=${id}">Edit</a>
+          <a class="pc-btn" href="${playerUrl}" target="_blank">Preview</a>
+          <button class="pc-btn" onclick="copyUrl('${playerUrl}')">Copy URL</button>
+          <button class="pc-btn danger" onclick="askDelete('${id}','${name.replace(/'/g,"\\'")}')">Delete</button>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  } catch(e) {
+    grid.innerHTML = `<div class="empty-state"><div class="big">❌</div><p>Error: ${e.message}</p></div>`;
+  }
+}
+
+function copyUrl(url) {
+  navigator.clipboard.writeText(url);
+  toast('URL copied!','ok');
+}
+
+function askDelete(id, name) {
+  deleteId = id;
+  el('del-name').textContent = name;
+  el('del-modal').classList.remove('hidden');
+}
+
+async function confirmDelete() {
+  if (!deleteId) return;
+  try {
+    await db.collection('ar_apps').doc(deleteId).delete();
+    toast('Deleted','ok');
+    deleteId = null;
+    el('del-modal').classList.add('hidden');
+    loadProjects();
+  } catch(e) { toast('Delete failed: '+e.message,'err'); }
+}
+</script>
+</body>
+</html>

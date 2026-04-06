@@ -111,9 +111,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <div id="app">
   <!-- Toolbar -->
   <div id="toolbar">
+    <img src="samples/logo_WHT.png" alt="4E" style="height:22px;opacity:.85;margin-right:4px">
+    <span style="font-size:13px;font-weight:700;color:var(--purple2);font-family:'Space Mono',monospace;margin-right:8px">DevStudio</span>
+    <div class="tb-sep"></div>
     <button class="tb-btn" onclick="newProject()">+ New</button>
     <button class="tb-btn" onclick="openProjectList()">Open</button>
     <button class="tb-btn" onclick="saveProject()">Save</button>
+    <input class="finput" id="tb-name" value="Untitled" onchange="PROJECT.name=this.value;PROJECT.dirty=true;renderHierarchy()" style="width:160px;margin:0;padding:3px 8px;font-size:12px;border-radius:4px">
     <div class="tb-sep"></div>
     <div id="gizmo-mode">
       <button class="tb-btn active" onclick="setGizmo('translate')" id="gm-t" title="Move (W)">Move</button>
@@ -123,9 +127,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="tb-sep"></div>
     <button class="tb-btn" onclick="addTarget()">+ Target</button>
     <button class="tb-btn" onclick="addModel()">+ Model</button>
-    <img src="samples/logo_WHT.png" alt="4E" style="height:22px;margin-left:auto;opacity:.8">
-    <span class="tb-title">AR DevStudio</span>
-    <span class="tb-status" id="tb-status">No project</span>
+    <span class="tb-status" id="tb-status" style="margin-left:auto">No project</span>
     <div class="tb-sep"></div>
     <button class="tb-btn primary" onclick="publishProject()">Publish</button>
   </div>
@@ -794,6 +796,7 @@ function newProject() {
   PROJECT.dirty = false;
   selectedId = null;
 
+  el('tb-name').value = 'Untitled';
   el('insp-content').classList.add('hidden');
   el('insp-empty').classList.remove('hidden');
   renderHierarchy();
@@ -803,7 +806,7 @@ function newProject() {
 async function saveProject() {
   if (!fbReady) { toast('Firebase not connected','err'); return; }
   if (!PROJECT.id) PROJECT.id = genId();
-  PROJECT.name = PROJECT.name || 'Untitled';
+  PROJECT.name = el('tb-name').value.trim() || 'Untitled';
 
   // Serialise objects (without mesh/file refs)
   const objData = PROJECT.objects.map(o => ({
@@ -849,6 +852,7 @@ async function loadProject(id, data) {
   newProject();
   PROJECT.id = id;
   PROJECT.name = data.name || 'Untitled';
+  el('tb-name').value = PROJECT.name;
   PROJECT.trackingMode = data.trackingMode || 'image';
 
   // Load target
