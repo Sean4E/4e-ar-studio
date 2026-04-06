@@ -702,9 +702,10 @@ async function handleGLB(file) {
   el('preview3d').style.display='block';
 
   if(!window.THREE){
-    await loadScript('https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js');
-    await loadScript('https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/loaders/GLTFLoader.js');
-    await loadScript('https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/controls/OrbitControls.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/DRACOLoader.js');
   }
   setupPreview(file);
   detectAnims(file);
@@ -727,16 +728,46 @@ function setupPreview(file) {
   ctrl.enableDamping=true;
   scene.add(new THREE.AmbientLight(0xffffff,0.9));
   const dl=new THREE.DirectionalLight(0xffffff,1.4); dl.position.set(2,4,3); scene.add(dl);
+  // Add image target as ground plane if available
+  if(S.imgFile) {
+    const texUrl=URL.createObjectURL(S.imgFile);
+    const tex=new THREE.TextureLoader().load(texUrl,()=>{URL.revokeObjectURL(texUrl);});
+    tex.colorSpace=THREE.SRGBColorSpace;
+    const img=new Image(); img.src=URL.createObjectURL(S.imgFile);
+    img.onload=()=>{
+      const aspect=img.width/img.height;
+      const planeW=2, planeH=planeW/aspect;
+      const geo=new THREE.PlaneGeometry(planeW,planeH);
+      const mat=new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide,transparent:true,opacity:0.85});
+      const plane=new THREE.Mesh(geo,mat);
+      plane.rotation.x=-Math.PI/2;
+      plane.position.y=-0.01;
+      scene.add(plane);
+      // Grid helper for spatial reference
+      const grid=new THREE.GridHelper(4,20,0x333355,0x222244);
+      grid.position.y=-0.02;
+      scene.add(grid);
+    };
+  }
+
   const url=URL.createObjectURL(file);
-  new THREE.GLTFLoader().load(url,gltf=>{
+  const loader=new THREE.GLTFLoader();
+  // Enable Draco if available
+  if(THREE.DRACOLoader){const draco=new THREE.DRACOLoader();draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/libs/draco/');loader.setDRACOLoader(draco);}
+  loader.load(url,gltf=>{
     URL.revokeObjectURL(url);
     const model=gltf.scene;
+    scene.add(model);
+    // Apply current scale/position settings
+    const sc=S.scale||1;
+    model.scale.set(sc,sc,sc);
+    model.position.set(0,S.yPos||0,0);
+    // Fit camera
     const box=new THREE.Box3().setFromObject(model);
-    const c=box.getCenter(new THREE.Vector3()), sz=box.getSize(new THREE.Vector3());
-    const maxD=Math.max(sz.x,sz.y,sz.z), sc=2/maxD;
-    model.scale.setScalar(sc); model.position.sub(c.multiplyScalar(sc));
-    cam.position.set(0,sz.y*sc*0.4,maxD*sc*2.2);
-    ctrl.target.set(0,0,0); scene.add(model);
+    const sz=box.getSize(new THREE.Vector3());
+    const maxD=Math.max(sz.x,sz.y,sz.z)||1;
+    cam.position.set(0,maxD*1.2,maxD*2.5);
+    ctrl.target.set(0,sz.y*0.3,0);
     let mixer,clock;
     if(gltf.animations.length){clock=new THREE.Clock();mixer=new THREE.AnimationMixer(model);mixer.clipAction(gltf.animations[0]).play();}
     const tick=()=>{rafId=requestAnimationFrame(tick);mixer&&clock&&mixer.update(clock.getDelta());ctrl.update();renderer.render(scene,cam);};
