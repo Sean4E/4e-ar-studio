@@ -201,7 +201,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;heigh
 <body>
 
 <!-- Firebase Config Modal -->
-<div class="overlay" id="cfg-modal">
+<div class="overlay hidden" id="cfg-modal">
   <div class="modal">
     <div class="modal-title">🔥 Firebase Setup</div>
     <div class="modal-sub">
@@ -806,7 +806,7 @@ function buildSummary() {
 }
 
 async function publish() {
-  if(!fbReady){toast('Connect Firebase first','err');openModal();return;}
+  if(!fbReady){toast('Firebase not connected — check config.js','err');return;}
   if(!S.mindBuffer){toast('No compiled image target','err');return;}
   if(!S.glbFile){toast('No GLB model','err');return;}
   S.name=v('app-name').trim()||'AR Experience';
