@@ -130,6 +130,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <span class="tb-status" id="tb-status" style="margin-left:auto">No project</span>
     <div class="tb-sep"></div>
     <a href="projects.html" class="tb-btn" style="text-decoration:none">📁 Projects</a>
+    <button class="tb-btn" onclick="previewProject()">▶ Preview</button>
     <button class="tb-btn primary" onclick="publishProject()">Publish</button>
   </div>
 
@@ -196,14 +197,44 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <option value="once">Once</option>
           <option value="none">None</option>
         </select>
-        <div class="insp-label" style="margin-top:8px">Preset Animations</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
-          <button class="pc-btn" onclick="togglePresetAnim('spin')" id="pa-spin" style="font-size:10px">🔄 Spin</button>
-          <button class="pc-btn" onclick="togglePresetAnim('bob')" id="pa-bob" style="font-size:10px">↕ Bob</button>
-          <button class="pc-btn" onclick="togglePresetAnim('pulse')" id="pa-pulse" style="font-size:10px">💓 Pulse</button>
-          <button class="pc-btn" onclick="clearPresetAnims()" style="font-size:10px;color:var(--red)">✕ Clear</button>
+        <div class="insp-label" style="margin-top:8px">Preset Animations <span style="font-size:9px;color:var(--faint)">(saved to AR)</span></div>
+        <!-- Spin -->
+        <div style="background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:4px">
+          <label class="insp-check"><input type="checkbox" id="pa-spin" onchange="setPreset('spin',this.checked)"> 🔄 Spin</label>
+          <div id="pa-spin-opts" class="hidden" style="margin-top:4px">
+            <div class="insp-row"><label style="width:40px;font-size:10px;color:var(--muted)">Speed</label>
+            <input type="range" min="0.1" max="5" step="0.1" value="1" id="pa-spin-speed" oninput="setPresetVal('spin','speed',+this.value)" style="flex:1">
+            <span style="font-size:10px;width:28px;text-align:right" id="pa-spin-speed-v">1.0</span></div>
+            <div class="insp-row"><label style="width:40px;font-size:10px;color:var(--muted)">Axis</label>
+            <select class="insp-select" id="pa-spin-axis" onchange="setPresetVal('spin','axis',this.value)" style="padding:2px 4px;font-size:10px">
+              <option value="y">Y (vertical)</option><option value="x">X (forward)</option><option value="z">Z (side)</option>
+            </select></div>
+          </div>
         </div>
-        <div id="preset-controls" style="margin-top:6px"></div>
+        <!-- Bob -->
+        <div style="background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:4px">
+          <label class="insp-check"><input type="checkbox" id="pa-bob" onchange="setPreset('bob',this.checked)"> ↕ Bob</label>
+          <div id="pa-bob-opts" class="hidden" style="margin-top:4px">
+            <div class="insp-row"><label style="width:40px;font-size:10px;color:var(--muted)">Height</label>
+            <input type="range" min="0.01" max="0.3" step="0.01" value="0.05" id="pa-bob-height" oninput="setPresetVal('bob','height',+this.value)" style="flex:1">
+            <span style="font-size:10px;width:28px;text-align:right" id="pa-bob-height-v">0.05</span></div>
+            <div class="insp-row"><label style="width:40px;font-size:10px;color:var(--muted)">Speed</label>
+            <input type="range" min="0.5" max="5" step="0.1" value="2" id="pa-bob-speed" oninput="setPresetVal('bob','speed',+this.value)" style="flex:1">
+            <span style="font-size:10px;width:28px;text-align:right" id="pa-bob-speed-v">2.0</span></div>
+          </div>
+        </div>
+        <!-- Pulse -->
+        <div style="background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:4px">
+          <label class="insp-check"><input type="checkbox" id="pa-pulse" onchange="setPreset('pulse',this.checked)"> 💓 Pulse</label>
+          <div id="pa-pulse-opts" class="hidden" style="margin-top:4px">
+            <div class="insp-row"><label style="width:40px;font-size:10px;color:var(--muted)">Amount</label>
+            <input type="range" min="0.02" max="0.3" step="0.01" value="0.08" id="pa-pulse-amount" oninput="setPresetVal('pulse','amount',+this.value)" style="flex:1">
+            <span style="font-size:10px;width:28px;text-align:right" id="pa-pulse-amount-v">0.08</span></div>
+            <div class="insp-row"><label style="width:40px;font-size:10px;color:var(--muted)">Speed</label>
+            <input type="range" min="0.5" max="5" step="0.1" value="3" id="pa-pulse-speed" oninput="setPresetVal('pulse','speed',+this.value)" style="flex:1">
+            <span style="font-size:10px;width:28px;text-align:right" id="pa-pulse-speed-v">3.0</span></div>
+          </div>
+        </div>
       </div>
       <!-- Actions -->
       <div class="insp-section">
@@ -298,7 +329,7 @@ const PROJECT = {
   name: 'Untitled',
   trackingMode: 'image',
   target: { mindUrl: '', imageUrl: '', mindBuffer: null, imgFile: null },
-  objects: [],   // {id, name, type, file, glbUrl, mesh, clips, defaultAnim, loop, visible}
+  objects: [],   // {id, name, type, file, glbUrl, mesh, clips, defaultAnim, loop, visible, presets:{spin,bob,pulse}}
   dirty: false
 };
 let selectedId = null;
@@ -588,7 +619,7 @@ async function handleModelFile(file) {
   const obj = {
     id: genId(), name: file.name.replace(/\.\w+$/, ''), type: 'model',
     file: file, glbUrl: '', mesh: null, clips: [], defaultAnim: '', loop: 'repeat', visible: true,
-    _assetId: assetId
+    presets: {}, _assetId: assetId
   };
   await loadModelIntoScene(obj, blobUrl);
   PROJECT.objects.push(obj);
@@ -671,6 +702,7 @@ function selectObject(id) {
     obj.clips.forEach(c => { sel.innerHTML += `<option value="${c}" ${c===obj.defaultAnim?'selected':''}>${c}</option>`; });
   }
   el('insp-loop').value = obj.loop;
+  syncPresetUI(obj);
 
   renderHierarchy();
 }
@@ -745,40 +777,75 @@ function playClip(clipName) {
   }
 }
 
-// ─── Preset Animations (CSS-style, applied via Three.js) ──
-const presetAnims = {};
-function togglePresetAnim(type) {
-  const obj = PROJECT.objects.find(o => o.id === selectedId);
-  if (!obj || !obj.mesh) return;
-  const key = obj.id + '_' + type;
-  if (presetAnims[key]) {
-    cancelAnimationFrame(presetAnims[key].raf);
-    delete presetAnims[key];
-    el('pa-'+type).style.borderColor = '';
-    return;
-  }
-  el('pa-'+type).style.borderColor = 'var(--purple)';
-  const mesh = obj.mesh;
-  const origin = { y: mesh.position.y, sx: mesh.scale.x, sy: mesh.scale.y, sz: mesh.scale.z };
-  const anim = { raf: 0, speed: 1 };
-  presetAnims[key] = anim;
+// ─── Preset Animations (saved to Firestore, rendered by player) ──
+const presetRafs = {};
 
+function setPreset(type, enabled) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj) return;
+  if (!obj.presets) obj.presets = {};
+  const defaults = { spin:{speed:1,axis:'y'}, bob:{height:0.05,speed:2}, pulse:{amount:0.08,speed:3} };
+  if (enabled) {
+    obj.presets[type] = obj.presets[type] || defaults[type];
+    el('pa-'+type+'-opts').classList.remove('hidden');
+    startPresetPreview(obj, type);
+  } else {
+    delete obj.presets[type];
+    el('pa-'+type+'-opts').classList.add('hidden');
+    stopPresetPreview(obj, type);
+  }
+  PROJECT.dirty = true;
+}
+
+function setPresetVal(type, key, val) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj || !obj.presets || !obj.presets[type]) return;
+  obj.presets[type][key] = val;
+  const vEl = el('pa-'+type+'-'+key+'-v');
+  if (vEl) vEl.textContent = val.toFixed(key==='height'||key==='amount'?2:1);
+  PROJECT.dirty = true;
+}
+
+function startPresetPreview(obj, type) {
+  const key = obj.id+'_'+type;
+  if (presetRafs[key]) return;
+  const mesh = obj.mesh; if (!mesh) return;
+  const origin = { y: mesh.position.y, sx: mesh.scale.x, sy: mesh.scale.y, sz: mesh.scale.z };
+  const raf = { id: 0 };
+  presetRafs[key] = raf;
   function tick() {
-    anim.raf = requestAnimationFrame(tick);
-    const t = performance.now() * 0.001 * anim.speed;
-    if (type === 'spin') mesh.rotation.y = t * 1.5;
-    if (type === 'bob') mesh.position.y = origin.y + Math.sin(t * 2) * 0.05;
-    if (type === 'pulse') { const s = 1 + Math.sin(t * 3) * 0.08; mesh.scale.set(origin.sx*s, origin.sy*s, origin.sz*s); }
+    raf.id = requestAnimationFrame(tick);
+    const p = obj.presets?.[type]; if (!p) return;
+    const t = performance.now() * 0.001;
+    if (type === 'spin') {
+      const a = p.axis || 'y';
+      mesh.rotation[a] = t * (p.speed||1) * 1.5;
+    }
+    if (type === 'bob') mesh.position.y = origin.y + Math.sin(t * (p.speed||2)) * (p.height||0.05);
+    if (type === 'pulse') { const s = 1 + Math.sin(t * (p.speed||3)) * (p.amount||0.08); mesh.scale.set(origin.sx*s, origin.sy*s, origin.sz*s); }
   }
   tick();
 }
 
-function clearPresetAnims() {
-  Object.keys(presetAnims).forEach(k => {
-    cancelAnimationFrame(presetAnims[k].raf);
-    delete presetAnims[k];
+function stopPresetPreview(obj, type) {
+  const key = obj.id+'_'+type;
+  if (presetRafs[key]) { cancelAnimationFrame(presetRafs[key].id); delete presetRafs[key]; }
+}
+
+function syncPresetUI(obj) {
+  // Update UI checkboxes and sliders to match object's preset state
+  ['spin','bob','pulse'].forEach(type => {
+    const has = obj.presets && obj.presets[type];
+    el('pa-'+type).checked = !!has;
+    el('pa-'+type+'-opts').classList.toggle('hidden', !has);
+    if (has) {
+      const p = obj.presets[type];
+      if (type==='spin') { el('pa-spin-speed').value=p.speed||1; el('pa-spin-speed-v').textContent=(p.speed||1).toFixed(1); el('pa-spin-axis').value=p.axis||'y'; }
+      if (type==='bob') { el('pa-bob-height').value=p.height||0.05; el('pa-bob-height-v').textContent=(p.height||0.05).toFixed(2); el('pa-bob-speed').value=p.speed||2; el('pa-bob-speed-v').textContent=(p.speed||2).toFixed(1); }
+      if (type==='pulse') { el('pa-pulse-amount').value=p.amount||0.08; el('pa-pulse-amount-v').textContent=(p.amount||0.08).toFixed(2); el('pa-pulse-speed').value=p.speed||3; el('pa-pulse-speed-v').textContent=(p.speed||3).toFixed(1); }
+      startPresetPreview(obj, type);
+    }
   });
-  ['spin','bob','pulse'].forEach(t => el('pa-'+t).style.borderColor = '');
 }
 
 // ─── Target Preview ──────────────────────────────────────
@@ -945,9 +1012,12 @@ function showBP(tab) {
 // PROJECT MANAGEMENT
 // ═══════════════════════════════════════════════════════════
 function newProject() {
+  // Stop preset previews
+  Object.keys(presetRafs).forEach(k => { cancelAnimationFrame(presetRafs[k].id); delete presetRafs[k]; });
   // Clear scene
   PROJECT.objects.forEach(o => { if (o.mesh) scene.remove(o.mesh); });
   mixers.length = 0;
+  assetLibrary.length = 0;
   if (targetPlane) { scene.remove(targetPlane); targetPlane = null; }
   gizmo.detach();
 
@@ -962,6 +1032,8 @@ function newProject() {
   el('insp-content').classList.add('hidden');
   el('insp-empty').classList.remove('hidden');
   renderHierarchy();
+  updateProjectAssets();
+  updateTargetPreview();
   log('New project');
 }
 
@@ -974,6 +1046,7 @@ async function saveProject() {
   const objData = PROJECT.objects.map(o => ({
     id: o.id, name: o.name, type: o.type, glbUrl: o.glbUrl,
     clips: o.clips, defaultAnim: o.defaultAnim, loop: o.loop, visible: o.visible,
+    presets: o.presets || {},
     transform: o.mesh ? {
       position: { x: +o.mesh.position.x.toFixed(4), y: +o.mesh.position.y.toFixed(4), z: +o.mesh.position.z.toFixed(4) },
       rotation: { x: +THREE.MathUtils.radToDeg(o.mesh.rotation.x).toFixed(2), y: +THREE.MathUtils.radToDeg(o.mesh.rotation.y).toFixed(2), z: +THREE.MathUtils.radToDeg(o.mesh.rotation.z).toFixed(2) },
@@ -1069,7 +1142,7 @@ async function loadProject(id, data) {
         id: objData.id || genId(), name: objData.name, type: objData.type || 'model',
         file: null, glbUrl: objData.glbUrl, mesh: null,
         clips: objData.clips || [], defaultAnim: objData.defaultAnim || '', loop: objData.loop || 'repeat',
-        visible: objData.visible !== false
+        visible: objData.visible !== false, presets: objData.presets || {}
       };
       try {
         await loadModelIntoScene(obj, objData.glbUrl);
@@ -1103,6 +1176,15 @@ async function loadProject(id, data) {
 // ═══════════════════════════════════════════════════════════
 // PUBLISH
 // ═══════════════════════════════════════════════════════════
+function previewProject() {
+  if (!PROJECT.id) { toast('Save the project first','warn'); return; }
+  const url = (window.AR_BASE_URL || location.origin) + '/player.html?id=' + PROJECT.id;
+  el('pub-url').value = url;
+  el('qr-code').innerHTML = '';
+  new QRCode(el('qr-code'), { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+  el('pub-modal').classList.remove('hidden');
+}
+
 async function publishProject() {
   if (!fbReady) { toast('Firebase not connected','err'); return; }
   if (!PROJECT.target.mindBuffer && !PROJECT.target.mindUrl) { toast('No image target — add one first','err'); return; }

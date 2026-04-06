@@ -360,6 +360,7 @@ function buildAFrameScene() {
     const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
     const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
 
+    // GLB animation mixer
     let animAttr = '';
     if (obj.defaultAnim && obj.loop !== 'none') {
       animAttr = `animation-mixer="clip: ${obj.defaultAnim}; loop: ${obj.loop||'repeat'}; crossFadeDuration: 0.4"`;
@@ -367,8 +368,31 @@ function buildAFrameScene() {
       animAttr = `animation-mixer="clip: *; loop: repeat; crossFadeDuration: 0.4"`;
     }
 
+    // Preset animations → A-Frame animation components
+    let presetAttrs = '';
+    const p = obj.presets || {};
+    if (p.spin) {
+      const axis = p.spin.axis || 'y';
+      const dur = Math.round(2000 / (p.spin.speed || 1));
+      const prop = axis==='x'?'rotation.x':axis==='z'?'rotation.z':'rotation.y';
+      const from = axis==='x'?`${t.rotation.x}`:axis==='z'?`${t.rotation.z}`:`${t.rotation.y}`;
+      const to = parseFloat(from) + 360;
+      presetAttrs += ` animation__spin="property: ${prop}; from: ${from}; to: ${to}; dur: ${dur}; loop: true; easing: linear"`;
+    }
+    if (p.bob) {
+      const h = p.bob.height || 0.05;
+      const dur = Math.round(1000 / (p.bob.speed || 2) * 2);
+      presetAttrs += ` animation__bob="property: position.y; from: ${t.position.y - h}; to: ${t.position.y + h}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`;
+    }
+    if (p.pulse) {
+      const a = p.pulse.amount || 0.08;
+      const dur = Math.round(1000 / (p.pulse.speed || 3) * 2);
+      const sBase = t.scale.x;
+      presetAttrs += ` animation__pulse="property: scale; from: ${sBase*(1-a)} ${sBase*(1-a)} ${sBase*(1-a)}; to: ${sBase*(1+a)} ${sBase*(1+a)} ${sBase*(1+a)}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`;
+    }
+
     assetsHtml += `<a-asset-item id="model-${i}" src="${obj.glbUrl}"></a-asset-item>\n`;
-    entitiesHtml += `<a-gltf-model src="#model-${i}" position="${pos}" rotation="${rot}" scale="${sc}" ${animAttr}></a-gltf-model>\n`;
+    entitiesHtml += `<a-gltf-model src="#model-${i}" position="${pos}" rotation="${rot}" scale="${sc}" ${animAttr}${presetAttrs}></a-gltf-model>\n`;
   });
 
   const html = `
