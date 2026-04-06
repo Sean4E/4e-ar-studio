@@ -411,7 +411,10 @@ function buildAFrameScene() {
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0" id="ar-target">
-        ${entitiesHtml}
+        <!-- Coordinate correction: editor Y-up ground plane → AR vertical target -->
+        <a-entity rotation="-90 0 0">
+          ${entitiesHtml}
+        </a-entity>
       </a-entity>
     </a-scene>`;
 

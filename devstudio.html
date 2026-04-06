@@ -296,11 +296,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <div class="overlay hidden" id="pub-modal">
   <div class="modal" style="text-align:center">
     <h3>Published!</h3>
-    <div id="qr-code" style="display:inline-block;margin:16px 0"></div>
+    <div id="deploy-status" style="margin:8px 0;font-size:13px;font-weight:600">
+      <span style="color:var(--orange)">⏳ Deploying…</span>
+    </div>
+    <div id="qr-code" style="display:inline-block;margin:12px 0"></div>
     <div style="margin:8px 0"><input class="finput" id="pub-url" readonly style="text-align:center"></div>
-    <button class="tb-btn" onclick="navigator.clipboard.writeText(el('pub-url').value);toast('Copied!','ok')" style="margin-right:8px">Copy URL</button>
-    <button class="tb-btn" onclick="window.open(el('pub-url').value,'_blank')">Open</button>
-    <button class="tb-btn" onclick="el('pub-modal').classList.add('hidden')" style="margin-top:12px;width:100%;display:block">Close</button>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="tb-btn" onclick="navigator.clipboard.writeText(el('pub-url').value);toast('Copied!','ok')">Copy URL</button>
+      <button class="tb-btn" onclick="window.open(el('pub-url').value,'_blank')">Open in Browser</button>
+    </div>
+    <div style="font-size:11px;color:var(--faint);margin-top:10px">Scan QR code with your phone once status shows ✓ Ready</div>
+    <button class="tb-btn" onclick="el('pub-modal').classList.add('hidden')" style="margin-top:12px;width:100%">Close</button>
   </div>
 </div>
 
@@ -1176,12 +1182,59 @@ async function loadProject(id, data) {
 // ═══════════════════════════════════════════════════════════
 // PUBLISH
 // ═══════════════════════════════════════════════════════════
-function previewProject() {
+async function trackDeployment(checkUrl) {
+  if (!checkUrl) { el('deploy-status').innerHTML = '<span style="color:var(--green)">✓ Ready to test</span>'; return; }
+  el('deploy-status').innerHTML = '<span style="color:var(--orange)">⏳ Deploying to GitHub Pages…</span>';
+  log('Waiting for GitHub Pages deployment…');
+
+  const start = Date.now();
+  const maxWait = 5 * 60 * 1000; // 5 min max
+  const checkInterval = 5000; // 5s
+
+  while (Date.now() - start < maxWait) {
+    try {
+      const r = await fetch(checkUrl + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+      if (r.ok) {
+        const elapsed = Math.round((Date.now() - start) / 1000);
+        el('deploy-status').innerHTML = `<span style="color:var(--green)">✓ Live! Ready to scan (${elapsed}s)</span>`;
+        toast('Assets deployed — ready to test!', 'ok');
+        log('Deployment confirmed in ' + elapsed + 's');
+        return;
+      }
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, checkInterval));
+    const elapsed = Math.round((Date.now() - start) / 1000);
+    el('deploy-status').innerHTML = `<span style="color:var(--orange)">⏳ Deploying… ${elapsed}s</span>`;
+  }
+  el('deploy-status').innerHTML = '<span style="color:var(--red)">⚠ Taking longer than usual. Try scanning in a minute.</span>';
+}
+
+async function previewProject() {
   if (!PROJECT.id) { toast('Save the project first','warn'); return; }
+  // Auto-save before preview
+  if (PROJECT.dirty) {
+    toast('Saving…','ok');
+    await saveProject();
+  }
   const url = (window.AR_BASE_URL || location.origin) + '/player.html?id=' + PROJECT.id;
   el('pub-url').value = url;
   el('qr-code').innerHTML = '';
   new QRCode(el('qr-code'), { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+  // Check if assets are live
+  const checkUrl = PROJECT.target.mindUrl || (PROJECT.objects[0]?.glbUrl);
+  if (checkUrl) {
+    el('deploy-status').innerHTML = '<span style="color:var(--muted)">Checking deployment…</span>';
+    try {
+      const r = await fetch(checkUrl + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+      el('deploy-status').innerHTML = r.ok
+        ? '<span style="color:var(--green)">✓ Ready to scan</span>'
+        : '<span style="color:var(--orange)">⏳ Assets still deploying…</span>';
+    } catch(e) {
+      el('deploy-status').innerHTML = '<span style="color:var(--orange)">⏳ Assets may still be deploying</span>';
+    }
+  } else {
+    el('deploy-status').innerHTML = '<span style="color:var(--red)">No assets published yet — click Publish first</span>';
+  }
   el('pub-modal').classList.remove('hidden');
 }
 
@@ -1224,8 +1277,10 @@ async function publishProject() {
     new QRCode(el('qr-code'), { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
     el('pub-modal').classList.remove('hidden');
 
-    toast('Published ✓', 'ok');
     log('Published: ' + url);
+
+    // Track deployment status
+    trackDeployment(PROJECT.target.mindUrl || PROJECT.objects[0]?.glbUrl);
   } catch (e) {
     toast('Publish failed: ' + e.message, 'err');
     log('ERROR: ' + e.message);
