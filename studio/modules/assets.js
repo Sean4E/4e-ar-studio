@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// 4E AR Studio — Assets Panel (bottom panel grid)
+// 4E AR Studio — Assets Panel (bottom panel)
+// Sectioned layout: Primitives | Samples | Upload | Scene
 // ═══════════════════════════════════════════════════════════
 
 Studio.Assets = {
@@ -19,77 +20,114 @@ Studio.Assets = {
     if (!container) return;
 
     const state = Studio.Project.state;
-    let html = '<div class="asset-grid">';
+    let html = '';
 
-    // ─── Upload button ─────────────────────────────────
-    html += `
-      <div class="asset-card asset-upload" onclick="document.getElementById('fi-model').click()" title="Upload GLB model">
-        <div class="asset-icon">+</div>
-        <div class="asset-label">Upload Model</div>
-      </div>`;
+    // ─── Section: Primitives ──────────────────────────
+    html += `<div class="ast-section">
+      <div class="ast-section-title">Primitives</div>
+      <div class="ast-row">
+        ${this._primCard('cube',     '⬜', 'Cube')}
+        ${this._primCard('sphere',   '⚪', 'Sphere')}
+        ${this._primCard('cylinder', '🔷', 'Cylinder')}
+        ${this._primCard('plane',    '▬',  'Plane')}
+        ${this._primCard('cone',     '🔺', 'Cone')}
+        ${this._primCard('torus',    '⭕', 'Torus')}
+      </div>
+    </div>`;
 
-    // ─── Sample models ─────────────────────────────────
-    html += `
-      <div class="asset-card asset-sample" onclick="Studio.Viewport.loadSample('../samples/Duck.glb','Duck')" title="Duck sample">
-        <div class="asset-icon">🦆</div>
-        <div class="asset-label">Duck</div>
-      </div>`;
+    // ─── Section: Samples ─────────────────────────────
+    html += `<div class="ast-section">
+      <div class="ast-section-title">Sample Models</div>
+      <div class="ast-row">
+        ${this._sampleCard('🦆', 'Duck',  "../samples/Duck.glb")}
+        ${this._sampleCard('🦊', 'Fox',   "../samples/Fox.glb")}
+      </div>
+    </div>`;
 
-    html += `
-      <div class="asset-card asset-sample" onclick="Studio.Viewport.loadSample('../samples/Fox.glb','Fox')" title="Fox sample">
-        <div class="asset-icon">🦊</div>
-        <div class="asset-label">Fox</div>
-      </div>`;
-
-    // ─── Image Targets (only in image mode) ────────────
+    // ─── Section: Image Targets (image mode only) ─────
     if (state.trackingMode === 'image') {
-      const hasTarget = state.target.mindBuffer || state.target.mindUrl;
-      html += `
-        <div class="asset-card asset-target${hasTarget ? ' has-target' : ''}" onclick="document.getElementById('fi-target').click()" title="Upload image target">
-          <div class="asset-icon">${hasTarget ? '🎯' : '📷'}</div>
-          <div class="asset-label">${hasTarget ? 'Target Set' : 'Add Target'}</div>
-        </div>`;
-
-      // Sample target
-      html += `
-        <div class="asset-card asset-sample" onclick="Studio.Assets._loadSampleTarget()" title="Sample image target">
-          <div class="asset-icon">🖼</div>
-          <div class="asset-label">Sample Target</div>
-        </div>`;
+      const tgtCount = (state.targets || []).length;
+      html += `<div class="ast-section">
+        <div class="ast-section-title">Image Targets (${tgtCount})</div>
+        <div class="ast-row">
+          <div class="ast-card ast-action" onclick="Studio.switchTab('targets')" title="Open Targets workspace">
+            <div class="ast-card-icon">📷</div>
+            <div class="ast-card-label">Manage Targets</div>
+            <div class="ast-card-sub">${tgtCount ? tgtCount + ' target' + (tgtCount > 1 ? 's' : '') : 'None yet'}</div>
+          </div>
+          <div class="ast-card ast-action" onclick="Studio.Targets.loadSampleTarget()" title="Add sample target image">
+            <div class="ast-card-icon">🖼</div>
+            <div class="ast-card-label">Sample Target</div>
+            <div class="ast-card-sub">Quick test</div>
+          </div>
+        </div>
+      </div>`;
     }
 
-    // ─── Separator ─────────────────────────────────────
+    // ─── Section: Upload ──────────────────────────────
+    html += `<div class="ast-section">
+      <div class="ast-section-title">Upload</div>
+      <div class="ast-row">
+        <div class="ast-card ast-upload" onclick="document.getElementById('fi-model').click()" title="Upload GLB/GLTF model">
+          <div class="ast-card-icon">+</div>
+          <div class="ast-card-label">3D Model</div>
+          <div class="ast-card-sub">.glb .gltf</div>
+        </div>
+        <div class="ast-card ast-upload" onclick="document.getElementById('fi-media').click()" title="Upload image, video, or audio">
+          <div class="ast-card-icon">🎬</div>
+          <div class="ast-card-label">Media</div>
+          <div class="ast-card-sub">img / vid / audio</div>
+        </div>
+      </div>
+    </div>`;
+
+    // ─── Section: Scene Objects ────────────────────────
     if (state.objects.length > 0) {
-      html += '<div class="asset-divider"></div>';
+      html += `<div class="ast-section">
+        <div class="ast-section-title">In Scene (${state.objects.length})</div>
+        <div class="ast-row">`;
+      state.objects.forEach(obj => {
+        const icon = obj.type === 'primitive' ? this._primIcon(obj.primitiveType) : '📦';
+        const statusDot = obj.glbUrl || obj.type === 'primitive'
+          ? '<span class="ast-dot ast-dot-ok"></span>'
+          : '<span class="ast-dot ast-dot-pending"></span>';
+        html += `
+          <div class="ast-card ast-scene${Studio.Viewport._selectedId === obj.id ? ' selected' : ''}" onclick="Studio.Viewport.selectObject('${obj.id}')" title="${obj.name}">
+            <div class="ast-card-icon">${icon}</div>
+            <div class="ast-card-label">${this._truncate(obj.name, 12)}</div>
+            <div class="ast-card-sub">${obj.type}${statusDot}</div>
+          </div>`;
+      });
+      html += `</div></div>`;
     }
 
-    // ─── In-scene objects ──────────────────────────────
-    state.objects.forEach(obj => {
-      const icon = obj.type === 'model' ? '📦' : '🔲';
-      html += `
-        <div class="asset-card asset-scene" onclick="Studio.Viewport.selectObject('${obj.id}')" title="${obj.name}">
-          <div class="asset-icon">${icon}</div>
-          <div class="asset-label">${this._truncate(obj.name, 14)}</div>
-        </div>`;
-    });
-
-    html += '</div>';
     container.innerHTML = html;
   },
 
-  // ─── Load sample target image ─────────────────────────
-  async _loadSampleTarget() {
-    try {
-      Studio.toast('Loading sample target...', 'ok');
-      const resp = await fetch('../samples/target-sample.png');
-      const blob = await resp.blob();
-      const file = new File([blob], 'target-sample.png', { type: 'image/png' });
-      await Studio.Viewport.handleTargetFile(file);
-    } catch (e) {
-      Studio.toast('Failed to load sample target: ' + e.message, 'err');
-    }
+  // ─── Card Builders ─────────────────────────────────────
+  _primCard(type, icon, label) {
+    return `<div class="ast-card ast-prim" onclick="Studio.Viewport.addPrimitive('${type}')" title="Add ${label}">
+      <div class="ast-card-icon">${icon}</div>
+      <div class="ast-card-label">${label}</div>
+    </div>`;
   },
 
+  _sampleCard(icon, name, url) {
+    return `<div class="ast-card ast-sample" onclick="Studio.Viewport.loadSample('${url}','${name}')" title="Add ${name} sample">
+      <div class="ast-card-icon">${icon}</div>
+      <div class="ast-card-label">${name}</div>
+    </div>`;
+  },
+
+  _primIcon(type) {
+    const icons = { cube: '⬜', sphere: '⚪', cylinder: '🔷', plane: '▬', cone: '🔺', torus: '⭕' };
+    return icons[type] || '🔲';
+  },
+
+  // ─── Load sample target via new Targets system ────────
+  // (Kept here for backward compat — delegates to Targets module)
+
+  // ─── Media Upload ─────────────────────────────────────
   async handleMediaFile(file) {
     if (!file) return;
     Studio.toast('Uploading ' + file.name + '…', 'ok');
@@ -103,12 +141,11 @@ Studio.Assets = {
       const url = await Studio.GitHub.upload(path, b64);
       Studio.toast(file.name + ' uploaded ✓', 'ok');
       Studio.log('Media uploaded: ' + url);
-      // Store in project for reference
       if (!Studio.Project.state.media) Studio.Project.state.media = [];
       Studio.Project.state.media.push({ name: file.name, url: url, type: file.type });
       Studio.Project.markDirty();
       this.render();
-    } catch(e) {
+    } catch (e) {
       Studio.toast('Upload failed: ' + e.message, 'err');
     }
   },

@@ -173,7 +173,7 @@ function _esc(s) { return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'
 // OBJECT BUILDER (shared across all modes)
 // ═══════════════════════════════════════════════════════════
 function getObjects() {
-  if (APP.objects?.length) return APP.objects.filter(o => o.glbUrl && o.visible !== false);
+  if (APP.objects?.length) return APP.objects.filter(o => (o.glbUrl || o.type === 'primitive') && o.visible !== false);
   if (APP.glbUrl) return [{
     id:'legacy', glbUrl:APP.glbUrl,
     transform:{ position:{x:APP.posX||0,y:APP.posY||0,z:APP.posZ||0}, rotation:{x:APP.rotX||0,y:APP.rotY||0,z:APP.rotZ||0}, scale:{x:APP.scale||1,y:APP.scale||1,z:APP.scale||1} },
@@ -183,10 +183,37 @@ function getObjects() {
 }
 
 function buildAssets(objects) {
-  return objects.map((o,i) => `<a-asset-item id="m${i}" src="${o.glbUrl}"></a-asset-item>`).join('\n');
+  return objects.map((o,i) => {
+    if (o.type === 'primitive' || !o.glbUrl) return '';
+    return `<a-asset-item id="m${i}" src="${o.glbUrl}"></a-asset-item>`;
+  }).join('\n');
+}
+
+// Map primitive types to A-Frame elements
+function buildPrimitive(obj, i) {
+  const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
+  const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
+  const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
+  const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
+  const color = obj.primitiveColor || '#8b5cf6';
+
+  const primMap = {
+    cube:     `<a-box position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" shadow="cast: true"></a-box>`,
+    sphere:   `<a-sphere position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius="0.18" shadow="cast: true"></a-sphere>`,
+    cylinder: `<a-cylinder position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius="0.15" height="0.35" shadow="cast: true"></a-cylinder>`,
+    plane:    `<a-plane position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" width="0.5" height="0.5"></a-plane>`,
+    cone:     `<a-cone position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius-bottom="0.18" height="0.35" shadow="cast: true"></a-cone>`,
+    torus:    `<a-torus position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius="0.15" radius-tubular="0.05" shadow="cast: true"></a-torus>`,
+  };
+  return primMap[obj.primitiveType] || '';
 }
 
 function buildEntity(obj, i) {
+  // Primitive objects use A-Frame built-in elements
+  if (obj.type === 'primitive' && obj.primitiveType) {
+    return buildPrimitive(obj, i);
+  }
+
   const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
   const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
   const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
@@ -307,11 +334,123 @@ function buildImage() {
   const objects = getObjects();
   if (!objects.length) { showError('Empty', 'No models.'); return; }
 
+  // New multi-target system (8th Wall native)
+  if (APP.targets && APP.targets.length > 0) {
+    buildImageNative(objects);
+    return;
+  }
+
+  // Legacy single-target (MindAR fallback)
   const mindUrl = APP.mindUrl || APP.target?.mindUrl || '';
   if (!mindUrl) { showError('No target', 'No image target configured.'); return; }
-
-  // Use MindAR for .mind file compatibility
   loadMindAR(objects, mindUrl);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 8TH WALL NATIVE IMAGE TARGETS
+// ═══════════════════════════════════════════════════════════
+function buildImageNative(objects) {
+  setSplashStatus('Configuring image targets…');
+
+  // Build imageTargetData array for XR8
+  const imageTargetData = APP.targets.map(t => ({
+    imagePath: t.luminanceUrl,
+    name: t.name,
+    type: t.type || 'PLANAR',
+    metadata: null,
+    properties: t.properties || {},
+    resources: {
+      luminanceImage: t.luminanceUrl,
+      originalImage: t.originalUrl || t.luminanceUrl,
+      thumbnailImage: t.thumbnailUrl || t.luminanceUrl,
+      croppedImage: t.luminanceUrl,
+    },
+    loadAutomatically: true,
+    created: Date.now(),
+    updated: Date.now(),
+  }));
+
+  // Configure XR8 with image targets
+  const configureTargets = () => {
+    XR8.XrController.configure({ imageTargetData });
+  };
+  if (window.XR8) configureTargets();
+  else window.addEventListener('xrloaded', configureTargets);
+
+  // Build A-Frame entities per target
+  const ambInt = APP.scene?.ambientIntensity ?? APP.ambientIntensity ?? 0.8;
+  const dirInt = APP.scene?.directIntensity ?? APP.directIntensity ?? 1.0;
+
+  // Group objects by target
+  let targetEntities = '';
+  APP.targets.forEach(target => {
+    const targetObjs = objects.filter(o => {
+      if (o.targetId === target.id) return true;
+      if (!o.targetId && (target.objectIds || []).includes(o.id)) return true;
+      return false;
+    });
+    // If no explicit assignment, put all objects on first target
+    const useObjs = targetObjs.length > 0 ? targetObjs : (target === APP.targets[0] ? objects.filter(o => !o.targetId) : []);
+
+    if (useObjs.length > 0) {
+      const ents = useObjs.map((o, i) => buildEntity(o, objects.indexOf(o))).join('\n');
+      targetEntities += `
+        <xrextras-named-image-target name="${target.name}">
+          ${ents}
+        </xrextras-named-image-target>`;
+    }
+  });
+
+  const html = `
+    <a-scene
+      xrextras-gesture-detector
+      xrweb="disableWorldTracking: true; allowedDevices: any"
+      renderer="colorManagement: true; physicallyCorrectLights: true"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+      style="width:100%;height:100vh">
+
+      <a-assets timeout="30000">
+        ${buildAssets(objects)}
+      </a-assets>
+
+      <a-camera id="camera" position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-light type="ambient" intensity="${ambInt}"></a-light>
+      <a-light type="directional" intensity="${dirInt}" position="2 4 3"></a-light>
+
+      ${targetEntities}
+    </a-scene>`;
+
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;inset:0';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  arScene = container.querySelector('a-scene');
+
+  arScene.addEventListener('loaded', () => { hideSplash(); showARUI(); buildAnimBar(objects); });
+
+  // Listen for image target events
+  const targetNames = APP.targets.map(t => t.name);
+  const foundTargets = new Set();
+  const hintEl = el('scan-hint');
+  hintEl.textContent = 'Point camera at image target';
+
+  arScene.addEventListener('loaded', () => {
+    if (!window.XR8) return;
+    const onFound = (e) => {
+      foundTargets.add(e.detail?.name || e.name);
+      hintEl.classList.add('hidden');
+    };
+    const onLost = (e) => {
+      foundTargets.delete(e.detail?.name || e.name);
+      if (foundTargets.size === 0) hintEl.classList.remove('hidden');
+    };
+    // XR8 engine events
+    try {
+      arScene.addEventListener('xrimagefound', onFound);
+      arScene.addEventListener('xrimagelost', onLost);
+    } catch(e) {}
+  });
 }
 
 async function loadMindAR(objects, mindUrl) {

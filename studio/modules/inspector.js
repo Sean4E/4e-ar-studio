@@ -48,8 +48,13 @@ Studio.Inspector = {
     // Preset Animations
     content.appendChild(this._buildPresetSection(obj));
 
-    // xrextras Components — grouped by category, filtered by tracking mode
+    // Target Assignment (image mode with targets)
     const mode = Studio.Project.state.trackingMode;
+    if (mode === 'image' && Studio.Project.state.targets.length > 0) {
+      content.appendChild(this._buildTargetAssignSection(obj));
+    }
+
+    // xrextras Components — grouped by category, filtered by tracking mode
     const cats = Studio.Components.categories;
     Object.keys(cats).sort((a, b) => cats[a].order - cats[b].order).forEach(catKey => {
       const comps = Studio.Components.getByCategory(catKey)
@@ -357,6 +362,45 @@ Studio.Inspector = {
     ['px','py','pz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.position[k[1]]; });
     ['rx','ry','rz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.rotation[k[1]]; });
     ['sx','sy','sz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.scale[k[1]]; });
+  },
+
+  // ─── Target Assignment ─────────────────────────────────
+  _buildTargetAssignSection(obj) {
+    const targets = Studio.Project.state.targets;
+    const opts = targets.map(t =>
+      `<option value="${t.id}" ${obj.targetId === t.id ? 'selected' : ''}>${t.name}</option>`
+    ).join('');
+    return this._buildSection('📷 Image Target', `
+      <select class="insp-select" onchange="Studio.Inspector._setTargetId(this.value)">
+        <option value="">— All targets —</option>
+        ${opts}
+      </select>
+      <div style="font-size:9px;color:var(--faint);margin-top:3px">Which image target triggers this object</div>
+    `);
+  },
+
+  _setTargetId(targetId) {
+    const obj = Studio.Project.getObject(this.currentId);
+    if (!obj) return;
+
+    // Remove from previous target's objectIds
+    Studio.Project.state.targets.forEach(t => {
+      t.objectIds = (t.objectIds || []).filter(id => id !== obj.id);
+    });
+
+    if (targetId) {
+      obj.targetId = targetId;
+      const target = Studio.Project.state.targets.find(t => t.id === targetId);
+      if (target) {
+        if (!target.objectIds) target.objectIds = [];
+        if (!target.objectIds.includes(obj.id)) target.objectIds.push(obj.id);
+      }
+    } else {
+      obj.targetId = null;
+    }
+    Studio.Project.markDirty();
+    // Refresh targets workspace if open
+    if (Studio.Targets._selectedId) Studio.Targets._renderDetails();
   },
 
   // ─── Helpers ───────────────────────────────────────────

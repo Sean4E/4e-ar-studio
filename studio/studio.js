@@ -60,6 +60,10 @@ Studio.setTrackingMode = function(mode) {
   }
   Studio.EventBus.emit('tracking:modeChanged', { mode });
   Studio.Hierarchy.render();
+  // Auto-switch to targets tab when entering image mode
+  if (mode === 'image' && Studio.currentTab === 'scene') {
+    Studio.switchTab('targets');
+  }
   Studio.log('Tracking: ' + mode);
 };
 
@@ -152,8 +156,13 @@ Studio.publishProject = async function() {
   if (!Studio.Firebase.ready) { Studio.toast('Firebase not connected', 'err'); return; }
   const state = Studio.Project.state;
   if (state.objects.length === 0) { Studio.toast('Add models first', 'err'); return; }
-  if (state.trackingMode === 'image' && !state.target.mindBuffer && !state.target.mindUrl) {
-    Studio.toast('Add an image target first', 'err'); return;
+  // Check for image targets (new multi-target system OR legacy single target)
+  if (state.trackingMode === 'image') {
+    const hasNewTargets = state.targets && state.targets.length > 0;
+    const hasLegacyTarget = state.target.mindBuffer || state.target.mindUrl;
+    if (!hasNewTargets && !hasLegacyTarget) {
+      Studio.toast('Add an image target first', 'err'); return;
+    }
   }
 
   const gh = Studio.GitHub.getConfig();
@@ -174,6 +183,12 @@ Studio.publishProject = async function() {
     }
     if (state.target.imgFile && !state.target.imageUrl) {
       state.target.imageUrl = await Studio.GitHub.upload(base + '/target.png', await Studio.GitHub.file2b64(state.target.imgFile));
+    }
+
+    // Upload 8th Wall native image targets
+    if (state.targets && state.targets.length > 0) {
+      Studio.log('Uploading ' + state.targets.length + ' image target(s)…');
+      await Studio.Targets.uploadTargets(base);
     }
 
     // Upload any models that don't have URLs yet
@@ -317,6 +332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.Inspector.init();
   Studio.Undo.init();
   Studio.Assets.init();
+  Studio.Targets.init();
   Studio.CodeEditor.init();
   Studio.Splash.init();
   Studio.Preview.init();

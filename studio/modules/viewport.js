@@ -344,6 +344,34 @@ Studio.Viewport = {
 
     // Load objects
     for (const obj of state.objects) {
+      // Primitive objects — rebuild geometry
+      if (obj.type === 'primitive' && obj.primitiveType) {
+        const defs = {
+          cube:     () => new THREE.BoxGeometry(0.3, 0.3, 0.3),
+          sphere:   () => new THREE.SphereGeometry(0.18, 24, 16),
+          cylinder: () => new THREE.CylinderGeometry(0.15, 0.15, 0.35, 24),
+          plane:    () => new THREE.PlaneGeometry(0.5, 0.5),
+          cone:     () => new THREE.ConeGeometry(0.18, 0.35, 24),
+          torus:    () => new THREE.TorusGeometry(0.15, 0.05, 12, 32),
+        };
+        const geoFn = defs[obj.primitiveType];
+        if (geoFn) {
+          const color = obj.primitiveColor || '#8b5cf6';
+          const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.1 });
+          const mesh = new THREE.Mesh(geoFn(), mat);
+          mesh.castShadow = true;
+          mesh.userData._objId = obj.id;
+          mesh.traverse(c => { c.userData._objId = obj.id; });
+          this.scene.add(mesh);
+          obj.mesh = mesh;
+          const t = obj.transform;
+          mesh.position.set(t.position.x, t.position.y, t.position.z);
+          mesh.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
+          mesh.scale.set(t.scale.x, t.scale.y, t.scale.z);
+          mesh.visible = obj.visible;
+        }
+        continue;
+      }
       if (obj.glbUrl) {
         try {
           await this._loadModelIntoScene(obj, obj.glbUrl);
@@ -480,6 +508,44 @@ Studio.Viewport = {
 
   stopAllPresets(obj) {
     ['spin', 'bob', 'pulse'].forEach(t => this.stopPreset(obj, t));
+  },
+
+  // ─── Add Primitive Object ───────────────────────────────
+  addPrimitive(type) {
+    const defs = {
+      cube:     { geo: new THREE.BoxGeometry(0.3, 0.3, 0.3),       name: 'Cube',     color: 0x8b5cf6 },
+      sphere:   { geo: new THREE.SphereGeometry(0.18, 24, 16),     name: 'Sphere',   color: 0x22d3ee },
+      cylinder: { geo: new THREE.CylinderGeometry(0.15, 0.15, 0.35, 24), name: 'Cylinder', color: 0x34d399 },
+      plane:    { geo: new THREE.PlaneGeometry(0.5, 0.5),          name: 'Plane',    color: 0xfb923c },
+      cone:     { geo: new THREE.ConeGeometry(0.18, 0.35, 24),     name: 'Cone',     color: 0xf87171 },
+      torus:    { geo: new THREE.TorusGeometry(0.15, 0.05, 12, 32),name: 'Torus',    color: 0xa78bfa },
+    };
+    const def = defs[type];
+    if (!def) return;
+
+    const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.5, metalness: 0.1 });
+    const mesh = new THREE.Mesh(def.geo, mat);
+    mesh.castShadow = true;
+    mesh.position.y = type === 'plane' ? 0.001 : 0.2;
+    if (type === 'plane') mesh.rotation.x = -Math.PI / 2;
+
+    const obj = Studio.Project.createObject({
+      name: def.name,
+      type: 'primitive',
+      primitiveType: type,
+      primitiveColor: '#' + def.color.toString(16).padStart(6, '0'),
+    });
+
+    mesh.userData._objId = obj.id;
+    mesh.traverse(c => { c.userData._objId = obj.id; });
+    this.scene.add(mesh);
+    obj.mesh = mesh;
+    // Set initial transform from mesh
+    obj.transform.position.y = mesh.position.y;
+
+    Studio.Project.addObject(obj);
+    this.selectObject(obj.id);
+    Studio.toast(def.name + ' added', 'ok');
   },
 
   // ─── Load Sample Model ─────────────────────────────────

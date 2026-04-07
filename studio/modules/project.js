@@ -16,6 +16,9 @@ Studio.Project = {
       imgFile: null      // transient
     },
 
+    // 8th Wall native image targets (new multi-target system)
+    targets: [],
+
     objects: [],
 
     scene: {
@@ -45,10 +48,13 @@ Studio.Project = {
     return {
       id: this._genId(),
       name: 'Object',
-      type: 'model',
+      type: 'model',       // 'model' | 'primitive'
+      primitiveType: null, // 'cube' | 'sphere' | 'cylinder' | 'plane' | 'cone' | 'torus'
+      primitiveColor: null,
       glbUrl: '',
       file: null,         // transient
       visible: true,
+      targetId: null,      // which image target this object belongs to
       parentId: null,
       sortOrder: this.state.objects.length,
 
@@ -112,9 +118,18 @@ Studio.Project = {
       version: s.version,
       trackingMode: s.trackingMode,
       target: { mindUrl: s.target.mindUrl, imageUrl: s.target.imageUrl },
+      // 8th Wall native image targets
+      targets: (s.targets || []).map(t => ({
+        id: t.id, name: t.name, type: t.type, quality: t.quality,
+        properties: JSON.parse(JSON.stringify(t.properties)),
+        originalUrl: t.originalUrl, luminanceUrl: t.luminanceUrl,
+        thumbnailUrl: t.thumbnailUrl, objectIds: [...(t.objectIds || [])],
+      })),
       objects: s.objects.map(o => ({
-        id: o.id, name: o.name, type: o.type, glbUrl: o.glbUrl,
-        visible: o.visible, parentId: o.parentId, sortOrder: o.sortOrder,
+        id: o.id, name: o.name, type: o.type,
+        primitiveType: o.primitiveType || null, primitiveColor: o.primitiveColor || null,
+        glbUrl: o.glbUrl,
+        visible: o.visible, targetId: o.targetId, parentId: o.parentId, sortOrder: o.sortOrder,
         transform: JSON.parse(JSON.stringify(o.transform)),
         clips: [...o.clips], defaultAnim: o.defaultAnim, loop: o.loop,
         presets: JSON.parse(JSON.stringify(o.presets)),
@@ -145,6 +160,15 @@ Studio.Project = {
     s.target.imageUrl = data.target?.imageUrl || '';
     s.target.mindBuffer = null;
     s.target.imgFile = null;
+    // Restore 8th Wall native targets
+    s.targets = (data.targets || []).map(t => ({
+      id: t.id, name: t.name, type: t.type || 'PLANAR',
+      quality: t.quality || 0,
+      properties: t.properties || {},
+      originalUrl: t.originalUrl || '', luminanceUrl: t.luminanceUrl || '',
+      thumbnailUrl: t.thumbnailUrl || '', objectIds: t.objectIds || [],
+      _imageFile: null, _luminanceDataUrl: '', _thumbnailDataUrl: '',
+    }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
     s.createdAt = data.createdAt;
@@ -156,8 +180,9 @@ Studio.Project = {
       data.objects.forEach(od => {
         s.objects.push(this.createObject({
           id: od.id, name: od.name, type: od.type || 'model',
+          primitiveType: od.primitiveType || null, primitiveColor: od.primitiveColor || null,
           glbUrl: od.glbUrl, visible: od.visible !== false,
-          parentId: od.parentId, sortOrder: od.sortOrder || 0,
+          targetId: od.targetId || null, parentId: od.parentId, sortOrder: od.sortOrder || 0,
           transform: od.transform || { position:{x:0,y:0,z:0}, rotation:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} },
           clips: od.clips || [], defaultAnim: od.defaultAnim || '', loop: od.loop || 'repeat',
           presets: od.presets || { spin:null, bob:null, pulse:null },
@@ -190,6 +215,7 @@ Studio.Project = {
     s.name = 'Untitled';
     s.trackingMode = 'slam';
     s.target = { mindUrl: '', imageUrl: '', mindBuffer: null, imgFile: null };
+    s.targets = [];
     s.objects = [];
     s.scene = { shadowCatcher: true, ambientIntensity: 0.5, directIntensity: 0.8 };
     s.splash = { title:'', subtitle:'', bgColor:'#060a18', textColor:'#e2e8f0', accentColor:'#8b5cf6', logoUrl:'', logoFile:null, showSpinner:true };

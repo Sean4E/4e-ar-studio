@@ -91,6 +91,7 @@
   <!-- ─── WORKSPACE TABS ─────────────────────────────── -->
   <div id="workspace-tabs">
     <button class="ws-tab active" data-tab="scene" onclick="Studio.switchTab('scene')">3D Scene</button>
+    <button class="ws-tab" data-tab="targets" onclick="Studio.switchTab('targets')">Targets</button>
     <button class="ws-tab" data-tab="code" onclick="Studio.switchTab('code')">Code</button>
     <button class="ws-tab" data-tab="splash" onclick="Studio.switchTab('splash')">Splash</button>
     <button class="ws-tab" data-tab="preview" onclick="Studio.switchTab('preview')">Preview</button>
@@ -111,6 +112,10 @@
     <div class="ws-content active" data-tab="scene">
       <canvas id="vp-canvas"></canvas>
       <div class="vp-hint">LMB orbit · MMB pan · Scroll zoom · W/E/R gizmo</div>
+    </div>
+    <!-- Targets tab -->
+    <div class="ws-content" data-tab="targets">
+      <div id="targets-container"></div>
     </div>
     <!-- Code tab -->
     <div class="ws-content" data-tab="code">
@@ -192,6 +197,7 @@
 <input type="file" id="fi-target" accept="image/*" style="display:none" onchange="Studio.Viewport.handleTargetFile(this.files[0]);this.value=''">
 <input type="file" id="fi-model" accept=".glb,.gltf" style="display:none" onchange="Studio.Viewport.handleModelFile(this.files[0]);this.value=''">
 <input type="file" id="fi-media" accept="image/*,video/*,audio/*" style="display:none" onchange="Studio.Assets.handleMediaFile(this.files[0]);this.value=''">
+<input type="file" id="fi-target-new" accept="image/*" multiple style="display:none" onchange="Array.from(this.files).forEach(f=>Studio.Targets.processFile(f));this.value=''">
 
 <!-- ═══════════════════════════════════════════════════════ -->
 <!-- MODULES (load order matters: eventbus → project → rest) -->
@@ -207,6 +213,7 @@
 <script src="modules/github.js"></script>
 <script src="modules/mindar.js"></script>
 <script src="modules/assets.js"></script>
+<script src="modules/targets.js"></script>
 <script src="modules/codeeditor.js"></script>
 <script src="modules/splash.js"></script>
 <script src="modules/preview.js"></script>
