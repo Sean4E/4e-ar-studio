@@ -188,73 +188,105 @@ a { color: var(--cyan); }
   grid-area: inspector;
   border-left: 1px solid var(--border);
 }
+#insp-content { padding-bottom: 20px; }
 .insp-section {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
 .insp-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.05em; color: var(--muted); margin-bottom: 5px;
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: space-between;
 }
 .insp-row {
-  display: flex; align-items: center; gap: 5px; margin-bottom: 3px;
+  display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
 }
 .insp-row label {
-  font-size: 10px; color: var(--muted); width: 14px; text-align: center; font-weight: 700;
+  font-size: 10px; color: var(--muted); width: 14px; text-align: center; font-weight: 700; flex-shrink: 0;
 }
 .insp-row label.x { color: var(--red); }
 .insp-row label.y { color: var(--green); }
 .insp-row label.z { color: var(--cyan); }
-.insp-input {
-  flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text);
-  padding: 3px 6px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 11px;
-  width: 0; outline: none;
+.insp-row input[type="range"] {
+  flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+  background: var(--border); border-radius: 2px; outline: none;
 }
-.insp-input:focus { border-color: var(--purple); }
+.insp-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--purple); cursor: pointer; border: 2px solid var(--bg2);
+}
+.insp-row input[type="range"]::-webkit-slider-thumb:hover { background: var(--purple2); transform: scale(1.15); }
+.insp-input {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 4px 6px; border-radius: 4px; font-family: 'Space Mono', monospace; font-size: 10px;
+  width: 0; flex: 1; outline: none; transition: border-color 0.15s;
+}
+.insp-input:focus { border-color: var(--purple); box-shadow: 0 0 0 2px var(--purple3); }
 .insp-select {
   width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
-  padding: 4px 6px; border-radius: 4px; font-family: inherit; font-size: 11px; outline: none;
+  padding: 5px 8px; border-radius: 5px; font-family: inherit; font-size: 11px; outline: none;
+  transition: border-color 0.15s;
 }
-.insp-check {
-  display: flex; align-items: center; gap: 7px; font-size: 11px;
-  cursor: pointer; padding: 3px 0; color: var(--text2);
-}
+.insp-select:focus { border-color: var(--purple); }
 /* Modern toggle switch */
+.insp-check {
+  display: flex; align-items: center; gap: 8px; font-size: 11px;
+  cursor: pointer; padding: 4px 0; color: var(--text2); transition: color 0.15s;
+}
+.insp-check:hover { color: var(--text); }
 .insp-check input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
-  width: 28px; height: 16px; border-radius: 8px;
-  background: var(--bg); border: 1px solid var(--border2);
+  width: 30px; height: 16px; border-radius: 8px;
+  background: var(--bg); border: 1.5px solid var(--border2);
   position: relative; cursor: pointer; flex-shrink: 0;
-  transition: all 0.2s;
+  transition: all 0.25s ease;
 }
 .insp-check input[type="checkbox"]::after {
   content: ''; position: absolute;
   width: 10px; height: 10px; border-radius: 50%;
-  background: var(--muted); top: 2px; left: 2px;
-  transition: all 0.2s;
+  background: var(--faint); top: 1.5px; left: 2px;
+  transition: all 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
 .insp-check input[type="checkbox"]:checked {
-  background: var(--purple3); border-color: var(--purple);
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  border-color: var(--purple);
 }
 .insp-check input[type="checkbox"]:checked::after {
-  background: var(--purple); left: 14px;
+  background: #fff; left: 15px;
 }
 .insp-btn {
-  width: 100%; padding: 5px; border: none; border-radius: 5px;
-  cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 600; margin-top: 4px;
+  width: 100%; padding: 7px; border: none; border-radius: 6px;
+  cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 600;
+  margin-top: 6px; transition: all 0.15s;
 }
 .insp-btn.primary { background: var(--purple); color: #fff; }
-.insp-btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
-.insp-btn.danger:hover { background: rgba(248,113,113,0.1); }
-/* Component group (collapsible) */
+.insp-btn.primary:hover { background: var(--purple2); }
+.insp-btn.danger {
+  background: rgba(248,113,113,0.08); color: var(--red);
+  border: 1px solid rgba(248,113,113,0.2);
+}
+.insp-btn.danger:hover { background: rgba(248,113,113,0.15); border-color: var(--red); }
+/* Component group (glassmorphism card) */
 .comp-group {
-  background: var(--bg); border-radius: 5px; padding: 5px 7px; margin-bottom: 3px;
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; margin-bottom: 4px;
+  transition: border-color 0.15s;
 }
+.comp-group:hover { border-color: var(--border2); }
 .comp-group-header {
-  display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px;
+  display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;
 }
-.comp-group-body { margin-top: 5px; padding-left: 4px; }
+.comp-group-body { margin-top: 6px; padding-left: 2px; }
 .comp-group-body.collapsed { display: none; }
+/* Reset buttons */
+.insp-row button[title^="Reset"] {
+  background: none; border: 1px solid var(--border); color: var(--faint);
+  width: 18px; height: 18px; border-radius: 4px; cursor: pointer;
+  font-size: 9px; flex-shrink: 0; padding: 0; line-height: 16px;
+  transition: all 0.15s;
+}
+.insp-row button[title^="Reset"]:hover { border-color: var(--purple); color: var(--purple2); }
 
 /* ─── Bottom Panel ──────────────────────────────────────── */
 #bottom-panel {
