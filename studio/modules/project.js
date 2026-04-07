@@ -127,7 +127,10 @@ Studio.Project = {
         title: s.splash.title, subtitle: s.splash.subtitle,
         bgColor: s.splash.bgColor, textColor: s.splash.textColor,
         accentColor: s.splash.accentColor, logoUrl: s.splash.logoUrl,
-        showSpinner: s.splash.showSpinner
+        showSpinner: s.splash.showSpinner, showBranding: s.splash.showBranding,
+        showLogo: s.splash.showLogo, showTitle: s.splash.showTitle,
+        showSubtitle: s.splash.showSubtitle, gradient: s.splash.gradient,
+        duration: s.splash.duration || 3
       },
       updatedAt: null // set by Firebase
     };

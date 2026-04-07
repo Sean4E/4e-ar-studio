@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // 4E AR Studio — Splash Screen Designer
-// Mini Canva-style editor for branded AR loading screens
+// 3-panel layout: Elements | Preview | Properties
 // ═══════════════════════════════════════════════════════════
 
 Studio.Splash = {
@@ -9,60 +9,100 @@ Studio.Splash = {
     if (!container) return;
 
     container.innerHTML = `
-      <div class="sp-editor">
-        <div class="sp-controls">
-          <div class="sp-head">Splash Screen</div>
-          <div class="sp-desc">Design the loading screen users see before AR starts</div>
+      <div class="sp-layout">
+        <!-- LEFT: Elements & Layers -->
+        <div class="sp-left">
+          <div class="sp-panel-title">Elements</div>
 
-          <div class="sp-field">
-            <label>Title</label>
-            <input class="sp-input" id="sp-title" placeholder="Uses project name if empty" oninput="Studio.Splash._update()">
+          <div class="sp-element">
+            <input type="checkbox" id="sp-show-logo" checked onchange="Studio.Splash._update()">
+            <span>🖼 Logo</span>
           </div>
-          <div class="sp-field">
-            <label>Subtitle</label>
-            <input class="sp-input" id="sp-subtitle" placeholder="Tagline or description" oninput="Studio.Splash._update()">
+          <div class="sp-element">
+            <input type="checkbox" id="sp-show-title" checked onchange="Studio.Splash._update()">
+            <span>📝 Title</span>
           </div>
-          <div class="sp-field">
-            <label>Logo</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <button class="sp-btn" onclick="document.getElementById('sp-logo-fi').click()">Upload</button>
-              <button class="sp-btn" onclick="Studio.Splash._removeLogo()">Clear</button>
-              <span id="sp-logo-name" style="font-size:10px;color:var(--faint)"></span>
-            </div>
-            <input type="file" id="sp-logo-fi" accept="image/*" style="display:none" onchange="Studio.Splash._handleLogo(this.files[0]);this.value=''">
+          <div class="sp-element">
+            <input type="checkbox" id="sp-show-subtitle" checked onchange="Studio.Splash._update()">
+            <span>💬 Subtitle</span>
           </div>
-          <div class="sp-field">
-            <label>Colours</label>
-            <div style="display:flex;gap:10px">
-              <div class="sp-color-pick"><input type="color" id="sp-bg" value="#060a18" onchange="Studio.Splash._update()"><span>BG</span></div>
-              <div class="sp-color-pick"><input type="color" id="sp-text" value="#e2e8f0" onchange="Studio.Splash._update()"><span>Text</span></div>
-              <div class="sp-color-pick"><input type="color" id="sp-accent" value="#8b5cf6" onchange="Studio.Splash._update()"><span>Accent</span></div>
-            </div>
+          <div class="sp-element">
+            <input type="checkbox" id="sp-spinner" checked onchange="Studio.Splash._update()">
+            <span>⏳ Spinner</span>
           </div>
-          <div class="sp-field">
-            <label>Options</label>
-            <label class="insp-check"><input type="checkbox" id="sp-spinner" checked onchange="Studio.Splash._update()"> Loading spinner</label>
-            <label class="insp-check"><input type="checkbox" id="sp-gradient" onchange="Studio.Splash._update()"> Gradient background</label>
-            <label class="insp-check"><input type="checkbox" id="sp-branding" checked onchange="Studio.Splash._update()"> 4E branding</label>
+          <div class="sp-element">
+            <input type="checkbox" id="sp-branding" checked onchange="Studio.Splash._update()">
+            <span>✦ Branding</span>
           </div>
-          <div class="sp-field">
-            <label>Quick Themes</label>
-            <div class="sp-themes">
-              <button onclick="Studio.Splash._theme('dark')" style="background:#060a18;color:#fff">Dark</button>
-              <button onclick="Studio.Splash._theme('light')" style="background:#f8fafc;color:#1e293b">Light</button>
-              <button onclick="Studio.Splash._theme('neon')" style="background:#0a0020;color:#22d3ee">Neon</button>
-              <button onclick="Studio.Splash._theme('warm')" style="background:#1c0a00;color:#fb923c">Warm</button>
-              <button onclick="Studio.Splash._theme('nature')" style="background:#001a0a;color:#34d399">Nature</button>
-              <button onclick="Studio.Splash._theme('brand')" style="background:#0f0030;color:#a78bfa">Brand</button>
-            </div>
+
+          <div class="sp-panel-title" style="margin-top:12px">Quick Themes</div>
+          <div class="sp-themes-grid">
+            <button onclick="Studio.Splash._theme('dark')" style="background:#060a18;color:#e2e8f0" title="Dark">Dark</button>
+            <button onclick="Studio.Splash._theme('light')" style="background:#f8fafc;color:#1e293b" title="Light">Light</button>
+            <button onclick="Studio.Splash._theme('neon')" style="background:#0a0020;color:#22d3ee" title="Neon">Neon</button>
+            <button onclick="Studio.Splash._theme('warm')" style="background:#1c0a00;color:#fb923c" title="Warm">Warm</button>
+            <button onclick="Studio.Splash._theme('nature')" style="background:#001a0a;color:#34d399" title="Nature">Nature</button>
+            <button onclick="Studio.Splash._theme('brand')" style="background:#0f0030;color:#a78bfa" title="Brand">Brand</button>
           </div>
         </div>
-        <div class="sp-preview-area">
+
+        <!-- CENTRE: Live Preview -->
+        <div class="sp-centre">
           <div class="sp-phone">
             <div class="sp-notch"></div>
             <div class="sp-screen" id="sp-screen"></div>
           </div>
-          <div class="sp-preview-label">Live preview</div>
+          <div class="sp-preview-hint">Live preview — exactly as users see it</div>
+        </div>
+
+        <!-- RIGHT: Properties -->
+        <div class="sp-right">
+          <div class="sp-panel-title">Properties</div>
+
+          <div class="sp-prop-group">
+            <div class="sp-prop-label">Title</div>
+            <input class="sp-prop-input" id="sp-title" placeholder="Uses project name" oninput="Studio.Splash._update()">
+          </div>
+
+          <div class="sp-prop-group">
+            <div class="sp-prop-label">Subtitle</div>
+            <input class="sp-prop-input" id="sp-subtitle" placeholder="Tagline or description" oninput="Studio.Splash._update()">
+          </div>
+
+          <div class="sp-prop-group">
+            <div class="sp-prop-label">Logo</div>
+            <div style="display:flex;gap:4px;align-items:center">
+              <button class="sp-prop-btn" onclick="document.getElementById('sp-logo-fi').click()">Upload</button>
+              <button class="sp-prop-btn" onclick="Studio.Splash._removeLogo()">Clear</button>
+              <span id="sp-logo-name" style="font-size:9px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px"></span>
+            </div>
+            <input type="file" id="sp-logo-fi" accept="image/*" style="display:none" onchange="Studio.Splash._handleLogo(this.files[0]);this.value=''">
+          </div>
+
+          <div class="sp-prop-group">
+            <div class="sp-prop-label">Duration</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="range" min="1" max="10" step="0.5" value="3" id="sp-duration" oninput="Studio.Splash._update();document.getElementById('sp-dur-val').textContent=this.value+'s'" style="flex:1">
+              <span id="sp-dur-val" style="font-size:10px;color:var(--muted);width:24px">3s</span>
+            </div>
+          </div>
+
+          <div class="sp-prop-group">
+            <div class="sp-prop-label">Colours</div>
+            <div class="sp-colors-row">
+              <label><input type="color" id="sp-bg" value="#060a18" onchange="Studio.Splash._update()"><span>BG</span></label>
+              <label><input type="color" id="sp-text" value="#e2e8f0" onchange="Studio.Splash._update()"><span>Text</span></label>
+              <label><input type="color" id="sp-accent" value="#8b5cf6" onchange="Studio.Splash._update()"><span>Accent</span></label>
+            </div>
+          </div>
+
+          <div class="sp-prop-group">
+            <div class="sp-prop-label">Style</div>
+            <div class="sp-element">
+              <input type="checkbox" id="sp-gradient" onchange="Studio.Splash._update()">
+              <span>Gradient background</span>
+            </div>
+          </div>
         </div>
       </div>`;
 
@@ -70,27 +110,30 @@ Studio.Splash = {
     if (!document.getElementById('sp-styles')) {
       const s = document.createElement('style'); s.id = 'sp-styles';
       s.textContent = `
-        .sp-editor{display:flex;gap:24px;height:100%;padding:16px;overflow-y:auto}
-        .sp-controls{width:260px;flex-shrink:0}
-        .sp-head{font-size:15px;font-weight:700;margin-bottom:2px}
-        .sp-desc{font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5}
-        .sp-field{margin-bottom:10px}
-        .sp-field label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);display:block;margin-bottom:3px}
-        .sp-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-family:inherit;font-size:12px;outline:none}
-        .sp-input:focus{border-color:var(--purple)}
-        .sp-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:3px;font-family:inherit;font-size:10px;cursor:pointer}
-        .sp-btn:hover{border-color:var(--purple)}
-        .sp-color-pick{display:flex;flex-direction:column;align-items:center;gap:2px}
-        .sp-color-pick input{width:32px;height:24px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:none;padding:0}
-        .sp-color-pick span{font-size:9px;color:var(--faint)}
-        .sp-themes{display:flex;gap:4px;flex-wrap:wrap}
-        .sp-themes button{padding:3px 8px;border:1px solid var(--border);border-radius:3px;font-size:9px;font-family:inherit;cursor:pointer;font-weight:600}
-        .sp-themes button:hover{transform:scale(1.05);border-color:var(--purple)}
-        .sp-preview-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
-        .sp-phone{width:240px;height:440px;background:#111;border-radius:24px;padding:6px;position:relative;box-shadow:0 6px 24px rgba(0,0,0,.4)}
-        .sp-notch{width:100px;height:16px;background:#111;border-radius:0 0 10px 10px;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2}
-        .sp-screen{width:100%;height:100%;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;transition:background .3s}
-        .sp-preview-label{font-size:10px;color:var(--faint);margin-top:8px}
+        .sp-layout{display:flex;height:100%;overflow:hidden}
+        .sp-left,.sp-right{width:200px;flex-shrink:0;padding:10px;overflow-y:auto;border-right:1px solid var(--border)}
+        .sp-right{border-right:none;border-left:1px solid var(--border)}
+        .sp-centre{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;background:var(--bg)}
+        .sp-panel-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+        .sp-element{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:5px;font-size:11px;color:var(--text2);cursor:pointer;transition:background .12s}
+        .sp-element:hover{background:var(--bg3)}
+        .sp-themes-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+        .sp-themes-grid button{padding:4px;border:1px solid var(--border);border-radius:4px;font-size:9px;font-family:inherit;cursor:pointer;font-weight:600;transition:all .12s}
+        .sp-themes-grid button:hover{border-color:var(--purple);transform:scale(1.03)}
+        .sp-phone{width:220px;height:400px;background:#111;border-radius:22px;padding:5px;position:relative;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+        .sp-notch{width:90px;height:14px;background:#111;border-radius:0 0 8px 8px;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2}
+        .sp-screen{width:100%;height:100%;border-radius:17px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;transition:background .3s}
+        .sp-preview-hint{font-size:9px;color:var(--faint);margin-top:6px}
+        .sp-prop-group{margin-bottom:10px}
+        .sp-prop-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
+        .sp-prop-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-family:inherit;font-size:11px;outline:none}
+        .sp-prop-input:focus{border-color:var(--purple)}
+        .sp-prop-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:3px;font-family:inherit;font-size:10px;cursor:pointer}
+        .sp-prop-btn:hover{border-color:var(--purple)}
+        .sp-colors-row{display:flex;gap:8px}
+        .sp-colors-row label{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+        .sp-colors-row input[type=color]{width:30px;height:22px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:none;padding:0}
+        .sp-colors-row span{font-size:8px;color:var(--faint)}
         @keyframes sp-spin{to{transform:rotate(360deg)}}
       `;
       document.head.appendChild(s);
@@ -151,6 +194,10 @@ Studio.Splash = {
     sp.showSpinner = document.getElementById('sp-spinner')?.checked;
     sp.gradient = document.getElementById('sp-gradient')?.checked;
     sp.showBranding = document.getElementById('sp-branding')?.checked;
+    sp.showLogo = document.getElementById('sp-show-logo')?.checked;
+    sp.showTitle = document.getElementById('sp-show-title')?.checked;
+    sp.showSubtitle = document.getElementById('sp-show-subtitle')?.checked;
+    sp.duration = parseFloat(document.getElementById('sp-duration')?.value) || 3;
     Studio.Project.markDirty();
     this._render();
   },
@@ -166,6 +213,10 @@ Studio.Splash = {
     if (el('sp-spinner')) el('sp-spinner').checked = sp.showSpinner !== false;
     if (el('sp-gradient')) el('sp-gradient').checked = !!sp.gradient;
     if (el('sp-branding')) el('sp-branding').checked = sp.showBranding !== false;
+    if (el('sp-show-logo')) el('sp-show-logo').checked = sp.showLogo !== false;
+    if (el('sp-show-title')) el('sp-show-title').checked = sp.showTitle !== false;
+    if (el('sp-show-subtitle')) el('sp-show-subtitle').checked = sp.showSubtitle !== false;
+    if (el('sp-duration')) { el('sp-duration').value = sp.duration || 3; if (el('sp-dur-val')) el('sp-dur-val').textContent = (sp.duration || 3) + 's'; }
     this._render();
   },
 
@@ -181,16 +232,27 @@ Studio.Splash = {
 
     screen.style.background = sp.gradient ? `linear-gradient(145deg, ${bg}, ${accent}18)` : bg;
 
-    screen.innerHTML = `
-      ${logo ? `<img src="${logo}" style="max-height:48px;max-width:120px;margin-bottom:12px;object-fit:contain">` : `<img src="../samples/logo_WHT.png" style="max-height:36px;margin-bottom:12px;opacity:.7" onerror="this.outerHTML='<div style=\\'font-size:36px;margin-bottom:12px;opacity:.7\\'>◈</div>'">`}
-      <div style="color:${text};font-size:16px;font-weight:700;font-family:'Syne',sans-serif;text-align:center;padding:0 14px;line-height:1.3">${this._esc(title)}</div>
-      ${sp.subtitle ? `<div style="color:${text};opacity:.45;font-size:10px;margin-top:5px;text-align:center;padding:0 14px">${this._esc(sp.subtitle)}</div>` : ''}
-      ${sp.showSpinner !== false ? `<div style="margin-top:16px;display:flex;align-items:center;gap:6px"><div style="width:14px;height:14px;border:2px solid ${accent}33;border-top-color:${accent};border-radius:50%;animation:sp-spin .8s linear infinite"></div><span style="color:${text};opacity:.3;font-size:10px">Loading…</span></div>` : ''}
-      ${sp.showBranding !== false ? `<div style="position:absolute;bottom:10px;font-size:8px;color:${text};opacity:.15">Powered by 4E AR Studio</div>` : ''}
-    `;
+    let html = '';
+    if (sp.showLogo !== false) {
+      html += logo
+        ? `<img src="${logo}" style="max-height:44px;max-width:110px;margin-bottom:10px;object-fit:contain">`
+        : `<img src="../samples/logo_WHT.png" style="max-height:30px;margin-bottom:10px;opacity:.7" onerror="this.outerHTML='<div style=font-size:32px;margin-bottom:10px;opacity:.7>&#9670;</div>'">`;
+    }
+    if (sp.showTitle !== false) {
+      html += `<div style="color:${text};font-size:15px;font-weight:700;font-family:'Syne',sans-serif;text-align:center;padding:0 12px;line-height:1.3">${this._esc(title)}</div>`;
+    }
+    if (sp.showSubtitle !== false && sp.subtitle) {
+      html += `<div style="color:${text};opacity:.4;font-size:10px;margin-top:4px;text-align:center">${this._esc(sp.subtitle)}</div>`;
+    }
+    if (sp.showSpinner !== false) {
+      html += `<div style="margin-top:16px;display:flex;align-items:center;gap:5px"><div style="width:13px;height:13px;border:2px solid ${accent}33;border-top-color:${accent};border-radius:50%;animation:sp-spin .8s linear infinite"></div><span style="color:${text};opacity:.25;font-size:9px">Loading…</span></div>`;
+    }
+    if (sp.showBranding !== false) {
+      html += `<div style="position:absolute;bottom:10px;font-size:7px;color:${text};opacity:.12">Powered by 4E AR Studio</div>`;
+    }
+    screen.innerHTML = html;
   },
 
   _esc(s) { return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
-
   render() { this._render(); }
 };

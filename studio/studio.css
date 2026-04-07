@@ -228,31 +228,45 @@ a { color: var(--cyan); }
   transition: border-color 0.15s;
 }
 .insp-select:focus { border-color: var(--purple); }
-/* Modern toggle switch */
+/* Modern toggle switch — applies to ALL checkboxes in inspector */
 .insp-check {
   display: flex; align-items: center; gap: 8px; font-size: 11px;
   cursor: pointer; padding: 4px 0; color: var(--text2); transition: color 0.15s;
 }
 .insp-check:hover { color: var(--text); }
-.insp-check input[type="checkbox"] {
+/* Global toggle switch for ALL checkboxes in inspector + component groups */
+#inspector input[type="checkbox"],
+.comp-group input[type="checkbox"],
+.insp-check input[type="checkbox"],
+.sp-editor input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
   width: 30px; height: 16px; border-radius: 8px;
   background: var(--bg); border: 1.5px solid var(--border2);
   position: relative; cursor: pointer; flex-shrink: 0;
   transition: all 0.25s ease;
+  margin: 0;
 }
-.insp-check input[type="checkbox"]::after {
+#inspector input[type="checkbox"]::after,
+.comp-group input[type="checkbox"]::after,
+.insp-check input[type="checkbox"]::after,
+.sp-editor input[type="checkbox"]::after {
   content: ''; position: absolute;
   width: 10px; height: 10px; border-radius: 50%;
   background: var(--faint); top: 1.5px; left: 2px;
   transition: all 0.25s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
-.insp-check input[type="checkbox"]:checked {
+#inspector input[type="checkbox"]:checked,
+.comp-group input[type="checkbox"]:checked,
+.insp-check input[type="checkbox"]:checked,
+.sp-editor input[type="checkbox"]:checked {
   background: linear-gradient(135deg, var(--purple), var(--purple2));
   border-color: var(--purple);
 }
-.insp-check input[type="checkbox"]:checked::after {
+#inspector input[type="checkbox"]:checked::after,
+.comp-group input[type="checkbox"]:checked::after,
+.insp-check input[type="checkbox"]:checked::after,
+.sp-editor input[type="checkbox"]:checked::after {
   background: #fff; left: 15px;
 }
 .insp-btn {
