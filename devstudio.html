@@ -125,7 +125,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <button class="tb-btn" onclick="setGizmo('scale')" id="gm-s" title="Scale (R)">Scale</button>
     </div>
     <div class="tb-sep"></div>
-    <button class="tb-btn" onclick="addTarget()">+ Target</button>
+    <div id="tracking-mode" style="display:flex;gap:2px;background:var(--bg);border-radius:6px;padding:2px">
+      <button class="tb-btn active" onclick="setTrackingMode('image')" id="tm-image" title="Image Target Tracking">📷 Image</button>
+      <button class="tb-btn" onclick="setTrackingMode('slam')" id="tm-slam" title="Surface/World Tracking">🌐 Surface</button>
+      <button class="tb-btn" onclick="setTrackingMode('face')" id="tm-face" title="Face Tracking" disabled style="opacity:.4">👤 Face</button>
+    </div>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="tb-add-target" onclick="addTarget()">+ Target</button>
     <button class="tb-btn" onclick="addModel()">+ Model</button>
     <span class="tb-status" id="tb-status" style="margin-left:auto">No project</span>
     <div class="tb-sep"></div>
@@ -504,6 +510,27 @@ function onViewportClick(e) {
 // ═══════════════════════════════════════════════════════════
 // SCENE MANAGEMENT
 // ═══════════════════════════════════════════════════════════
+function setTrackingMode(mode) {
+  PROJECT.trackingMode = mode;
+  PROJECT.dirty = true;
+  ['image','slam','face'].forEach(m => {
+    const btn = el('tm-'+m);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+  // Show/hide target button based on mode
+  el('tb-add-target').style.display = mode === 'image' ? '' : 'none';
+  // Update viewport — show/hide ground plane based on mode
+  if (mode === 'slam') {
+    // SLAM: no image target needed, show a placement grid
+    if (targetPlane) { targetPlane.visible = false; }
+    toast('Surface mode: tap to place in AR','ok');
+  } else if (mode === 'image') {
+    if (targetPlane) { targetPlane.visible = true; }
+  }
+  renderHierarchy();
+  log('Tracking mode: ' + mode);
+}
+
 function addTarget() { el('fi-target').click(); }
 function addModel() { el('fi-model').click(); }
 
@@ -982,12 +1009,19 @@ function renderHierarchy() {
   const list = el('h-list');
   let html = '';
 
-  // Target
-  const hasTarget = PROJECT.target.mindBuffer || PROJECT.target.mindUrl;
-  html += `<div class="h-item${hasTarget?'':' disabled'}" style="opacity:${hasTarget?1:0.4}">
-    <span class="h-icon">🎯</span><span class="h-name">Image Target</span>
-    ${hasTarget ? '<span style="color:var(--green);font-size:10px">✓</span>' : '<span style="color:var(--faint);font-size:10px">none</span>'}
-  </div>`;
+  // Tracking source
+  const mode = PROJECT.trackingMode || 'image';
+  if (mode === 'image') {
+    const hasTarget = PROJECT.target.mindBuffer || PROJECT.target.mindUrl;
+    html += `<div class="h-item${hasTarget?'':''}" style="opacity:${hasTarget?1:0.4}">
+      <span class="h-icon">🎯</span><span class="h-name">Image Target</span>
+      ${hasTarget ? '<span style="color:var(--green);font-size:10px">✓</span>' : '<span style="color:var(--faint);font-size:10px">none</span>'}
+    </div>`;
+  } else if (mode === 'slam') {
+    html += `<div class="h-item"><span class="h-icon">🌐</span><span class="h-name">Surface Tracking</span><span style="color:var(--cyan);font-size:10px">tap to place</span></div>`;
+  } else if (mode === 'face') {
+    html += `<div class="h-item"><span class="h-icon">👤</span><span class="h-name">Face Tracking</span><span style="color:var(--purple2);font-size:10px">coming soon</span></div>`;
+  }
 
   // Objects
   PROJECT.objects.forEach(obj => {
@@ -1094,6 +1128,7 @@ async function loadProject(id, data) {
   PROJECT.name = data.name || 'Untitled';
   el('tb-name').value = PROJECT.name;
   PROJECT.trackingMode = data.trackingMode || 'image';
+  setTrackingMode(PROJECT.trackingMode);
 
   // Load target
   if (data.target?.mindUrl) {
@@ -1239,7 +1274,9 @@ async function previewProject() {
 
 async function publishProject() {
   if (!fbReady) { toast('Firebase not connected','err'); return; }
-  if (!PROJECT.target.mindBuffer && !PROJECT.target.mindUrl) { toast('No image target — add one first','err'); return; }
+  if (PROJECT.trackingMode === 'image' && !PROJECT.target.mindBuffer && !PROJECT.target.mindUrl) {
+    toast('No image target — add one first','err'); return;
+  }
   if (PROJECT.objects.length === 0) { toast('No models in scene','err'); return; }
 
   const gh = getGHConfig();

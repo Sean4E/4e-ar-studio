@@ -244,6 +244,13 @@ async function init() {
     el('ar-title').textContent = APP.name || 'AR Experience';
     el('ios-app-name').textContent = APP.name || 'AR Experience';
 
+    // Update hint based on tracking mode
+    const trackMode = APP.trackingMode || 'image';
+    if (trackMode === 'slam') {
+      el('scan-hint').textContent = 'Tap a surface to place your model';
+      el('scan-frame').classList.add('hidden');
+    }
+
     setSplashStatus('Detecting device…');
     await new Promise(r => setTimeout(r, 400));
 
@@ -299,19 +306,27 @@ async function startWebAR() {
   setSplashStatus('Loading AR engine…');
   el('splash').style.display = 'flex';
 
-  // Load A-Frame + MindAR
+  const mode = APP.trackingMode || 'image';
+
+  // Load A-Frame (needed for all modes)
   try {
     await loadScript('https://aframe.io/releases/1.5.0/aframe.min.js');
-    setSplashStatus('Loading MindAR…');
-    await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
     await loadScript('https://cdn.jsdelivr.net/npm/aframe-extras@7.0.0/dist/aframe-extras.min.js');
+    if (mode === 'image') {
+      setSplashStatus('Loading MindAR…');
+      await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js');
+    }
   } catch (e) {
     showError('Script load failed', 'Could not load AR libraries. Check your internet connection.');
     return;
   }
 
   setSplashStatus('Initialising scene…');
-  buildAFrameScene();
+  if (mode === 'slam') {
+    buildSLAMScene();
+  } else {
+    buildAFrameScene();
+  }
 }
 
 function buildAFrameScene() {
@@ -454,6 +469,77 @@ function setupAREvents(scene) {
   target.addEventListener('targetLost', () => {
     el('scan-hint').classList.remove('hidden');
     el('scan-frame').classList.remove('hidden');
+  });
+}
+
+// ─── SLAM Scene (WebXR) ──────────────────────────────────
+function buildSLAMScene() {
+  // Build objects list
+  let objects = [];
+  if (APP.objects && APP.objects.length) {
+    objects = APP.objects.filter(o => o.glbUrl && o.visible !== false);
+  } else if (APP.glbUrl) {
+    objects = [{ id:'legacy', glbUrl:APP.glbUrl, transform:{position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:APP.scale||1,y:APP.scale||1,z:APP.scale||1}}, defaultAnim:APP.defaultAnimation||'', loop:APP.loopMode||'repeat', clips:APP.animations||[], presets:APP.presets||{} }];
+  }
+  if (!objects.length) { showError('No models', 'This experience has no 3D models.'); return; }
+
+  let assetsHtml = '';
+  let entitiesHtml = '';
+  objects.forEach((obj, i) => {
+    const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
+    const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
+    const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
+    const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
+    let animAttr = '';
+    if (obj.defaultAnim && obj.loop !== 'none') {
+      animAttr = `animation-mixer="clip: ${obj.defaultAnim}; loop: ${obj.loop||'repeat'}; crossFadeDuration: 0.4"`;
+    } else if (obj.clips && obj.clips.length) {
+      animAttr = `animation-mixer="clip: *; loop: repeat; crossFadeDuration: 0.4"`;
+    }
+    // Preset animations
+    let presetAttrs = '';
+    const p = obj.presets || {};
+    if (p.spin) { const dur=Math.round(2000/(p.spin.speed||1)); presetAttrs+=` animation__spin="property: rotation.${p.spin.axis||'y'}; from: ${t.rotation[p.spin.axis||'y']||0}; to: ${(parseFloat(t.rotation[p.spin.axis||'y'])||0)+360}; dur: ${dur}; loop: true; easing: linear"`; }
+    if (p.bob) { const h=p.bob.height||0.05; const dur=Math.round(2000/(p.bob.speed||2)); presetAttrs+=` animation__bob="property: position.y; from: ${t.position.y-h}; to: ${t.position.y+h}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`; }
+    if (p.pulse) { const a=p.pulse.amount||0.08; const dur=Math.round(2000/(p.pulse.speed||3)); const s=t.scale.x; presetAttrs+=` animation__pulse="property: scale; from: ${s*(1-a)} ${s*(1-a)} ${s*(1-a)}; to: ${s*(1+a)} ${s*(1+a)} ${s*(1+a)}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`; }
+    assetsHtml += `<a-asset-item id="model-${i}" src="${obj.glbUrl}"></a-asset-item>\n`;
+    entitiesHtml += `<a-gltf-model id="ar-gltf-${i}" src="#model-${i}" position="${pos}" rotation="${rot}" scale="${sc}" ${animAttr}${presetAttrs}></a-gltf-model>\n`;
+  });
+
+  const html = `
+    <a-scene
+      webxr="optionalFeatures: hit-test, local-floor, dom-overlay; overlayElement: #ar-ui"
+      ar-hit-test="target: #ar-content; type: footprint"
+      renderer="colorManagement: true; physicallyCorrectLights: true;"
+      style="width:100%;height:100vh">
+
+      <a-assets timeout="30000">${assetsHtml}</a-assets>
+
+      <a-light type="ambient" intensity="0.8"></a-light>
+      <a-light type="directional" intensity="1.0" position="2 4 3"></a-light>
+
+      <a-entity id="ar-content">
+        ${entitiesHtml}
+      </a-entity>
+    </a-scene>`;
+
+  const container = el('ar-container');
+  container.innerHTML = html;
+  container.classList.add('show');
+
+  const sceneEl = container.querySelector('a-scene');
+  arScene = sceneEl;
+
+  sceneEl.addEventListener('loaded', () => {
+    hideSplash();
+    showARUI();
+    // Update hint for SLAM
+    el('scan-hint').textContent = 'Tap a surface to place your model';
+    el('scan-frame').classList.add('hidden');
+  });
+
+  sceneEl.addEventListener('enter-vr', () => {
+    el('scan-hint').textContent = 'Tap a surface to place';
   });
 }
 
