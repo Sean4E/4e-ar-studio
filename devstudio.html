@@ -242,6 +242,35 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
         </div>
       </div>
+      <!-- Interactions -->
+      <div class="insp-section" id="insp-interact">
+        <div class="insp-label">Interactions</div>
+        <label class="insp-check"><input type="checkbox" id="ix-tap-anim" onchange="setInteraction('tapToggleAnim',this.checked)"> Tap to toggle animation</label>
+        <label class="insp-check"><input type="checkbox" id="ix-pinch" onchange="setInteraction('pinchScale',this.checked)"> Pinch to scale</label>
+        <label class="insp-check"><input type="checkbox" id="ix-drag-rot" onchange="setInteraction('dragRotate',this.checked)"> Drag to rotate</label>
+        <label class="insp-check"><input type="checkbox" id="ix-face-cam" onchange="setInteraction('faceCamera',this.checked)"> Always face camera</label>
+        <label class="insp-check"><input type="checkbox" id="ix-shadow" onchange="setInteraction('castShadow',this.checked)" checked> Cast shadow</label>
+        <label class="insp-check"><input type="checkbox" id="ix-tap-url" onchange="setInteraction('tapOpenUrl',this.checked)"> Tap to open URL</label>
+        <div id="ix-url-row" class="hidden" style="margin-top:4px">
+          <input class="finput" id="ix-url" placeholder="https://..." onchange="setInteractionVal('tapUrl',this.value)" style="margin:0;padding:4px 8px;font-size:11px">
+        </div>
+      </div>
+      <!-- AR Settings -->
+      <div class="insp-section" id="insp-ar-settings">
+        <div class="insp-label">AR Settings</div>
+        <label class="insp-check"><input type="checkbox" id="ar-shadow-catcher" onchange="PROJECT.shadowCatcher=this.checked;PROJECT.dirty=true" checked> Shadow catcher (ground)</label>
+        <label class="insp-check"><input type="checkbox" id="ar-light-est" onchange="PROJECT.lightEstimation=this.checked;PROJECT.dirty=true"> Light estimation</label>
+        <div class="insp-row" style="margin-top:4px">
+          <label style="font-size:10px;color:var(--muted);width:60px">Ambient</label>
+          <input type="range" min="0" max="2" step="0.1" value="0.8" id="ar-ambient" oninput="PROJECT.ambientIntensity=+this.value;PROJECT.dirty=true" style="flex:1">
+          <span style="font-size:10px;width:24px" id="ar-ambient-v">0.8</span>
+        </div>
+        <div class="insp-row">
+          <label style="font-size:10px;color:var(--muted);width:60px">Direct</label>
+          <input type="range" min="0" max="3" step="0.1" value="1.0" id="ar-direct" oninput="PROJECT.directIntensity=+this.value;PROJECT.dirty=true" style="flex:1">
+          <span style="font-size:10px;width:24px" id="ar-direct-v">1.0</span>
+        </div>
+      </div>
       <!-- Actions -->
       <div class="insp-section">
         <button class="insp-btn danger" onclick="removeSelected()">Delete Object</button>
@@ -442,7 +471,10 @@ function initViewport() {
 
   // Gizmo
   gizmo = new THREE.TransformControls(camera, canvas);
-  gizmo.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; });
+  gizmo.addEventListener('dragging-changed', e => {
+    orbit.enabled = !e.value;
+    if (e.value) pushUndo('transform'); // Save state before drag
+  });
   gizmo.addEventListener('objectChange', () => { syncInspectorFromGizmo(); PROJECT.dirty = true; });
   scene.add(gizmo);
 
@@ -736,6 +768,7 @@ function selectObject(id) {
   }
   el('insp-loop').value = obj.loop;
   syncPresetUI(obj);
+  syncInteractionUI(obj);
 
   renderHierarchy();
 }
@@ -947,6 +980,97 @@ function updateName(name) {
   if (obj) { obj.name = name; renderHierarchy(); PROJECT.dirty = true; }
 }
 
+// ─── Interactions ─────────────────────────────────────────
+function setInteraction(key, val) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj) return;
+  if (!obj.interactions) obj.interactions = {};
+  obj.interactions[key] = val;
+  if (key === 'tapOpenUrl') el('ix-url-row').classList.toggle('hidden', !val);
+  PROJECT.dirty = true;
+}
+
+function setInteractionVal(key, val) {
+  const obj = PROJECT.objects.find(o => o.id === selectedId);
+  if (!obj) return;
+  if (!obj.interactions) obj.interactions = {};
+  obj.interactions[key] = val;
+  PROJECT.dirty = true;
+}
+
+function syncInteractionUI(obj) {
+  const ix = obj.interactions || {};
+  el('ix-tap-anim').checked = !!ix.tapToggleAnim;
+  el('ix-pinch').checked = !!ix.pinchScale;
+  el('ix-drag-rot').checked = !!ix.dragRotate;
+  el('ix-face-cam').checked = !!ix.faceCamera;
+  el('ix-shadow').checked = ix.castShadow !== false;
+  el('ix-tap-url').checked = !!ix.tapOpenUrl;
+  el('ix-url-row').classList.toggle('hidden', !ix.tapOpenUrl);
+  el('ix-url').value = ix.tapUrl || '';
+}
+
+// ─── Undo/Redo ───────────────────────────────────────────
+const undoStack = [], redoStack = [];
+function pushUndo(label) {
+  // Snapshot all object transforms
+  const snap = PROJECT.objects.map(o => ({
+    id: o.id,
+    pos: o.mesh ? {x:o.mesh.position.x,y:o.mesh.position.y,z:o.mesh.position.z} : null,
+    rot: o.mesh ? {x:o.mesh.rotation.x,y:o.mesh.rotation.y,z:o.mesh.rotation.z} : null,
+    sc: o.mesh ? {x:o.mesh.scale.x,y:o.mesh.scale.y,z:o.mesh.scale.z} : null,
+  }));
+  undoStack.push({ label, snap });
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function undo() {
+  if (!undoStack.length) { toast('Nothing to undo','warn'); return; }
+  const state = undoStack.pop();
+  // Save current as redo
+  const current = PROJECT.objects.map(o => ({
+    id: o.id,
+    pos: o.mesh ? {x:o.mesh.position.x,y:o.mesh.position.y,z:o.mesh.position.z} : null,
+    rot: o.mesh ? {x:o.mesh.rotation.x,y:o.mesh.rotation.y,z:o.mesh.rotation.z} : null,
+    sc: o.mesh ? {x:o.mesh.scale.x,y:o.mesh.scale.y,z:o.mesh.scale.z} : null,
+  }));
+  redoStack.push({ label: 'redo', snap: current });
+  // Restore
+  state.snap.forEach(s => {
+    const obj = PROJECT.objects.find(o => o.id === s.id);
+    if (obj && obj.mesh && s.pos) {
+      obj.mesh.position.set(s.pos.x, s.pos.y, s.pos.z);
+      obj.mesh.rotation.set(s.rot.x, s.rot.y, s.rot.z);
+      obj.mesh.scale.set(s.sc.x, s.sc.y, s.sc.z);
+    }
+  });
+  if (selectedId) syncInspectorFromMesh(PROJECT.objects.find(o=>o.id===selectedId)?.mesh);
+  toast('Undo: ' + state.label, 'ok');
+}
+
+function redo() {
+  if (!redoStack.length) { toast('Nothing to redo','warn'); return; }
+  const state = redoStack.pop();
+  const current = PROJECT.objects.map(o => ({
+    id: o.id,
+    pos: o.mesh ? {x:o.mesh.position.x,y:o.mesh.position.y,z:o.mesh.position.z} : null,
+    rot: o.mesh ? {x:o.mesh.rotation.x,y:o.mesh.rotation.y,z:o.mesh.rotation.z} : null,
+    sc: o.mesh ? {x:o.mesh.scale.x,y:o.mesh.scale.y,z:o.mesh.scale.z} : null,
+  }));
+  undoStack.push({ label: 'undo', snap: current });
+  state.snap.forEach(s => {
+    const obj = PROJECT.objects.find(o => o.id === s.id);
+    if (obj && obj.mesh && s.pos) {
+      obj.mesh.position.set(s.pos.x, s.pos.y, s.pos.z);
+      obj.mesh.rotation.set(s.rot.x, s.rot.y, s.rot.z);
+      obj.mesh.scale.set(s.sc.x, s.sc.y, s.sc.z);
+    }
+  });
+  if (selectedId) syncInspectorFromMesh(PROJECT.objects.find(o=>o.id===selectedId)?.mesh);
+  toast('Redo', 'ok');
+}
+
 function setObjLoop(mode) {
   const obj = PROJECT.objects.find(o => o.id === selectedId);
   if (obj) { obj.loop = mode; PROJECT.dirty = true; }
@@ -994,6 +1118,10 @@ function setGizmo(mode) {
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  // Undo/Redo
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveProject(); return; }
   const k = e.key.toLowerCase();
   if (k === 'w') setGizmo('translate');
   if (k === 'e') setGizmo('rotate');
@@ -1086,6 +1214,7 @@ async function saveProject() {
     id: o.id, name: o.name, type: o.type, glbUrl: o.glbUrl,
     clips: o.clips, defaultAnim: o.defaultAnim, loop: o.loop, visible: o.visible,
     presets: o.presets || {},
+    interactions: o.interactions || {},
     transform: o.mesh ? {
       position: { x: +o.mesh.position.x.toFixed(4), y: +o.mesh.position.y.toFixed(4), z: +o.mesh.position.z.toFixed(4) },
       rotation: { x: +THREE.MathUtils.radToDeg(o.mesh.rotation.x).toFixed(2), y: +THREE.MathUtils.radToDeg(o.mesh.rotation.y).toFixed(2), z: +THREE.MathUtils.radToDeg(o.mesh.rotation.z).toFixed(2) },
@@ -1098,6 +1227,9 @@ async function saveProject() {
     trackingMode: PROJECT.trackingMode,
     target: { mindUrl: PROJECT.target.mindUrl, imageUrl: PROJECT.target.imageUrl },
     objects: objData,
+    shadowCatcher: PROJECT.shadowCatcher !== false,
+    ambientIntensity: PROJECT.ambientIntensity || 0.8,
+    directIntensity: PROJECT.directIntensity || 1.0,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
 
