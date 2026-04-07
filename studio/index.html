@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E AR Studio</title>
+
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<!-- CodeMirror 5 (code editor tab) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/display/placeholder.min.js"></script>
+
+<!-- Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/TransformControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/DRACOLoader.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<!-- QR Code -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<!-- Config -->
+<script src="../config.js"></script>
+
+<!-- Studio CSS -->
+<link rel="stylesheet" href="studio.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- LAYOUT -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ─── TOOLBAR ─────────────────────────────────────── -->
+  <header id="toolbar">
+    <img src="../samples/logo_WHT.png" alt="4E" class="tb-logo" onerror="this.style.display='none'">
+    <span class="tb-brand">AR Studio</span>
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" onclick="Studio.newProject()" title="New project (Ctrl+N)">New</button>
+    <button class="tb-btn" onclick="Studio.openProject()" title="Open project">Open</button>
+    <button class="tb-btn" onclick="Studio.saveProject()" title="Save (Ctrl+S)">Save</button>
+    <input class="tb-name" id="tb-name" value="Untitled" maxlength="60" onchange="Studio.renameProject(this.value)">
+
+    <div class="tb-sep"></div>
+
+    <!-- Tracking Mode -->
+    <div class="tb-group" id="tracking-mode">
+      <button class="tb-btn active" data-mode="slam" onclick="Studio.setTrackingMode('slam')">🌐 Surface</button>
+      <button class="tb-btn" data-mode="image" onclick="Studio.setTrackingMode('image')">📷 Image</button>
+      <button class="tb-btn" data-mode="face" onclick="Studio.setTrackingMode('face')">👤 Face</button>
+      <button class="tb-btn" data-mode="hand" onclick="Studio.setTrackingMode('hand')">✋ Hand</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <!-- Gizmo Mode -->
+    <div class="tb-group" id="gizmo-mode">
+      <button class="tb-btn active" data-gizmo="translate" onclick="Studio.Viewport.setGizmo('translate')" title="Move (W)">Move</button>
+      <button class="tb-btn" data-gizmo="rotate" onclick="Studio.Viewport.setGizmo('rotate')" title="Rotate (E)">Rotate</button>
+      <button class="tb-btn" data-gizmo="scale" onclick="Studio.Viewport.setGizmo('scale')" title="Scale (R)">Scale</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <button class="tb-btn" onclick="Studio.Viewport.addModel()">+ Model</button>
+    <button class="tb-btn" id="tb-add-target" onclick="Studio.Viewport.addTarget()">+ Target</button>
+
+    <!-- Spacer -->
+    <div class="tb-spacer"></div>
+
+    <span class="tb-status" id="tb-status"></span>
+    <a href="../projects.html" class="tb-btn" title="Project dashboard">📁</a>
+    <button class="tb-btn" onclick="Studio.previewProject()" title="Preview QR code">▶ Preview</button>
+    <button class="tb-btn tb-primary" onclick="Studio.publishProject()">Publish</button>
+  </header>
+
+  <!-- ─── WORKSPACE TABS ─────────────────────────────── -->
+  <div id="workspace-tabs">
+    <button class="ws-tab active" data-tab="scene" onclick="Studio.switchTab('scene')">3D Scene</button>
+    <button class="ws-tab" data-tab="code" onclick="Studio.switchTab('code')">Code</button>
+    <button class="ws-tab" data-tab="splash" onclick="Studio.switchTab('splash')">Splash</button>
+    <button class="ws-tab" data-tab="preview" onclick="Studio.switchTab('preview')">Preview</button>
+  </div>
+
+  <!-- ─── HIERARCHY (left panel) ─────────────────────── -->
+  <div id="hierarchy" class="panel">
+    <div class="panel-header">Hierarchy</div>
+    <div id="h-list"></div>
+    <div class="panel-footer">
+      <button class="panel-add-btn" onclick="Studio.Viewport.addModel()">+ Add Model</button>
+    </div>
+  </div>
+
+  <!-- ─── MAIN WORKSPACE ─────────────────────────────── -->
+  <div id="workspace">
+    <!-- 3D Scene tab -->
+    <div class="ws-content active" data-tab="scene">
+      <canvas id="vp-canvas"></canvas>
+      <div class="vp-hint">LMB orbit · MMB pan · Scroll zoom · W/E/R gizmo</div>
+    </div>
+    <!-- Code tab -->
+    <div class="ws-content" data-tab="code">
+      <div id="code-editor-container"></div>
+    </div>
+    <!-- Splash tab -->
+    <div class="ws-content" data-tab="splash">
+      <div id="splash-editor-container"></div>
+    </div>
+    <!-- Preview tab -->
+    <div class="ws-content" data-tab="preview">
+      <div id="preview-container"></div>
+    </div>
+  </div>
+
+  <!-- ─── INSPECTOR (right panel) ────────────────────── -->
+  <div id="inspector" class="panel">
+    <div class="panel-header">Inspector</div>
+    <div id="insp-empty" class="panel-empty">Select an object</div>
+    <div id="insp-content" class="hidden"></div>
+  </div>
+
+  <!-- ─── BOTTOM PANEL ────────────────────────────────── -->
+  <div id="bottom-panel">
+    <div class="bp-tabs">
+      <button class="bp-tab active" data-bp="assets" onclick="Studio.showBottomTab('assets')">Assets</button>
+      <button class="bp-tab" data-bp="console" onclick="Studio.showBottomTab('console')">Console</button>
+    </div>
+    <div class="bp-content active" data-bp="assets" id="bp-assets"></div>
+    <div class="bp-content" data-bp="console" id="bp-console">
+      <div id="console-log"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MODALS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- Open Project -->
+<div class="modal-overlay hidden" id="modal-open">
+  <div class="modal">
+    <div class="modal-header">Open Project</div>
+    <div id="project-list" class="modal-list"></div>
+    <button class="modal-close" onclick="Studio.closeModal('modal-open')">Cancel</button>
+  </div>
+</div>
+
+<!-- Publish / Preview QR -->
+<div class="modal-overlay hidden" id="modal-publish">
+  <div class="modal" style="text-align:center">
+    <div class="modal-header">Published</div>
+    <div id="deploy-status" class="deploy-status"></div>
+    <div id="qr-code" class="qr-container"></div>
+    <input class="modal-url" id="pub-url" readonly>
+    <div class="modal-actions">
+      <button class="tb-btn" onclick="navigator.clipboard.writeText(document.getElementById('pub-url').value);Studio.toast('Copied!','ok')">Copy URL</button>
+      <button class="tb-btn" onclick="window.open(document.getElementById('pub-url').value,'_blank')">Open</button>
+    </div>
+    <button class="modal-close" onclick="Studio.closeModal('modal-publish')">Close</button>
+  </div>
+</div>
+
+<!-- Token -->
+<div class="modal-overlay hidden" id="modal-token">
+  <div class="modal">
+    <div class="modal-header">GitHub Token</div>
+    <p class="modal-desc">One-time setup for publishing. Create at <a href="https://github.com/settings/tokens?type=beta" target="_blank">github.com/settings/tokens</a></p>
+    <input class="modal-input" id="token-input" type="password" placeholder="github_pat_xxxxx...">
+    <button class="tb-btn tb-primary" onclick="Studio.saveToken()" style="width:100%">Save & Publish</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Hidden file inputs -->
+<input type="file" id="fi-target" accept="image/*" style="display:none" onchange="Studio.Viewport.handleTargetFile(this.files[0]);this.value=''">
+<input type="file" id="fi-model" accept=".glb,.gltf" style="display:none" onchange="Studio.Viewport.handleModelFile(this.files[0]);this.value=''">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MODULES (load order matters: eventbus → project → rest) -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<script src="modules/eventbus.js"></script>
+<script src="modules/project.js"></script>
+<script src="modules/components.js"></script>
+<script src="modules/undo.js"></script>
+<script src="modules/viewport.js"></script>
+<script src="modules/hierarchy.js"></script>
+<script src="modules/inspector.js"></script>
+<script src="modules/firebase.js"></script>
+<script src="modules/github.js"></script>
+<script src="modules/mindar.js"></script>
+<script src="modules/assets.js"></script>
+<script src="modules/codeeditor.js"></script>
+<script src="modules/splash.js"></script>
+<script src="modules/preview.js"></script>
+<script src="studio.js"></script>
+
+</body>
+</html>
