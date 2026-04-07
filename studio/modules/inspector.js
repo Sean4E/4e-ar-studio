@@ -72,25 +72,30 @@ Studio.Inspector = {
     const t = obj.transform;
     const uniformChecked = window._uniformScale !== false ? 'checked' : '';
 
+    const resetBtn = (key, def) => `<button onclick="Studio.Inspector._resetT('${key}',${def})" title="Reset to ${def}" style="background:none;border:1px solid var(--border);color:var(--faint);width:18px;height:18px;border-radius:3px;cursor:pointer;font-size:9px;flex-shrink:0;padding:0;line-height:16px" onmouseover="this.style.borderColor='var(--purple)'" onmouseout="this.style.borderColor='var(--border)'">&circlearrowleft;</button>`;
+
     const posRow = (axis, val) => `
       <div class="insp-row">
         <label class="${axis}">${axis.toUpperCase()}</label>
         <input type="range" min="-3" max="3" step="0.01" value="${val}" oninput="Studio.Inspector._setT('p${axis}',this.value);this.nextElementSibling.value=this.value" style="flex:1">
-        <input type="number" step="0.01" class="insp-input" id="ip-p${axis}" value="${val}" onchange="Studio.Inspector._setT('p${axis}',this.value);this.previousElementSibling.value=this.value" style="width:54px;flex:none">
+        <input type="number" step="0.01" class="insp-input" id="ip-p${axis}" value="${val}" onchange="Studio.Inspector._setT('p${axis}',this.value);this.previousElementSibling.value=this.value" style="width:50px;flex:none">
+        ${resetBtn('p'+axis, 0)}
       </div>`;
 
     const rotRow = (axis, val) => `
       <div class="insp-row">
         <label class="${axis}">${axis.toUpperCase()}</label>
         <input type="range" min="-180" max="180" step="1" value="${val}" oninput="Studio.Inspector._setT('r${axis}',this.value);this.nextElementSibling.value=this.value" style="flex:1">
-        <input type="number" step="1" class="insp-input" id="ip-r${axis}" value="${val}" onchange="Studio.Inspector._setT('r${axis}',this.value);this.previousElementSibling.value=this.value" style="width:54px;flex:none">
+        <input type="number" step="1" class="insp-input" id="ip-r${axis}" value="${val}" onchange="Studio.Inspector._setT('r${axis}',this.value);this.previousElementSibling.value=this.value" style="width:50px;flex:none">
+        ${resetBtn('r'+axis, 0)}
       </div>`;
 
     const scaleRow = (axis, val) => `
       <div class="insp-row">
         <label class="${axis}">${axis.toUpperCase()}</label>
         <input type="range" min="0.01" max="5" step="0.01" value="${val}" oninput="Studio.Inspector._setScale('s${axis}',this.value);this.nextElementSibling.value=this.value" style="flex:1">
-        <input type="number" step="0.01" class="insp-input" id="ip-s${axis}" value="${val}" onchange="Studio.Inspector._setScale('s${axis}',this.value);this.previousElementSibling.value=this.value" style="width:54px;flex:none">
+        <input type="number" step="0.01" class="insp-input" id="ip-s${axis}" value="${val}" onchange="Studio.Inspector._setScale('s${axis}',this.value);this.previousElementSibling.value=this.value" style="width:50px;flex:none">
+        ${resetBtn('s'+axis, 1)}
       </div>`;
 
     return this._buildSection('Transform', `
@@ -214,6 +219,16 @@ Studio.Inspector = {
     if (key === 'ry') { m.rotation.y = THREE.MathUtils.degToRad(v); t.rotation.y = v; }
     if (key === 'rz') { m.rotation.z = THREE.MathUtils.degToRad(v); t.rotation.z = v; }
     Studio.Project.markDirty();
+  },
+
+  _resetT(key, def) {
+    // Reset and re-render inspector to sync sliders
+    if (key.startsWith('s')) {
+      this._setScale(key, def);
+    } else {
+      this._setT(key, def);
+    }
+    this.render(this.currentId);
   },
 
   _setScale(key, val) {

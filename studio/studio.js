@@ -67,6 +67,9 @@ Studio.setTrackingMode = function(mode) {
 Studio.newProject = function() {
   Studio.Project.reset();
   document.getElementById('tb-name').value = 'Untitled';
+  // Reset tracking mode UI to default (slam)
+  Studio.setTrackingMode('slam');
+  Studio.Inspector.clear();
   Studio.log('New project');
 };
 

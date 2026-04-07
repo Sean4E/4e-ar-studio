@@ -308,9 +308,16 @@ Studio.Viewport = {
 
   // ─── Clear Scene ───────────────────────────────────────
   _clearScene() {
+    // Stop all preset animations
+    Object.keys(this.presetRafs).forEach(k => { cancelAnimationFrame(this.presetRafs[k].id); });
+    this.presetRafs = {};
+    // Remove all objects
     Studio.Project.state.objects.forEach(o => { if (o.mesh) this.scene.remove(o.mesh); });
     this.mixers.length = 0;
+    // Remove target plane
     if (this.targetPlane) { this.scene.remove(this.targetPlane); this.targetPlane = null; }
+    // Remove tracking helper
+    this.removeTrackingHelper();
     this.deselectAll();
   },
 
