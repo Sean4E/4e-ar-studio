@@ -249,7 +249,18 @@ Studio.Inspector = {
 
   _setAnim(clip) {
     const obj = Studio.Project.getObject(this.currentId);
-    if (obj) { obj.defaultAnim = clip; Studio.Project.markDirty(); }
+    if (!obj) return;
+    obj.defaultAnim = clip;
+    Studio.Project.markDirty();
+    // Play the clip in the viewport
+    const mixer = Studio.Viewport.mixers.find(m => m._objId === obj.id);
+    if (mixer && mixer._clips) {
+      mixer.stopAllAction();
+      if (clip) {
+        const c = mixer._clips.find(a => a.name === clip);
+        if (c) mixer.clipAction(c).play();
+      }
+    }
   },
 
   _setLoop(mode) {

@@ -84,6 +84,19 @@ Studio.saveProject = async function() {
   if (!state.id) state.id = Studio.Project._genId();
   state.name = document.getElementById('tb-name').value.trim() || 'Untitled';
 
+  // Upload splash logo if new file exists
+  if (state.splash.logoFile && !state.splash.logoUrl) {
+    try {
+      const gh = Studio.GitHub.getConfig();
+      if (gh.token) {
+        const path = 'assets/' + state.id + '/splash-logo.png';
+        state.splash.logoUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(state.splash.logoFile));
+        state.splash.logoFile = null;
+        Studio.log('Splash logo uploaded');
+      }
+    } catch(e) { Studio.log('Logo upload failed: ' + e.message); }
+  }
+
   const data = Studio.Project.serialize();
   data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
   if (!data.createdAt) data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -174,23 +187,47 @@ Studio.publishProject = async function() {
       }));
     }
 
-    // Check all objects have URLs
-    const missing = state.objects.filter(o => !o.glbUrl);
-    if (missing.length) {
-      Studio.toast(missing.length + ' model(s) without URLs — add them again', 'warn');
-    }
-
     // Save metadata
     await Studio.saveProject();
 
-    // Show QR
     const url = (window.AR_BASE_URL || location.origin) + '/player-v2.html?id=' + state.id;
     document.getElementById('pub-url').value = url;
     const qrEl = document.getElementById('qr-code');
     qrEl.innerHTML = '';
     new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
-    document.getElementById('deploy-status').innerHTML = '<span style="color:var(--green)">✓ Published</span>';
     document.getElementById('modal-publish').classList.remove('hidden');
+
+    // Track deployment — poll until assets are live on GitHub Pages
+    const checkUrl = state.objects.find(o => o.glbUrl)?.glbUrl;
+    if (checkUrl && checkUrl.includes('github.io')) {
+      document.getElementById('deploy-status').innerHTML = '<div style="color:var(--orange);font-size:12px">⏳ Deploying to GitHub Pages…</div>';
+      Studio.log('Waiting for GitHub Pages deployment…');
+      const start = Date.now();
+      const poll = async () => {
+        try {
+          const r = await fetch(checkUrl + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+          if (r.ok) {
+            const sec = Math.round((Date.now() - start) / 1000);
+            document.getElementById('deploy-status').innerHTML = `<div style="color:var(--green);font-size:12px">✅ Live! Ready to scan (${sec}s)</div>`;
+            Studio.toast('Published & deployed ✓', 'ok');
+            Studio.log('Deployed in ' + sec + 's');
+            return;
+          }
+        } catch(e) {}
+        if (Date.now() - start < 300000) { // 5 min max
+          const sec = Math.round((Date.now() - start) / 1000);
+          document.getElementById('deploy-status').innerHTML = `<div style="color:var(--orange);font-size:12px">⏳ Deploying… ${sec}s<br><span style="font-size:10px;color:var(--muted)">GitHub Pages rebuilding — this can take 1-3 min</span></div>`;
+          setTimeout(poll, 5000);
+        } else {
+          document.getElementById('deploy-status').innerHTML = '<div style="color:var(--orange);font-size:12px">⚠ Taking longer than usual. Try scanning in a minute.</div>';
+        }
+      };
+      poll();
+    } else {
+      // Firebase-hosted samples — instant
+      document.getElementById('deploy-status').innerHTML = '<div style="color:var(--green);font-size:12px">✅ Published & ready to scan</div>';
+      Studio.toast('Published ✓', 'ok');
+    }
     Studio.log('Published: ' + url);
 
   } catch(e) {
@@ -202,10 +239,20 @@ Studio.publishProject = async function() {
 Studio.previewProject = async function() {
   const state = Studio.Project.state;
 
-  // Auto-save if needed (creates ID if first time)
+  // Auto-save if needed
   if (!state.id || state.dirty) {
     if (!Studio.Firebase.ready) { Studio.toast('Firebase not connected', 'err'); return; }
+    Studio.toast('Saving…', 'ok');
     await Studio.saveProject();
+  }
+
+  // Check if any models lack URLs (not yet uploaded)
+  const missing = state.objects.filter(o => !o.glbUrl);
+  let statusHtml = '';
+  if (missing.length) {
+    statusHtml = `<div style="color:var(--orange);font-size:12px;margin-bottom:8px">⚠ ${missing.length} model(s) not uploaded yet — use <strong>Publish</strong> to upload assets</div>`;
+  } else {
+    statusHtml = `<div style="color:var(--green);font-size:12px;margin-bottom:8px">✓ All assets ready</div>`;
   }
 
   const url = (window.AR_BASE_URL || location.origin) + '/player-v2.html?id=' + state.id;
@@ -214,10 +261,11 @@ Studio.previewProject = async function() {
   qrEl.innerHTML = '';
   new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
   document.getElementById('deploy-status').innerHTML = `
-    <span style="color:var(--cyan)">Dev Preview</span>
-    <div style="font-size:11px;color:var(--muted);margin-top:4px">
-      Scan to test on your phone. Changes reflect after Save.<br>
-      Models must be published for AR to load them.
+    <div style="font-size:14px;font-weight:700;color:var(--cyan);margin-bottom:6px">📱 Dev Preview</div>
+    ${statusHtml}
+    <div style="font-size:11px;color:var(--muted);line-height:1.5">
+      Scan this QR to test on your phone.<br>
+      Sample models work instantly. Custom uploads need Publish first.
     </div>
   `;
   document.getElementById('modal-publish').classList.remove('hidden');
