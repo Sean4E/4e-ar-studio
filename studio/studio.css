@@ -216,10 +216,29 @@ a { color: var(--cyan); }
   padding: 4px 6px; border-radius: 4px; font-family: inherit; font-size: 11px; outline: none;
 }
 .insp-check {
-  display: flex; align-items: center; gap: 5px; font-size: 11px;
-  cursor: pointer; padding: 2px 0; color: var(--text2);
+  display: flex; align-items: center; gap: 7px; font-size: 11px;
+  cursor: pointer; padding: 3px 0; color: var(--text2);
 }
-.insp-check input[type="checkbox"] { accent-color: var(--purple); }
+/* Modern toggle switch */
+.insp-check input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 28px; height: 16px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border2);
+  position: relative; cursor: pointer; flex-shrink: 0;
+  transition: all 0.2s;
+}
+.insp-check input[type="checkbox"]::after {
+  content: ''; position: absolute;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); top: 2px; left: 2px;
+  transition: all 0.2s;
+}
+.insp-check input[type="checkbox"]:checked {
+  background: var(--purple3); border-color: var(--purple);
+}
+.insp-check input[type="checkbox"]:checked::after {
+  background: var(--purple); left: 14px;
+}
 .insp-btn {
   width: 100%; padding: 5px; border: none; border-radius: 5px;
   cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 600; margin-top: 4px;
