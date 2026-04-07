@@ -282,6 +282,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   <div id="bottom-panel">
     <div class="bp-tabs">
       <div class="bp-tab active" onclick="showBP('assets')">Assets</div>
+      <div class="bp-tab" onclick="showBP('splash')">Splash</div>
       <div class="bp-tab" onclick="showBP('console')">Console</div>
     </div>
     <div class="bp-content" id="bp-assets" style="display:flex;gap:16px">
@@ -309,6 +310,36 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Project Assets</div>
         <div class="asset-grid" id="project-assets">
           <div style="font-size:11px;color:var(--faint);padding:8px">Upload or add assets to see them here</div>
+        </div>
+      </div>
+    </div>
+    <div class="bp-content hidden" id="bp-splash" style="display:flex;gap:16px;align-items:flex-start">
+      <div style="min-width:200px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Splash Screen</div>
+        <div class="insp-row"><label style="font-size:10px;color:var(--muted);width:50px">Title</label>
+          <input class="finput" id="sp-title" value="" placeholder="App name (auto)" onchange="PROJECT.splash=PROJECT.splash||{};PROJECT.splash.title=this.value;PROJECT.dirty=true" style="margin:0;padding:3px 6px;font-size:11px"></div>
+        <div class="insp-row"><label style="font-size:10px;color:var(--muted);width:50px">Subtitle</label>
+          <input class="finput" id="sp-subtitle" value="" placeholder="Optional subtitle" onchange="PROJECT.splash=PROJECT.splash||{};PROJECT.splash.subtitle=this.value;PROJECT.dirty=true" style="margin:0;padding:3px 6px;font-size:11px"></div>
+        <div class="insp-row"><label style="font-size:10px;color:var(--muted);width:50px">BG Color</label>
+          <input type="color" id="sp-bg" value="#060a18" onchange="PROJECT.splash=PROJECT.splash||{};PROJECT.splash.bgColor=this.value;PROJECT.dirty=true" style="width:36px;height:24px;border:none;background:none;cursor:pointer"></div>
+        <div class="insp-row"><label style="font-size:10px;color:var(--muted);width:50px">Text</label>
+          <input type="color" id="sp-text" value="#e2e8f0" onchange="PROJECT.splash=PROJECT.splash||{};PROJECT.splash.textColor=this.value;PROJECT.dirty=true" style="width:36px;height:24px;border:none;background:none;cursor:pointer"></div>
+      </div>
+      <div style="min-width:200px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Logo Image</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="pc-btn" style="font-size:10px" onclick="el('fi-splash-logo').click()">Upload Logo</button>
+          <span id="sp-logo-name" style="font-size:10px;color:var(--faint)">None</span>
+        </div>
+        <input type="file" id="fi-splash-logo" accept="image/*" style="display:none" onchange="handleSplashLogo(this.files[0]);this.value=''">
+        <div id="sp-logo-preview" style="margin-top:6px;max-width:80px"></div>
+      </div>
+      <div style="min-width:200px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Preview</div>
+        <div id="sp-preview" style="width:160px;height:100px;border-radius:8px;background:#060a18;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid var(--border);overflow:hidden">
+          <div id="sp-prev-logo" style="font-size:24px;margin-bottom:4px">◈</div>
+          <div id="sp-prev-title" style="font-size:11px;font-weight:700;color:#e2e8f0">App Name</div>
+          <div id="sp-prev-sub" style="font-size:8px;color:#8899b0;margin-top:2px"></div>
         </div>
       </div>
     </div>
@@ -915,6 +946,34 @@ function syncPresetUI(obj) {
 }
 
 // ─── Target Preview ──────────────────────────────────────
+// ─── Splash Screen ───────────────────────────────────────
+function handleSplashLogo(file) {
+  if (!file) return;
+  if (!PROJECT.splash) PROJECT.splash = {};
+  PROJECT.splash.logoFile = file;
+  PROJECT.dirty = true;
+  el('sp-logo-name').textContent = file.name;
+  const url = URL.createObjectURL(file);
+  el('sp-logo-preview').innerHTML = `<img src="${url}" style="max-width:80px;border-radius:4px">`;
+  el('sp-prev-logo').innerHTML = `<img src="${url}" style="max-height:28px">`;
+}
+
+function updateSplashPreview() {
+  const sp = PROJECT.splash || {};
+  el('sp-title').value = sp.title || '';
+  el('sp-subtitle').value = sp.subtitle || '';
+  el('sp-bg').value = sp.bgColor || '#060a18';
+  el('sp-text').value = sp.textColor || '#e2e8f0';
+  el('sp-preview').style.background = sp.bgColor || '#060a18';
+  el('sp-prev-title').style.color = sp.textColor || '#e2e8f0';
+  el('sp-prev-title').textContent = sp.title || PROJECT.name || 'App Name';
+  el('sp-prev-sub').textContent = sp.subtitle || '';
+  if (sp.logoUrl) {
+    el('sp-prev-logo').innerHTML = `<img src="${sp.logoUrl}" style="max-height:28px">`;
+    el('sp-logo-preview').innerHTML = `<img src="${sp.logoUrl}" style="max-width:80px;border-radius:4px">`;
+  }
+}
+
 function updateTargetPreview() {
   const prev = el('target-preview');
   if (PROJECT.target.imgFile) {
@@ -1230,6 +1289,13 @@ async function saveProject() {
     shadowCatcher: PROJECT.shadowCatcher !== false,
     ambientIntensity: PROJECT.ambientIntensity || 0.8,
     directIntensity: PROJECT.directIntensity || 1.0,
+    splash: {
+      title: PROJECT.splash?.title || '',
+      subtitle: PROJECT.splash?.subtitle || '',
+      bgColor: PROJECT.splash?.bgColor || '#060a18',
+      textColor: PROJECT.splash?.textColor || '#e2e8f0',
+      logoUrl: PROJECT.splash?.logoUrl || '',
+    },
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
 
@@ -1260,6 +1326,14 @@ async function loadProject(id, data) {
   PROJECT.name = data.name || 'Untitled';
   el('tb-name').value = PROJECT.name;
   PROJECT.trackingMode = data.trackingMode || 'image';
+  PROJECT.shadowCatcher = data.shadowCatcher !== false;
+  PROJECT.ambientIntensity = data.ambientIntensity || 0.8;
+  PROJECT.directIntensity = data.directIntensity || 1.0;
+  el('ar-shadow-catcher').checked = PROJECT.shadowCatcher;
+  el('ar-ambient').value = PROJECT.ambientIntensity;
+  el('ar-direct').value = PROJECT.directIntensity;
+  PROJECT.splash = data.splash || {};
+  updateSplashPreview();
   setTrackingMode(PROJECT.trackingMode);
 
   // Load target
@@ -1314,7 +1388,8 @@ async function loadProject(id, data) {
         id: objData.id || genId(), name: objData.name, type: objData.type || 'model',
         file: null, glbUrl: objData.glbUrl, mesh: null,
         clips: objData.clips || [], defaultAnim: objData.defaultAnim || '', loop: objData.loop || 'repeat',
-        visible: objData.visible !== false, presets: objData.presets || {}
+        visible: objData.visible !== false, presets: objData.presets || {},
+        interactions: objData.interactions || {}
       };
       try {
         await loadModelIntoScene(obj, objData.glbUrl);
@@ -1434,6 +1509,13 @@ async function publishProject() {
       o.glbUrl = await ghUpload(`${base}/model_${i}.glb`, await file2b64(o.file));
     });
     await Promise.all(uploads);
+
+    // Upload splash logo if new
+    if (PROJECT.splash?.logoFile) {
+      log('Uploading splash logo…');
+      PROJECT.splash.logoUrl = await ghUpload(`${base}/splash-logo.png`, await file2b64(PROJECT.splash.logoFile));
+      PROJECT.splash.logoFile = null;
+    }
 
     // Save to Firestore
     await saveProject();

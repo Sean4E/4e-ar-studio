@@ -115,8 +115,25 @@ async function init() {
 
     APP = doc.data();
     APP.id = appId;
-    el('splash-name').textContent = APP.name || 'AR Experience';
-    el('ar-title').textContent = APP.name || 'AR Experience';
+
+    // Apply custom splash screen
+    const sp = APP.splash || {};
+    if (sp.bgColor) el('splash').style.background = sp.bgColor;
+    if (sp.textColor) {
+      el('splash-name').style.color = sp.textColor;
+      el('splash-status').style.color = sp.textColor;
+    }
+    if (sp.logoUrl) {
+      el('splash').querySelector('.splash-logo').innerHTML = `<img src="${sp.logoUrl}" style="max-height:64px">`;
+    }
+    el('splash-name').textContent = sp.title || APP.name || 'AR Experience';
+    if (sp.subtitle) {
+      const sub = document.createElement('div');
+      sub.style.cssText = 'font-size:13px;color:' + (sp.textColor || 'var(--muted)') + ';opacity:.7;margin-top:4px';
+      sub.textContent = sp.subtitle;
+      el('splash-name').after(sub);
+    }
+    el('ar-title').textContent = sp.title || APP.name || 'AR Experience';
 
     const mode = APP.trackingMode || 'image';
     setSplashStatus('Starting AR…');
@@ -306,6 +323,7 @@ function buildSLAMScene() {
     showARUI();
     el('scan-hint').textContent = 'Look around to detect surfaces';
     buildAnimBar(objects);
+    setupInteractions();
   });
 }
 
@@ -340,6 +358,7 @@ function buildFaceScene() {
     showARUI();
     el('scan-hint').textContent = 'Position your face in the camera';
     buildAnimBar(objects);
+    setupInteractions();
   });
 }
 
