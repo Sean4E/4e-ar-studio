@@ -311,14 +311,19 @@ Studio.Viewport = {
     // Stop all preset animations
     Object.keys(this.presetRafs).forEach(k => { cancelAnimationFrame(this.presetRafs[k].id); });
     this.presetRafs = {};
-    // Remove all objects
-    Studio.Project.state.objects.forEach(o => { if (o.mesh) this.scene.remove(o.mesh); });
+    // Remove ALL gltf models from the Three.js scene (not relying on state array)
+    const toRemove = [];
+    this.scene.traverse(child => {
+      if (child.userData._objId) toRemove.push(child);
+    });
+    toRemove.forEach(obj => this.scene.remove(obj));
     this.mixers.length = 0;
     // Remove target plane
     if (this.targetPlane) { this.scene.remove(this.targetPlane); this.targetPlane = null; }
     // Remove tracking helper
     this.removeTrackingHelper();
     this.deselectAll();
+    Studio.log('Scene cleared');
   },
 
   // ─── Rebuild Scene from Project State ──────────────────

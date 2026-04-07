@@ -32,8 +32,12 @@ Studio.Components = {
     },
     'xrextras-pinch-scale': {
       name: 'Pinch to Scale', category: 'gestures', icon: '🔍',
-      description: 'Resize object with pinch gesture',
-      trackingModes: ['slam','image'], appliesTo: 'entity', type: 'boolean',
+      description: 'Resize object with two-finger pinch gesture. Set min/max to limit scale range.',
+      trackingModes: ['slam','image'], appliesTo: 'entity', type: 'config',
+      properties: {
+        min: { type: 'range', label: 'Min Scale', default: 0.1, min: 0.01, max: 1, step: 0.01 },
+        max: { type: 'range', label: 'Max Scale', default: 5, min: 1, max: 20, step: 0.5 },
+      }
     },
     'xrextras-one-finger-rotate': {
       name: 'One-Finger Rotate', category: 'gestures', icon: '👆',

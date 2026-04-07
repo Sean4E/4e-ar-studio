@@ -16,7 +16,7 @@ Studio.Splash = {
 
           <div class="sp-field">
             <label>Title</label>
-            <input class="sp-input" id="sp-title" placeholder="App name" oninput="Studio.Splash._update()">
+            <input class="sp-input" id="sp-title" placeholder="Uses project name if empty" oninput="Studio.Splash._update()">
           </div>
           <div class="sp-field">
             <label>Subtitle</label>
@@ -182,7 +182,7 @@ Studio.Splash = {
     screen.style.background = sp.gradient ? `linear-gradient(145deg, ${bg}, ${accent}18)` : bg;
 
     screen.innerHTML = `
-      ${logo ? `<img src="${logo}" style="max-height:48px;max-width:120px;margin-bottom:12px;object-fit:contain">` : `<div style="font-size:36px;margin-bottom:12px;opacity:.7">◈</div>`}
+      ${logo ? `<img src="${logo}" style="max-height:48px;max-width:120px;margin-bottom:12px;object-fit:contain">` : `<img src="../samples/logo_WHT.png" style="max-height:36px;margin-bottom:12px;opacity:.7" onerror="this.outerHTML='<div style=\\'font-size:36px;margin-bottom:12px;opacity:.7\\'>◈</div>'">`}
       <div style="color:${text};font-size:16px;font-weight:700;font-family:'Syne',sans-serif;text-align:center;padding:0 14px;line-height:1.3">${this._esc(title)}</div>
       ${sp.subtitle ? `<div style="color:${text};opacity:.45;font-size:10px;margin-top:5px;text-align:center;padding:0 14px">${this._esc(sp.subtitle)}</div>` : ''}
       ${sp.showSpinner !== false ? `<div style="margin-top:16px;display:flex;align-items:center;gap:6px"><div style="width:14px;height:14px;border:2px solid ${accent}33;border-top-color:${accent};border-radius:50%;animation:sp-spin .8s linear infinite"></div><span style="color:${text};opacity:.3;font-size:10px">Loading…</span></div>` : ''}

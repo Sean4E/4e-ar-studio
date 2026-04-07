@@ -99,11 +99,11 @@ Studio.Inspector = {
       </div>`;
 
     return this._buildSection('Transform', `
-      <div class="insp-label" style="margin-top:2px">Position</div>
+      <div class="insp-label" style="margin-top:2px" title="Object position in 3D space (meters)">Position</div>
       ${posRow('x', t.position.x)}${posRow('y', t.position.y)}${posRow('z', t.position.z)}
-      <div class="insp-label" style="margin-top:6px">Rotation</div>
+      <div class="insp-label" style="margin-top:6px" title="Object rotation in degrees (-180 to 180)">Rotation</div>
       ${rotRow('x', t.rotation.x)}${rotRow('y', t.rotation.y)}${rotRow('z', t.rotation.z)}
-      <div class="insp-label" style="margin-top:6px">Scale <label class="insp-check" style="float:right;font-size:9px"><input type="checkbox" ${uniformChecked} onchange="window._uniformScale=this.checked"> Uniform</label></div>
+      <div class="insp-label" style="margin-top:6px" title="Object scale multiplier. Uniform keeps all axes the same.">Scale <label class="insp-check" style="float:right;font-size:9px" title="When checked, changing any axis sets all three to the same value"><input type="checkbox" ${uniformChecked} onchange="window._uniformScale=this.checked"> Uniform</label></div>
       ${scaleRow('x', t.scale.x)}${scaleRow('y', t.scale.y)}${scaleRow('z', t.scale.z)}
     `);
   },
@@ -111,15 +111,26 @@ Studio.Inspector = {
   // ─── Animation Section ─────────────────────────────────
   _buildAnimSection(obj) {
     const options = obj.clips.map(c => `<option value="${c}" ${c === obj.defaultAnim ? 'selected' : ''}>${c}</option>`).join('');
-    return this._buildSection('Animation', `
-      <select class="insp-select" onchange="Studio.Inspector._setAnim(this.value)">
-        <option value="">— None —</option>${options}
+    // Build clickable clip list for animation mixer
+    const clipBtns = obj.clips.map(c =>
+      `<button class="sp-btn" style="font-size:9px;margin:1px;${c===obj.defaultAnim?'border-color:var(--purple);color:var(--purple2)':''}" onclick="Studio.Inspector._setAnim('${c}')" title="Click to play '${c}'">${c}</button>`
+    ).join('');
+
+    return this._buildSection('🎞 Animation', `
+      <div class="insp-label" title="Select which animation clip to play by default">Default Clip</div>
+      <select class="insp-select" onchange="Studio.Inspector._setAnim(this.value)" title="Choose the animation that plays when the AR experience loads">
+        <option value="">— None (static) —</option>${options}
       </select>
-      <select class="insp-select" style="margin-top:4px" onchange="Studio.Inspector._setLoop(this.value)">
-        <option value="repeat" ${obj.loop==='repeat'?'selected':''}>Loop</option>
-        <option value="once" ${obj.loop==='once'?'selected':''}>Once</option>
-        <option value="none" ${obj.loop==='none'?'selected':''}>None</option>
+      <div class="insp-label" style="margin-top:6px" title="How the animation repeats">Loop Mode</div>
+      <select class="insp-select" onchange="Studio.Inspector._setLoop(this.value)" title="repeat: plays forever, once: plays one time, none: no animation">
+        <option value="repeat" ${obj.loop==='repeat'?'selected':''}>Repeat (loop forever)</option>
+        <option value="once" ${obj.loop==='once'?'selected':''}>Once (play and stop)</option>
+        <option value="none" ${obj.loop==='none'?'selected':''}>None (disabled)</option>
       </select>
+      ${obj.clips.length > 1 ? `
+        <div class="insp-label" style="margin-top:6px" title="Click a clip to preview it. Active clip shown in purple.">Available Clips (${obj.clips.length})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:2px">${clipBtns}</div>
+      ` : ''}
     `);
   },
 
@@ -152,10 +163,10 @@ Studio.Inspector = {
     comps.forEach(comp => {
       const enabled = !!(obj.xrComponents?.[comp.key] || obj.interactions?.[this._ixKey(comp.key)]);
       if (comp.type === 'boolean') {
-        inner += `<label class="insp-check"><input type="checkbox" ${enabled?'checked':''} onchange="Studio.Inspector._toggleComponent('${comp.key}',this.checked)"> ${comp.icon} ${comp.name}</label>`;
+        inner += `<label class="insp-check" title="${comp.description || ''}"><input type="checkbox" ${enabled?'checked':''} onchange="Studio.Inspector._toggleComponent('${comp.key}',this.checked)"> ${comp.icon} ${comp.name}</label>`;
       } else if (comp.type === 'config') {
         inner += `<div class="comp-group">
-          <div class="comp-group-header">
+          <div class="comp-group-header" title="${comp.description || ''}">
             <input type="checkbox" ${enabled?'checked':''} onchange="Studio.Inspector._toggleComponent('${comp.key}',this.checked)">
             <span>${comp.icon} ${comp.name}</span>
           </div>`;

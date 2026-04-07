@@ -198,8 +198,8 @@ Studio.publishProject = async function() {
     document.getElementById('modal-publish').classList.remove('hidden');
 
     // Track deployment — poll until assets are live on GitHub Pages
-    const checkUrl = state.objects.find(o => o.glbUrl)?.glbUrl;
-    if (checkUrl && checkUrl.includes('github.io')) {
+    const checkUrl = state.objects.find(o => o.glbUrl && typeof o.glbUrl === 'string')?.glbUrl || '';
+    if (checkUrl && checkUrl.includes && checkUrl.includes('github.io')) {
       document.getElementById('deploy-status').innerHTML = '<div style="color:var(--orange);font-size:12px">⏳ Deploying to GitHub Pages…</div>';
       Studio.log('Waiting for GitHub Pages deployment…');
       const start = Date.now();
