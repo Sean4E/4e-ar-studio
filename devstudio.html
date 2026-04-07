@@ -242,33 +242,50 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
         </div>
       </div>
-      <!-- Interactions -->
-      <div class="insp-section" id="insp-interact">
-        <div class="insp-label">Interactions</div>
-        <label class="insp-check"><input type="checkbox" id="ix-tap-anim" onchange="setInteraction('tapToggleAnim',this.checked)"> Tap to toggle animation</label>
-        <label class="insp-check"><input type="checkbox" id="ix-pinch" onchange="setInteraction('pinchScale',this.checked)"> Pinch to scale</label>
-        <label class="insp-check"><input type="checkbox" id="ix-drag-rot" onchange="setInteraction('dragRotate',this.checked)"> Drag to rotate</label>
-        <label class="insp-check"><input type="checkbox" id="ix-face-cam" onchange="setInteraction('faceCamera',this.checked)"> Always face camera</label>
-        <label class="insp-check"><input type="checkbox" id="ix-shadow" onchange="setInteraction('castShadow',this.checked)" checked> Cast shadow</label>
-        <label class="insp-check"><input type="checkbox" id="ix-tap-url" onchange="setInteraction('tapOpenUrl',this.checked)"> Tap to open URL</label>
-        <div id="ix-url-row" class="hidden" style="margin-top:4px">
-          <input class="finput" id="ix-url" placeholder="https://..." onchange="setInteractionVal('tapUrl',this.value)" style="margin:0;padding:4px 8px;font-size:11px">
-        </div>
+      <!-- Gestures (8th Wall xrextras) -->
+      <div class="insp-section" id="insp-gestures">
+        <div class="insp-label">Gestures <span style="font-size:8px;color:var(--faint)">8th Wall</span></div>
+        <label class="insp-check"><input type="checkbox" id="ix-hold-drag" onchange="setIx('holdDrag',this.checked)"> 🤏 Hold & drag</label>
+        <label class="insp-check"><input type="checkbox" id="ix-pinch-scale" onchange="setIx('pinchScale',this.checked)"> 🔍 Pinch to scale</label>
+        <label class="insp-check"><input type="checkbox" id="ix-one-rotate" onchange="setIx('oneFingerRotate',this.checked)"> 👆 One-finger rotate</label>
+        <label class="insp-check"><input type="checkbox" id="ix-two-rotate" onchange="setIx('twoFingerRotate',this.checked)"> ✌️ Two-finger rotate</label>
+        <label class="insp-check"><input type="checkbox" id="ix-auto-spin" onchange="setIx('autoSpin',this.checked)"> 🔄 Auto-spin</label>
+        <label class="insp-check"><input type="checkbox" id="ix-face-cam" onchange="setIx('faceCamera',this.checked)"> 👁 Face camera</label>
       </div>
-      <!-- AR Settings -->
+      <!-- Rendering -->
+      <div class="insp-section" id="insp-render">
+        <div class="insp-label">Rendering</div>
+        <label class="insp-check"><input type="checkbox" id="ix-shadow" onchange="setIx('castShadow',this.checked)" checked> 🌑 Cast shadow</label>
+      </div>
+      <!-- Face Attachment (visible in face mode) -->
+      <div class="insp-section" id="insp-face-attach" style="display:none">
+        <div class="insp-label">Face Attachment Point</div>
+        <select class="insp-select" id="ix-face-point" onchange="setIx('facePoint',this.value)">
+          <option value="forehead">Forehead</option>
+          <option value="noseBridge">Nose Bridge</option>
+          <option value="noseTip">Nose Tip</option>
+          <option value="leftEar">Left Ear</option>
+          <option value="rightEar">Right Ear</option>
+          <option value="leftEye">Left Eye</option>
+          <option value="rightEye">Right Eye</option>
+          <option value="chin">Chin</option>
+          <option value="leftCheek">Left Cheek</option>
+          <option value="rightCheek">Right Cheek</option>
+        </select>
+      </div>
+      <!-- AR Scene Settings -->
       <div class="insp-section" id="insp-ar-settings">
-        <div class="insp-label">AR Settings</div>
-        <label class="insp-check"><input type="checkbox" id="ar-shadow-catcher" onchange="PROJECT.shadowCatcher=this.checked;PROJECT.dirty=true" checked> Shadow catcher (ground)</label>
-        <label class="insp-check"><input type="checkbox" id="ar-light-est" onchange="PROJECT.lightEstimation=this.checked;PROJECT.dirty=true"> Light estimation</label>
+        <div class="insp-label">AR Scene</div>
+        <label class="insp-check"><input type="checkbox" id="ar-shadow-catcher" onchange="PROJECT.shadowCatcher=this.checked;PROJECT.dirty=true" checked> Shadow catcher</label>
         <div class="insp-row" style="margin-top:4px">
           <label style="font-size:10px;color:var(--muted);width:60px">Ambient</label>
-          <input type="range" min="0" max="2" step="0.1" value="0.8" id="ar-ambient" oninput="PROJECT.ambientIntensity=+this.value;PROJECT.dirty=true" style="flex:1">
-          <span style="font-size:10px;width:24px" id="ar-ambient-v">0.8</span>
+          <input type="range" min="0" max="2" step="0.1" value="0.5" id="ar-ambient" oninput="PROJECT.ambientIntensity=+this.value;el('ar-ambient-v').textContent=this.value;PROJECT.dirty=true" style="flex:1">
+          <span style="font-size:10px;width:24px" id="ar-ambient-v">0.5</span>
         </div>
         <div class="insp-row">
           <label style="font-size:10px;color:var(--muted);width:60px">Direct</label>
-          <input type="range" min="0" max="3" step="0.1" value="1.0" id="ar-direct" oninput="PROJECT.directIntensity=+this.value;PROJECT.dirty=true" style="flex:1">
-          <span style="font-size:10px;width:24px" id="ar-direct-v">1.0</span>
+          <input type="range" min="0" max="3" step="0.1" value="0.8" id="ar-direct" oninput="PROJECT.directIntensity=+this.value;el('ar-direct-v').textContent=this.value;PROJECT.dirty=true" style="flex:1">
+          <span style="font-size:10px;width:24px" id="ar-direct-v">0.8</span>
         </div>
       </div>
       <!-- Actions -->
@@ -589,7 +606,13 @@ function setTrackingMode(mode) {
     toast('Surface mode: tap to place in AR','ok');
   } else if (mode === 'image') {
     if (targetPlane) { targetPlane.visible = true; }
+  } else if (mode === 'face') {
+    if (targetPlane) { targetPlane.visible = false; }
+    toast('Face mode: content attaches to face landmarks','ok');
   }
+  // Show/hide face attachment panel
+  const facePanel = el('insp-face-attach');
+  if (facePanel) facePanel.style.display = mode === 'face' ? '' : 'none';
   renderHierarchy();
   log('Tracking mode: ' + mode);
 }
@@ -1039,17 +1062,8 @@ function updateName(name) {
   if (obj) { obj.name = name; renderHierarchy(); PROJECT.dirty = true; }
 }
 
-// ─── Interactions ─────────────────────────────────────────
-function setInteraction(key, val) {
-  const obj = PROJECT.objects.find(o => o.id === selectedId);
-  if (!obj) return;
-  if (!obj.interactions) obj.interactions = {};
-  obj.interactions[key] = val;
-  if (key === 'tapOpenUrl') el('ix-url-row').classList.toggle('hidden', !val);
-  PROJECT.dirty = true;
-}
-
-function setInteractionVal(key, val) {
+// ─── Interactions (xrextras components) ──────────────────
+function setIx(key, val) {
   const obj = PROJECT.objects.find(o => o.id === selectedId);
   if (!obj) return;
   if (!obj.interactions) obj.interactions = {};
@@ -1059,14 +1073,16 @@ function setInteractionVal(key, val) {
 
 function syncInteractionUI(obj) {
   const ix = obj.interactions || {};
-  el('ix-tap-anim').checked = !!ix.tapToggleAnim;
-  el('ix-pinch').checked = !!ix.pinchScale;
-  el('ix-drag-rot').checked = !!ix.dragRotate;
+  el('ix-hold-drag').checked = !!ix.holdDrag;
+  el('ix-pinch-scale').checked = !!ix.pinchScale;
+  el('ix-one-rotate').checked = !!ix.oneFingerRotate;
+  el('ix-two-rotate').checked = !!ix.twoFingerRotate;
+  el('ix-auto-spin').checked = !!ix.autoSpin;
   el('ix-face-cam').checked = !!ix.faceCamera;
   el('ix-shadow').checked = ix.castShadow !== false;
-  el('ix-tap-url').checked = !!ix.tapOpenUrl;
-  el('ix-url-row').classList.toggle('hidden', !ix.tapOpenUrl);
-  el('ix-url').value = ix.tapUrl || '';
+  el('ix-face-point').value = ix.facePoint || 'forehead';
+  // Show face attachment panel only in face mode
+  el('insp-face-attach').style.display = PROJECT.trackingMode === 'face' ? '' : 'none';
 }
 
 // ─── Undo/Redo ───────────────────────────────────────────
