@@ -2,7 +2,35 @@
   "firestore": {
     "rules": "firestore.rules"
   },
-  "storage": {
-    "rules": "storage.rules"
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "storage.rules",
+      "config.template.js",
+      "ARCHITECTURE.md",
+      "README.md",
+      "Credentials/**",
+      "GLB_Files/**",
+      "Images/**",
+      "_LOGOS/**",
+      ".git/**",
+      "node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**/*.glb",
+        "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }]
+      },
+      {
+        "source": "**/*.mind",
+        "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }]
+      },
+      {
+        "source": "**/*.usdz",
+        "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }]
+      }
+    ]
   }
 }

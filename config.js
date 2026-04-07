@@ -20,4 +20,4 @@ window.AR_GITHUB_CONFIG = {
 };
 
 // Base URL for the player (GitHub Pages)
-window.AR_BASE_URL = "https://sean4e.github.io/4e-ar-studio";
+window.AR_BASE_URL = "https://ar-studio-4e.web.app";
