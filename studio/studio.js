@@ -151,23 +151,33 @@ Studio.publishProject = async function() {
   Studio.toast('Publishing…', 'ok');
 
   try {
-    // Upload target
-    if (state.target.mindBuffer) {
-      Studio.log('Uploading target…');
+    // Upload target if needed
+    if (state.target.mindBuffer && !state.target.mindUrl) {
+      Studio.log('Uploading image target…');
       state.target.mindUrl = await Studio.GitHub.upload(base + '/target.mind', Studio.GitHub.ab2b64(state.target.mindBuffer));
     }
-    if (state.target.imgFile) {
+    if (state.target.imgFile && !state.target.imageUrl) {
       state.target.imageUrl = await Studio.GitHub.upload(base + '/target.png', await Studio.GitHub.file2b64(state.target.imgFile));
     }
 
-    // Upload models
-    const uploads = state.objects.filter(o => o.file && !o.glbUrl).map(async (o, i) => {
-      Studio.log('Uploading ' + o.name + '…');
-      o.glbUrl = await Studio.GitHub.upload(base + '/model_' + i + '.glb', await Studio.GitHub.file2b64(o.file));
-    });
-    await Promise.all(uploads);
+    // Upload any models that don't have URLs yet
+    const pending = state.objects.filter(o => o.file && !o.glbUrl);
+    if (pending.length) {
+      Studio.log('Uploading ' + pending.length + ' model(s)…');
+      await Promise.all(pending.map(async o => {
+        const path = base + '/' + o.id + '.glb';
+        o.glbUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(o.file));
+        Studio.log('Uploaded: ' + o.name);
+      }));
+    }
 
-    // Save
+    // Check all objects have URLs
+    const missing = state.objects.filter(o => !o.glbUrl);
+    if (missing.length) {
+      Studio.toast(missing.length + ' model(s) without URLs — add them again', 'warn');
+    }
+
+    // Save metadata
     await Studio.saveProject();
 
     // Show QR

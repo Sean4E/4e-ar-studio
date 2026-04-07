@@ -90,6 +90,29 @@ Studio.Assets = {
     }
   },
 
+  async handleMediaFile(file) {
+    if (!file) return;
+    Studio.toast('Uploading ' + file.name + '…', 'ok');
+    try {
+      const gh = Studio.GitHub.getConfig();
+      if (!gh.token) { Studio.toast('Set GitHub token first (click Publish)', 'warn'); return; }
+      if (!Studio.Project.state.id) Studio.Project.state.id = Studio.Project._genId();
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = 'assets/' + Studio.Project.state.id + '/media/' + Date.now() + '.' + ext;
+      const b64 = await Studio.GitHub.file2b64(file);
+      const url = await Studio.GitHub.upload(path, b64);
+      Studio.toast(file.name + ' uploaded ✓', 'ok');
+      Studio.log('Media uploaded: ' + url);
+      // Store in project for reference
+      if (!Studio.Project.state.media) Studio.Project.state.media = [];
+      Studio.Project.state.media.push({ name: file.name, url: url, type: file.type });
+      Studio.Project.markDirty();
+      this.render();
+    } catch(e) {
+      Studio.toast('Upload failed: ' + e.message, 'err');
+    }
+  },
+
   // ─── Helpers ──────────────────────────────────────────
   _truncate(str, max) {
     return str.length > max ? str.slice(0, max - 1) + '\u2026' : str;

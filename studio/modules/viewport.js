@@ -172,11 +172,32 @@ Studio.Viewport = {
       name: file.name.replace(/\.\w+$/, ''),
       file: file,
     });
-    const url = URL.createObjectURL(file);
-    await this._loadModelIntoScene(obj, url);
+
+    // Load into 3D scene immediately (from local blob)
+    const blobUrl = URL.createObjectURL(file);
+    await this._loadModelIntoScene(obj, blobUrl);
     Studio.Project.addObject(obj);
     this.selectObject(obj.id);
-    Studio.toast(obj.name + ' added', 'ok');
+    Studio.toast(obj.name + ' added — uploading…', 'ok');
+
+    // Upload to GitHub in background for persistence
+    try {
+      const gh = Studio.GitHub.getConfig();
+      if (!gh.token) {
+        Studio.toast('Set GitHub token to persist models (click Publish)', 'warn');
+        return;
+      }
+      // Generate a project-level path
+      if (!Studio.Project.state.id) Studio.Project.state.id = Studio.Project._genId();
+      const path = 'assets/' + Studio.Project.state.id + '/' + obj.id + '.glb';
+      const b64 = await Studio.GitHub.file2b64(file);
+      obj.glbUrl = await Studio.GitHub.upload(path, b64);
+      Studio.Project.markDirty();
+      Studio.toast(obj.name + ' uploaded ✓', 'ok');
+      Studio.log('Uploaded: ' + obj.glbUrl);
+    } catch(e) {
+      Studio.log('Upload failed: ' + e.message + ' — model will need Publish');
+    }
   },
 
   async handleTargetFile(file) {

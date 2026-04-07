@@ -71,19 +71,35 @@ Studio.Inspector = {
   _buildTransformSection(obj) {
     const t = obj.transform;
     const uniformChecked = window._uniformScale !== false ? 'checked' : '';
+
+    const posRow = (axis, val) => `
+      <div class="insp-row">
+        <label class="${axis}">${axis.toUpperCase()}</label>
+        <input type="range" min="-3" max="3" step="0.01" value="${val}" oninput="Studio.Inspector._setT('p${axis}',this.value);this.nextElementSibling.value=this.value" style="flex:1">
+        <input type="number" step="0.01" class="insp-input" id="ip-p${axis}" value="${val}" onchange="Studio.Inspector._setT('p${axis}',this.value);this.previousElementSibling.value=this.value" style="width:54px;flex:none">
+      </div>`;
+
+    const rotRow = (axis, val) => `
+      <div class="insp-row">
+        <label class="${axis}">${axis.toUpperCase()}</label>
+        <input type="range" min="-180" max="180" step="1" value="${val}" oninput="Studio.Inspector._setT('r${axis}',this.value);this.nextElementSibling.value=this.value" style="flex:1">
+        <input type="number" step="1" class="insp-input" id="ip-r${axis}" value="${val}" onchange="Studio.Inspector._setT('r${axis}',this.value);this.previousElementSibling.value=this.value" style="width:54px;flex:none">
+      </div>`;
+
+    const scaleRow = (axis, val) => `
+      <div class="insp-row">
+        <label class="${axis}">${axis.toUpperCase()}</label>
+        <input type="range" min="0.01" max="5" step="0.01" value="${val}" oninput="Studio.Inspector._setScale('s${axis}',this.value);this.nextElementSibling.value=this.value" style="flex:1">
+        <input type="number" step="0.01" class="insp-input" id="ip-s${axis}" value="${val}" onchange="Studio.Inspector._setScale('s${axis}',this.value);this.previousElementSibling.value=this.value" style="width:54px;flex:none">
+      </div>`;
+
     return this._buildSection('Transform', `
-      <div class="insp-label" style="margin-top:4px">Position</div>
-      <div class="insp-row"><label class="x">X</label><input type="number" step="0.01" class="insp-input" id="ip-px" value="${t.position.x}" onchange="Studio.Inspector._setT('px',this.value)"></div>
-      <div class="insp-row"><label class="y">Y</label><input type="number" step="0.01" class="insp-input" id="ip-py" value="${t.position.y}" onchange="Studio.Inspector._setT('py',this.value)"></div>
-      <div class="insp-row"><label class="z">Z</label><input type="number" step="0.01" class="insp-input" id="ip-pz" value="${t.position.z}" onchange="Studio.Inspector._setT('pz',this.value)"></div>
+      <div class="insp-label" style="margin-top:2px">Position</div>
+      ${posRow('x', t.position.x)}${posRow('y', t.position.y)}${posRow('z', t.position.z)}
       <div class="insp-label" style="margin-top:6px">Rotation</div>
-      <div class="insp-row"><label class="x">X</label><input type="number" step="1" class="insp-input" id="ip-rx" value="${t.rotation.x}" onchange="Studio.Inspector._setT('rx',this.value)"></div>
-      <div class="insp-row"><label class="y">Y</label><input type="number" step="1" class="insp-input" id="ip-ry" value="${t.rotation.y}" onchange="Studio.Inspector._setT('ry',this.value)"></div>
-      <div class="insp-row"><label class="z">Z</label><input type="number" step="1" class="insp-input" id="ip-rz" value="${t.rotation.z}" onchange="Studio.Inspector._setT('rz',this.value)"></div>
+      ${rotRow('x', t.rotation.x)}${rotRow('y', t.rotation.y)}${rotRow('z', t.rotation.z)}
       <div class="insp-label" style="margin-top:6px">Scale <label class="insp-check" style="float:right;font-size:9px"><input type="checkbox" ${uniformChecked} onchange="window._uniformScale=this.checked"> Uniform</label></div>
-      <div class="insp-row"><label class="x">X</label><input type="number" step="0.01" class="insp-input" id="ip-sx" value="${t.scale.x}" onchange="Studio.Inspector._setScale('sx',this.value)"></div>
-      <div class="insp-row"><label class="y">Y</label><input type="number" step="0.01" class="insp-input" id="ip-sy" value="${t.scale.y}" onchange="Studio.Inspector._setScale('sy',this.value)"></div>
-      <div class="insp-row"><label class="z">Z</label><input type="number" step="0.01" class="insp-input" id="ip-sz" value="${t.scale.z}" onchange="Studio.Inspector._setScale('sz',this.value)"></div>
+      ${scaleRow('x', t.scale.x)}${scaleRow('y', t.scale.y)}${scaleRow('z', t.scale.z)}
     `);
   },
 

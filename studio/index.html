@@ -76,6 +76,7 @@
     <div class="tb-sep"></div>
 
     <button class="tb-btn" onclick="Studio.Viewport.addModel()">+ Model</button>
+    <button class="tb-btn" onclick="document.getElementById('fi-media').click()">+ Media</button>
     <button class="tb-btn" id="tb-add-target" onclick="Studio.Viewport.addTarget()">+ Target</button>
 
     <!-- Spacer -->
@@ -190,6 +191,7 @@
 <!-- Hidden file inputs -->
 <input type="file" id="fi-target" accept="image/*" style="display:none" onchange="Studio.Viewport.handleTargetFile(this.files[0]);this.value=''">
 <input type="file" id="fi-model" accept=".glb,.gltf" style="display:none" onchange="Studio.Viewport.handleModelFile(this.files[0]);this.value=''">
+<input type="file" id="fi-media" accept="image/*,video/*,audio/*" style="display:none" onchange="Studio.Assets.handleMediaFile(this.files[0]);this.value=''">
 
 <!-- ═══════════════════════════════════════════════════════ -->
 <!-- MODULES (load order matters: eventbus → project → rest) -->
