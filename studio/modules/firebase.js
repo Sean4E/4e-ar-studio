@@ -5,17 +5,20 @@
 Studio.Firebase = {
   _db: null,
   _collection: 'ar_apps',
+  ready: false,
 
   init() {
     try {
-      if (!window.AR_FIREBASE_CONFIG) {
-        Studio.log('Firebase: no config found');
+      const cfg = window.AR_FIREBASE_CONFIG;
+      if (!cfg || !cfg.apiKey || cfg.apiKey.includes('YOUR_')) {
+        Studio.log('Firebase: no valid config');
         return;
       }
       if (!firebase.apps.length) {
-        firebase.initializeApp(window.AR_FIREBASE_CONFIG);
+        firebase.initializeApp(cfg);
       }
       this._db = firebase.firestore();
+      this.ready = true;
       Studio.log('Firebase ready');
     } catch (e) {
       Studio.log('Firebase init failed: ' + e.message);

@@ -230,7 +230,13 @@ Studio.Inspector = {
     const obj = Studio.Project.getObject(this.currentId);
     if (!obj) return;
     const defaults = { spin: { speed: 1, axis: 'y' }, bob: { height: 0.05, speed: 2 }, pulse: { amount: 0.08, speed: 3 } };
-    if (enabled) { obj.presets[type] = defaults[type]; } else { obj.presets[type] = null; }
+    if (enabled) {
+      obj.presets[type] = defaults[type];
+      Studio.Viewport.startPreset(obj, type);
+    } else {
+      obj.presets[type] = null;
+      Studio.Viewport.stopPreset(obj, type);
+    }
     Studio.Project.markDirty();
     this.render(this.currentId);
   },

@@ -15,6 +15,7 @@ Studio.Viewport = {
   targetPlane: null,
   presetRafs: {},
   _selectedId: null,
+  _trackingHelper: null, // face/hand reference mesh
 
   // ─── Init ──────────────────────────────────────────────
   init() {
@@ -337,6 +338,113 @@ Studio.Viewport = {
         }
       }
     }
+  },
+
+  // ─── Tracking Mode Helper (face/hand reference) ─────────
+  showTrackingHelper(mode) {
+    this.removeTrackingHelper();
+
+    if (mode === 'face') {
+      // Simple face outline using a sphere + features
+      const group = new THREE.Group();
+      group.name = '_trackingHelper';
+
+      // Head sphere (wireframe)
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: 0.3 })
+      );
+      head.position.y = 0.15;
+      group.add(head);
+
+      // Nose
+      const nose = new THREE.Mesh(
+        new THREE.ConeGeometry(0.015, 0.04, 6),
+        new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.5 })
+      );
+      nose.position.set(0, 0.14, 0.12);
+      nose.rotation.x = Math.PI / 2;
+      group.add(nose);
+
+      // Eyes
+      [-0.04, 0.04].forEach(x => {
+        const eye = new THREE.Mesh(
+          new THREE.SphereGeometry(0.012, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.6 })
+        );
+        eye.position.set(x, 0.17, 0.1);
+        group.add(eye);
+      });
+
+      // Label
+      this.scene.add(group);
+      this._trackingHelper = group;
+
+    } else if (mode === 'hand') {
+      // Simple hand outline
+      const group = new THREE.Group();
+      group.name = '_trackingHelper';
+
+      // Palm
+      const palm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.12, 0.03),
+        new THREE.MeshBasicMaterial({ color: 0x34d399, wireframe: true, transparent: true, opacity: 0.3 })
+      );
+      palm.position.y = 0.06;
+      group.add(palm);
+
+      // Fingers
+      for (let i = 0; i < 5; i++) {
+        const finger = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.006, 0.005, 0.06, 6),
+          new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.4 })
+        );
+        finger.position.set(-0.04 + i * 0.02, 0.15, 0);
+        group.add(finger);
+      }
+
+      this.scene.add(group);
+      this._trackingHelper = group;
+
+    } else if (mode === 'slam') {
+      // Just show the grid (already there)
+    }
+    // Image mode shows target plane (handled separately)
+  },
+
+  removeTrackingHelper() {
+    if (this._trackingHelper) {
+      this.scene.remove(this._trackingHelper);
+      this._trackingHelper = null;
+    }
+  },
+
+  // ─── Preset Animation Preview ───────────────────────────
+  startPreset(obj, type) {
+    const key = obj.id + '_' + type;
+    if (this.presetRafs[key]) return;
+    const mesh = obj.mesh; if (!mesh) return;
+    const origin = { y: mesh.position.y, sx: mesh.scale.x, sy: mesh.scale.y, sz: mesh.scale.z };
+    const raf = { id: 0 };
+    this.presetRafs[key] = raf;
+    const tick = () => {
+      raf.id = requestAnimationFrame(tick);
+      const p = obj.presets?.[type]; if (!p) return;
+      const t = performance.now() * 0.001;
+      if (type === 'spin') mesh.rotation[p.axis || 'y'] = t * (p.speed || 1) * 1.5;
+      if (type === 'bob') mesh.position.y = origin.y + Math.sin(t * (p.speed || 2)) * (p.height || 0.05);
+      if (type === 'pulse') { const s = 1 + Math.sin(t * (p.speed || 3)) * (p.amount || 0.08); mesh.scale.set(origin.sx*s, origin.sy*s, origin.sz*s); }
+    };
+    tick();
+  },
+
+  stopPreset(obj, type) {
+    const key = obj.id + '_' + type;
+    if (this.presetRafs[key]) { cancelAnimationFrame(this.presetRafs[key].id); delete this.presetRafs[key]; }
+  },
+
+  stopAllPresets(obj) {
+    ['spin', 'bob', 'pulse'].forEach(t => this.stopPreset(obj, t));
   },
 
   // ─── Load Sample Model ─────────────────────────────────

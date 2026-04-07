@@ -53,6 +53,11 @@ Studio.setTrackingMode = function(mode) {
   if (Studio.Viewport.targetPlane) {
     Studio.Viewport.targetPlane.visible = mode === 'image';
   }
+  // Show face/hand helper in viewport
+  Studio.Viewport.removeTrackingHelper();
+  if (mode === 'face' || mode === 'hand') {
+    Studio.Viewport.showTrackingHelper(mode);
+  }
   Studio.EventBus.emit('tracking:modeChanged', { mode });
   Studio.Hierarchy.render();
   Studio.log('Tracking: ' + mode);
