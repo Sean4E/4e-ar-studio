@@ -63,8 +63,11 @@ Studio.GitHub = {
     }
 
     const result = await resp.json();
+    // Return the GitHub Pages URL (not the API response object)
+    const cfg2 = this.getConfig();
+    const pageUrl = `https://${cfg2.owner}.github.io/${cfg2.repo}/${path}`;
     Studio.log('GitHub: uploaded ' + path);
-    return result;
+    return pageUrl;
   },
 
   /**

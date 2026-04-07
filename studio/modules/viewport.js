@@ -178,16 +178,17 @@ Studio.Viewport = {
     await this._loadModelIntoScene(obj, blobUrl);
     Studio.Project.addObject(obj);
     this.selectObject(obj.id);
-    Studio.toast(obj.name + ' added — uploading…', 'ok');
 
-    // Upload to GitHub in background for persistence
+    // Upload to GitHub immediately (blocking — ensures glbUrl is set before save)
+    const gh = Studio.GitHub.getConfig();
+    if (!gh.token) {
+      Studio.toast(obj.name + ' added — needs Publish to upload', 'warn');
+      Studio.log('No GitHub token — model in scene but not uploaded');
+      return;
+    }
+
+    Studio.toast('Uploading ' + obj.name + '…', 'ok');
     try {
-      const gh = Studio.GitHub.getConfig();
-      if (!gh.token) {
-        Studio.toast('Set GitHub token to persist models (click Publish)', 'warn');
-        return;
-      }
-      // Generate a project-level path
       if (!Studio.Project.state.id) Studio.Project.state.id = Studio.Project._genId();
       const path = 'assets/' + Studio.Project.state.id + '/' + obj.id + '.glb';
       const b64 = await Studio.GitHub.file2b64(file);
@@ -196,7 +197,8 @@ Studio.Viewport = {
       Studio.toast(obj.name + ' uploaded ✓', 'ok');
       Studio.log('Uploaded: ' + obj.glbUrl);
     } catch(e) {
-      Studio.log('Upload failed: ' + e.message + ' — model will need Publish');
+      Studio.toast('Upload failed: ' + e.message, 'err');
+      Studio.log('Upload failed for ' + obj.name + ': ' + e.message);
     }
   },
 

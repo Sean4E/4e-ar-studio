@@ -190,7 +190,7 @@ Studio.Inspector = {
       return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label><select class="insp-select" style="font-size:10px;padding:2px 4px" onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)">${opts}</select></div>`;
     }
     if (def.type === 'range') {
-      return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label><input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${val}" oninput="Studio.Inspector._setCompProp('${compKey}','${propKey}',+this.value)" style="flex:1"><span style="font-size:9px;width:28px">${val}</span></div>`;
+      return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px" title="${def.label}: ${def.min} to ${def.max}">${def.label}</label><input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${val}" oninput="Studio.Inspector._setCompProp('${compKey}','${propKey}',+this.value);this.nextElementSibling.textContent=this.value" style="flex:1"><span style="font-size:9px;width:28px">${val}</span></div>`;
     }
     if (def.type === 'color') {
       return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label><input type="color" value="${val}" onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)" style="width:32px;height:20px;border:none;background:none"></div>`;

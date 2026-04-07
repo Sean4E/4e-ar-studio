@@ -186,7 +186,7 @@ function buildEntity(obj, i) {
     attrs += ` animation__pulse="property: scale; from: ${s*(1-a)} ${s*(1-a)} ${s*(1-a)}; to: ${s*(1+a)} ${s*(1+a)} ${s*(1+a)}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`;
   }
 
-  // 8th Wall native interactions (xrextras components)
+  // 8th Wall native interactions from legacy interactions{} field
   const ix = obj.interactions || {};
   if (ix.holdDrag) attrs += ' xrextras-hold-drag';
   if (ix.pinchScale) attrs += ' xrextras-pinch-scale';
@@ -195,6 +195,23 @@ function buildEntity(obj, i) {
   if (ix.autoSpin) attrs += ' xrextras-spin';
   if (ix.faceCamera) attrs += ' look-at="[camera]"';
   if (ix.castShadow !== false) attrs += ' shadow="cast: true"';
+
+  // xrComponents{} — new format with config values
+  const xr = obj.xrComponents || {};
+  Object.entries(xr).forEach(([key, config]) => {
+    // Skip if already added from interactions above
+    if (attrs.includes(key)) return;
+    if (config === true) {
+      attrs += ` ${key}`;
+    } else if (config && typeof config === 'object') {
+      const pairs = Object.entries(config).map(([k,v]) => `${k}: ${v}`).join('; ');
+      if (pairs) {
+        attrs += ` ${key}="${pairs}"`;
+      } else {
+        attrs += ` ${key}`;
+      }
+    }
+  });
 
   return `<a-gltf-model id="gltf-${i}" class="cantap" src="#m${i}" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-gltf-model>`;
 }
