@@ -451,10 +451,16 @@ Studio.Viewport = {
   async loadSample(url, name) {
     Studio.toast('Loading ' + name + '…', 'ok');
     try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const file = new File([blob], name + '.glb', { type: 'model/gltf-binary' });
-      await this.handleModelFile(file);
+      // Resolve to absolute URL for the player to load
+      const base = (window.AR_BASE_URL || window.location.origin);
+      const absUrl = url.startsWith('http') ? url : base + '/' + url.replace(/^\.\.\//, '');
+      const obj = Studio.Project.createObject({ name: name });
+      // Set glbUrl immediately — samples are already hosted
+      obj.glbUrl = absUrl;
+      await this._loadModelIntoScene(obj, url);
+      Studio.Project.addObject(obj);
+      this.selectObject(obj.id);
+      Studio.toast(name + ' added ✓', 'ok');
     } catch(e) {
       Studio.toast('Failed: ' + e.message, 'err');
     }

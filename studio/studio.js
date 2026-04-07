@@ -188,14 +188,25 @@ Studio.publishProject = async function() {
 
 Studio.previewProject = async function() {
   const state = Studio.Project.state;
-  if (!state.id) { Studio.toast('Save project first', 'warn'); return; }
-  if (state.dirty) await Studio.saveProject();
+
+  // Auto-save if needed (creates ID if first time)
+  if (!state.id || state.dirty) {
+    if (!Studio.Firebase.ready) { Studio.toast('Firebase not connected', 'err'); return; }
+    await Studio.saveProject();
+  }
+
   const url = (window.AR_BASE_URL || location.origin) + '/player-v2.html?id=' + state.id;
   document.getElementById('pub-url').value = url;
   const qrEl = document.getElementById('qr-code');
   qrEl.innerHTML = '';
   new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
-  document.getElementById('deploy-status').innerHTML = '<span style="color:var(--cyan)">Preview</span>';
+  document.getElementById('deploy-status').innerHTML = `
+    <span style="color:var(--cyan)">Dev Preview</span>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">
+      Scan to test on your phone. Changes reflect after Save.<br>
+      Models must be published for AR to load them.
+    </div>
+  `;
   document.getElementById('modal-publish').classList.remove('hidden');
 };
 
