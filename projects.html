@@ -135,7 +135,7 @@ async function loadProjects() {
       const mode = d.trackingMode || 'image';
       const objCount = d.objects ? d.objects.length : (d.glbUrl ? 1 : 0);
       const hasTarget = !!(d.mindUrl || d.target?.mindUrl);
-      const playerUrl = (window.AR_BASE_URL||location.origin) + '/player.html?id=' + id;
+      const playerUrl = (window.AR_BASE_URL||location.origin) + '/player-v2.html?id=' + id;
 
       const card = document.createElement('div');
       card.className = 'project-card';
