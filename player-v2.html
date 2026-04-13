@@ -82,47 +82,74 @@ if (typeof AFRAME !== 'undefined') {
     schema: {
       src: { type: 'string', default: '' },
       volume: { type: 'number', default: 0.8 },
-      loop: { type: 'boolean', default: true }
+      loop: { type: 'boolean', default: true },
+      fadeIn: { type: 'number', default: 0.5 },
+      fadeOut: { type: 'number', default: 1.0 },
+      resumeOnFound: { type: 'boolean', default: true }
     },
     init() {
       this._audio = null;
+      this._fadeInterval = null;
       const srcVal = this.data.src;
       if (!srcVal) return;
 
-      // Resolve asset reference (#id) or direct URL
       const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
       this._audio = assetEl || new Audio(srcVal);
-      this._audio.volume = this.data.volume;
+      this._audio.volume = 0;
       this._audio.loop = this.data.loop;
+      this._targetVolume = this.data.volume;
 
-      // Listen for target found/lost on parent xrextras-named-image-target
+      const onFound = () => {
+        if (!this._audio) return;
+        if (!this.data.resumeOnFound) this._audio.currentTime = 0;
+        this._audio.play().catch(() => {});
+        this._fade(this._targetVolume, this.data.fadeIn);
+      };
+      const onLost = () => {
+        if (!this._audio) return;
+        this._fade(0, this.data.fadeOut, () => this._audio.pause());
+      };
+
       const targetEl = this.el.closest('[xrextras-named-image-target]') || this.el;
-      targetEl.addEventListener('xrimagefound', () => {
-        if (this._audio) this._audio.play().catch(() => {});
-      });
-      targetEl.addEventListener('xrimagelost', () => {
-        if (this._audio) this._audio.pause();
-      });
-      // Also listen for MindAR events
-      targetEl.addEventListener('targetFound', () => {
-        if (this._audio) this._audio.play().catch(() => {});
-      });
-      targetEl.addEventListener('targetLost', () => {
-        if (this._audio) this._audio.pause();
-      });
+      targetEl.addEventListener('xrimagefound', onFound);
+      targetEl.addEventListener('xrimagelost', onLost);
+      targetEl.addEventListener('targetFound', onFound);
+      targetEl.addEventListener('targetLost', onLost);
+    },
+    _fade(targetVol, duration, onDone) {
+      if (this._fadeInterval) clearInterval(this._fadeInterval);
+      if (!this._audio || duration <= 0) {
+        if (this._audio) this._audio.volume = targetVol;
+        if (onDone) onDone();
+        return;
+      }
+      const steps = Math.max(1, Math.round(duration * 20));
+      const delta = (targetVol - this._audio.volume) / steps;
+      let step = 0;
+      this._fadeInterval = setInterval(() => {
+        step++;
+        this._audio.volume = Math.max(0, Math.min(1, this._audio.volume + delta));
+        if (step >= steps) {
+          clearInterval(this._fadeInterval);
+          this._fadeInterval = null;
+          this._audio.volume = targetVol;
+          if (onDone) onDone();
+        }
+      }, duration * 1000 / steps);
     },
     remove() {
+      if (this._fadeInterval) clearInterval(this._fadeInterval);
       if (this._audio) { this._audio.pause(); this._audio = null; }
     }
   });
 
-  // Background audio that starts when the scene loads.
   AFRAME.registerComponent('audio-ambient', {
     schema: {
       src: { type: 'string', default: '' },
       volume: { type: 'number', default: 0.5 },
       loop: { type: 'boolean', default: true },
-      autoplay: { type: 'boolean', default: true }
+      autoplay: { type: 'boolean', default: true },
+      fadeIn: { type: 'number', default: 1.0 }
     },
     init() {
       const srcVal = this.data.src;
@@ -130,20 +157,33 @@ if (typeof AFRAME !== 'undefined') {
 
       const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
       this._audio = assetEl || new Audio(srcVal);
-      this._audio.volume = this.data.volume;
       this._audio.loop = this.data.loop;
+      this._audio.volume = 0;
+      this._targetVolume = this.data.volume;
 
-      if (this.data.autoplay) {
-        // Try immediately — will work if user already tapped (8th Wall start)
-        this._audio.play().catch(() => {
-          // iOS: wait for user gesture then play
-          const tryPlay = () => {
-            this._audio.play().catch(() => {});
-            document.removeEventListener('touchstart', tryPlay);
-          };
-          document.addEventListener('touchstart', tryPlay, { once: true });
+      const startPlay = () => {
+        this._audio.play().then(() => {
+          // Fade in
+          const dur = this.data.fadeIn;
+          if (dur > 0) {
+            const steps = Math.round(dur * 20);
+            const delta = this._targetVolume / steps;
+            let step = 0;
+            const iv = setInterval(() => {
+              step++;
+              this._audio.volume = Math.min(this._targetVolume, this._audio.volume + delta);
+              if (step >= steps) { clearInterval(iv); this._audio.volume = this._targetVolume; }
+            }, dur * 1000 / steps);
+          } else {
+            this._audio.volume = this._targetVolume;
+          }
+        }).catch(() => {
+          // iOS: retry on user gesture
+          document.addEventListener('touchstart', () => startPlay(), { once: true });
         });
-      }
+      };
+
+      if (this.data.autoplay) startPlay();
     },
     remove() {
       if (this._audio) { this._audio.pause(); this._audio = null; }

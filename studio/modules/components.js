@@ -143,10 +143,12 @@ Studio.Components = {
     },
     'xrextras-target-video-fade': {
       name: 'Target Video Fade', category: 'image', icon: '🎬',
-      description: 'Play video on image target — fades in when target found, fades out when lost. Video replaces the 3D model.',
+      description: 'Play video on image target — fades in when found, fades out when lost. Video replaces the 3D model.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
-        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
+        video: { type: 'text', label: 'Video URL (.mp4)', default: '' },
+        loop: { type: 'boolean', label: 'Loop', default: true },
+        volume: { type: 'range', label: 'Volume', default: 1.0, min: 0, max: 1, step: 0.05 }
       }
     },
     'xrextras-target-video-sound': {
@@ -154,7 +156,9 @@ Studio.Components = {
       description: 'Play video with audio on image target — plays when found, pauses when lost. iOS unlocks audio on first tap.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
-        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
+        video: { type: 'text', label: 'Video URL (.mp4)', default: '' },
+        loop: { type: 'boolean', label: 'Loop', default: true },
+        volume: { type: 'range', label: 'Volume', default: 1.0, min: 0, max: 1, step: 0.05 }
       }
     },
 
@@ -216,12 +220,15 @@ Studio.Components = {
     },
     'audio-on-target': {
       name: 'Audio on Target', category: 'image', icon: '🎵',
-      description: 'Play audio when image target is detected. Pauses when lost. iOS requires tap gesture.',
+      description: 'Play audio when image target found. Fades out when lost. iOS requires tap gesture.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
         src: { type: 'text', label: 'Audio URL (.mp3)', default: '' },
         volume: { type: 'range', label: 'Volume', default: 0.8, min: 0, max: 1, step: 0.05 },
-        loop: { type: 'boolean', label: 'Loop', default: true }
+        loop: { type: 'boolean', label: 'Loop', default: true },
+        fadeIn: { type: 'range', label: 'Fade In (s)', default: 0.5, min: 0, max: 3, step: 0.1 },
+        fadeOut: { type: 'range', label: 'Fade Out (s)', default: 1.0, min: 0, max: 3, step: 0.1 },
+        resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true }
       }
     },
     'audio-ambient': {
@@ -232,7 +239,8 @@ Studio.Components = {
         src: { type: 'text', label: 'Audio URL (.mp3)', default: '' },
         volume: { type: 'range', label: 'Volume', default: 0.5, min: 0, max: 1, step: 0.05 },
         loop: { type: 'boolean', label: 'Loop', default: true },
-        autoplay: { type: 'boolean', label: 'Autoplay', default: true }
+        autoplay: { type: 'boolean', label: 'Autoplay', default: true },
+        fadeIn: { type: 'range', label: 'Fade In (s)', default: 1.0, min: 0, max: 5, step: 0.1 }
       }
     },
     'xrextras-attach': {
