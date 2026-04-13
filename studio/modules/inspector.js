@@ -203,7 +203,40 @@ Studio.Inspector = {
     if (def.type === 'boolean') {
       return `<label class="insp-check" style="margin-left:4px"><input type="checkbox" ${val?'checked':''} onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.checked)"> ${def.label}</label>`;
     }
-    // text / number
+    // text / number — with media picker for URL fields
+    const isMediaField = def.label && (
+      def.label.toLowerCase().includes('url') ||
+      def.label.toLowerCase().includes('audio') ||
+      def.label.toLowerCase().includes('video') ||
+      propKey === 'src' || propKey === 'video'
+    );
+
+    if (isMediaField) {
+      const media = Studio.Project.state.media || [];
+      // Filter to matching type
+      const isAudio = compKey.includes('audio') || compKey.includes('Audio') || compKey.includes('sound') || compKey.includes('Sound');
+      const isVideo = compKey.includes('video') || compKey.includes('Video');
+      const filtered = media.filter(m => {
+        if (isAudio) return m.type?.startsWith('audio');
+        if (isVideo) return m.type?.startsWith('video');
+        return true;
+      });
+
+      let options = `<option value="">— Select from library —</option>`;
+      filtered.forEach(m => {
+        const sel = m.url === val ? 'selected' : '';
+        options += `<option value="${m.url}" ${sel}>${m.name}</option>`;
+      });
+
+      return `<div class="insp-row" style="flex-wrap:wrap">
+        <label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label>
+        <select class="insp-select" style="font-size:10px;flex:1;min-width:100px" onchange="if(this.value){Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)}">
+          ${options}
+        </select>
+        <input class="insp-input" style="margin-top:2px;font-size:9px" value="${this._esc(val)}" placeholder="Or paste URL" onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)">
+      </div>`;
+    }
+
     return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label><input class="insp-input" value="${this._esc(val)}" onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)"></div>`;
   },
 
