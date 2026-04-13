@@ -73,288 +73,10 @@ const PLAYER_VERSION = '3.2.1';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
-// ═══════════════════════════════════════════════════════════
-// CUSTOM A-FRAME COMPONENTS — Audio
-// ═══════════════════════════════════════════════════════════
-
-// Plays audio when the parent image target is found, pauses when lost.
-// iOS: audio is unlocked by the 8th Wall tap-to-start gesture.
-if (typeof AFRAME !== 'undefined') {
-  // Studio preview detection — only skip in the studio's preview iframe
-  const _isStudioPreview = (window.self !== window.top) &&
-    (document.referrer.includes('/studio/') || window.location.search.includes('_preview=1'));
-
-  AFRAME.registerComponent('audio-on-target', {
-    schema: {
-      src: { type: 'string', default: '' },
-      volume: { type: 'number', default: 0.8 },
-      loop: { type: 'boolean', default: true },
-      fadeIn: { type: 'number', default: 0.5 },
-      fadeOut: { type: 'number', default: 1.0 },
-      resumeOnFound: { type: 'boolean', default: true },
-      delay: { type: 'number', default: 0 }
-    },
-    init() {
-      if (_isStudioPreview) return;
-
-      this._audio = null;
-      this._fadeInterval = null;
-      this._delayTimer = null;
-      const srcVal = this.data.src;
-      if (!srcVal) return;
-
-      const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
-      this._audio = assetEl || new Audio(srcVal);
-      this._audio.volume = 0;
-      this._audio.loop = this.data.loop;
-      this._targetVolume = this.data.volume;
-
-      // Get the target name from our parent xrextras-named-image-target
-      const targetEl = this.el.closest('[xrextras-named-image-target]');
-      const targetName = targetEl?.getAttribute('xrextras-named-image-target')?.name
-                      || targetEl?.getAttribute('name') || '';
-
-      const onFound = (e) => {
-        // Only respond to OUR target (match by name)
-        const evtName = e?.detail?.name || e?.name || '';
-        if (targetName && evtName !== targetName) return;
-
-        if (!this._audio) return;
-        if (!this.data.resumeOnFound) this._audio.currentTime = 0;
-        const startAudio = () => {
-          this._audio.play().catch(() => {});
-          this._fade(this._targetVolume, this.data.fadeIn);
-        };
-        if (this.data.delay > 0) {
-          this._delayTimer = setTimeout(startAudio, this.data.delay * 1000);
-        } else {
-          startAudio();
-        }
-      };
-      const onLost = (e) => {
-        const evtName = e?.detail?.name || e?.name || '';
-        if (targetName && evtName !== targetName) return;
-
-        if (!this._audio) return;
-        if (this._delayTimer) { clearTimeout(this._delayTimer); this._delayTimer = null; }
-        this._fade(0, this.data.fadeOut, () => this._audio.pause());
-      };
-
-      // Listen on the SCENE for XR8 events (they bubble up from the engine)
-      const sceneEl = this.el.sceneEl || document.querySelector('a-scene');
-      if (sceneEl) {
-        sceneEl.addEventListener('xrimagefound', onFound);
-        sceneEl.addEventListener('xrimagelost', onLost);
-      }
-      // MindAR events fire on the target entity
-      if (targetEl) {
-        targetEl.addEventListener('targetFound', onFound);
-        targetEl.addEventListener('targetLost', onLost);
-      }
-    },
-    _fade(targetVol, duration, onDone) {
-      if (this._fadeInterval) clearInterval(this._fadeInterval);
-      if (!this._audio || duration <= 0) {
-        if (this._audio) this._audio.volume = targetVol;
-        if (onDone) onDone();
-        return;
-      }
-      const steps = Math.max(1, Math.round(duration * 20));
-      const delta = (targetVol - this._audio.volume) / steps;
-      let step = 0;
-      this._fadeInterval = setInterval(() => {
-        step++;
-        this._audio.volume = Math.max(0, Math.min(1, this._audio.volume + delta));
-        if (step >= steps) {
-          clearInterval(this._fadeInterval);
-          this._fadeInterval = null;
-          this._audio.volume = targetVol;
-          if (onDone) onDone();
-        }
-      }, duration * 1000 / steps);
-    },
-    remove() {
-      if (this._fadeInterval) clearInterval(this._fadeInterval);
-      if (this._audio) { this._audio.pause(); this._audio = null; }
-    }
-  });
-
-  AFRAME.registerComponent('audio-ambient', {
-    schema: {
-      src: { type: 'string', default: '' },
-      volume: { type: 'number', default: 0.5 },
-      loop: { type: 'boolean', default: true },
-      autoplay: { type: 'boolean', default: true },
-      fadeIn: { type: 'number', default: 1.0 }
-    },
-    init() {
-      if (_isStudioPreview) return;
-
-      const srcVal = this.data.src;
-      if (!srcVal) return;
-
-      const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
-      this._audio = assetEl || new Audio(srcVal);
-      this._audio.loop = this.data.loop;
-      this._audio.volume = 0;
-      this._targetVolume = this.data.volume;
-
-      const startPlay = () => {
-        this._audio.play().then(() => {
-          // Fade in
-          const dur = this.data.fadeIn;
-          if (dur > 0) {
-            const steps = Math.round(dur * 20);
-            const delta = this._targetVolume / steps;
-            let step = 0;
-            const iv = setInterval(() => {
-              step++;
-              this._audio.volume = Math.min(this._targetVolume, this._audio.volume + delta);
-              if (step >= steps) { clearInterval(iv); this._audio.volume = this._targetVolume; }
-            }, dur * 1000 / steps);
-          } else {
-            this._audio.volume = this._targetVolume;
-          }
-        }).catch(() => {
-          // iOS: retry on user gesture
-          document.addEventListener('touchstart', () => startPlay(), { once: true });
-        });
-      };
-
-      if (this.data.autoplay) startPlay();
-    },
-    remove() {
-      if (this._audio) { this._audio.pause(); this._audio = null; }
-    }
-  });
-
-  // Video on target with full fade control — mirrors audio-on-target pattern.
-  // Creates a <video> element, plays on target found, fades opacity + volume.
-  AFRAME.registerComponent('video-on-target', {
-    schema: {
-      src: { type: 'string', default: '' },
-      volume: { type: 'number', default: 1.0 },
-      loop: { type: 'boolean', default: true },
-      fadeIn: { type: 'number', default: 0.5 },
-      fadeOut: { type: 'number', default: 1.0 },
-      resumeOnFound: { type: 'boolean', default: true },
-      muted: { type: 'boolean', default: false }
-    },
-    init() {
-      if (_isStudioPreview) return;
-
-      this._video = null;
-      this._fadeInterval = null;
-      this._opacity = 0;
-      const srcVal = this.data.src;
-      if (!srcVal) return;
-
-      // Resolve asset reference (#id) or direct URL
-      const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
-      if (assetEl && assetEl.tagName === 'VIDEO') {
-        this._video = assetEl;
-      } else {
-        this._video = document.createElement('video');
-        this._video.src = srcVal.startsWith('#') ? '' : srcVal;
-        this._video.crossOrigin = 'anonymous';
-        this._video.playsInline = true;
-        this._video.setAttribute('webkit-playsinline', '');
-        document.body.appendChild(this._video);
-      }
-      this._video.loop = this.data.loop;
-      this._video.muted = this.data.muted;
-      this._video.volume = 0;
-
-      // Make entity invisible initially
-      this.el.object3D.visible = false;
-
-      // Apply video as texture to entity (replaces material)
-      this._video.addEventListener('loadeddata', () => {
-        const tex = new THREE.VideoTexture(this._video);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        // Create a plane geometry matching video aspect
-        const aspect = this._video.videoWidth / this._video.videoHeight || 16/9;
-        const mesh = this.el.getObject3D('mesh');
-        if (mesh && mesh.material) {
-          mesh.material.map = tex;
-          mesh.material.needsUpdate = true;
-        }
-      }, { once: true });
-
-      const onFound = () => {
-        if (!this._video) return;
-        if (!this.data.resumeOnFound) this._video.currentTime = 0;
-        this._video.play().catch(() => {});
-        this.el.object3D.visible = true;
-        this._fade(this.data.volume, 1.0, this.data.fadeIn);
-      };
-      const onLost = () => {
-        if (!this._video) return;
-        this._fade(0, 0, this.data.fadeOut, () => {
-          this._video.pause();
-          this.el.object3D.visible = false;
-        });
-      };
-
-      // Match events to our specific target by name
-      const targetEl = this.el.closest('[xrextras-named-image-target]');
-      const targetName = targetEl?.getAttribute('xrextras-named-image-target')?.name
-                      || targetEl?.getAttribute('name') || '';
-
-      const filterFound = (e) => {
-        const n = e?.detail?.name || e?.name || '';
-        if (targetName && n !== targetName) return;
-        onFound();
-      };
-      const filterLost = (e) => {
-        const n = e?.detail?.name || e?.name || '';
-        if (targetName && n !== targetName) return;
-        onLost();
-      };
-
-      const sceneEl = this.el.sceneEl || document.querySelector('a-scene');
-      if (sceneEl) { sceneEl.addEventListener('xrimagefound', filterFound); sceneEl.addEventListener('xrimagelost', filterLost); }
-      if (targetEl) { targetEl.addEventListener('targetFound', filterFound); targetEl.addEventListener('targetLost', filterLost); }
-    },
-    _fade(targetVol, targetOpacity, duration, onDone) {
-      if (this._fadeInterval) clearInterval(this._fadeInterval);
-      if (!this._video || duration <= 0) {
-        if (this._video) this._video.volume = targetVol;
-        this._setOpacity(targetOpacity);
-        if (onDone) onDone();
-        return;
-      }
-      const steps = Math.max(1, Math.round(duration * 20));
-      const volDelta = (targetVol - this._video.volume) / steps;
-      const opDelta = (targetOpacity - this._opacity) / steps;
-      let step = 0;
-      this._fadeInterval = setInterval(() => {
-        step++;
-        this._video.volume = Math.max(0, Math.min(1, this._video.volume + volDelta));
-        this._opacity = Math.max(0, Math.min(1, this._opacity + opDelta));
-        this._setOpacity(this._opacity);
-        if (step >= steps) {
-          clearInterval(this._fadeInterval);
-          this._fadeInterval = null;
-          this._video.volume = targetVol;
-          this._setOpacity(targetOpacity);
-          if (onDone) onDone();
-        }
-      }, duration * 1000 / steps);
-    },
-    _setOpacity(v) {
-      const mesh = this.el.getObject3D('mesh');
-      if (mesh && mesh.material) {
-        mesh.material.opacity = v;
-        mesh.material.transparent = v < 1;
-      }
-    },
-    remove() {
-      if (this._fadeInterval) clearInterval(this._fadeInterval);
-      if (this._video) { this._video.pause(); this._video = null; }
-    }
-  });
-}
+// Audio/video is handled by converting to native A-Frame 'sound' component
+// in buildEntity(). No custom A-Frame components needed.
+// The xrextras-named-image-target parent handles show/hide,
+// which automatically pauses/plays the A-Frame sound component.
 
 function setSplashStatus(msg) { const s = el('splash-status'); if (s) s.textContent = msg; }
 
@@ -371,36 +93,30 @@ function projectHasMedia() {
 
 function hideSplash() {
   const dur = (APP?.splash?.duration || 3) * 1000;
+  setTimeout(() => {
+    el('splash').classList.add('hidden');
+    // Show audio button if project has media
+    if (projectHasMedia()) showAudioButton();
+  }, dur);
+}
 
-  // Always auto-hide the splash after the duration
-  setTimeout(() => el('splash').classList.add('hidden'), dur);
-
-  // If project has audio/video, unlock AudioContext on first user tap
-  // (non-blocking — camera starts immediately, audio unlocks on first touch)
-  if (projectHasMedia()) {
-    const unlockAudio = () => {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        ctx.resume().then(() => ctx.close());
-      } catch(e) {}
-      document.querySelectorAll('audio, video').forEach(m => {
-        m.play().then(() => m.pause()).catch(() => {});
-      });
-      document.removeEventListener('touchstart', unlockAudio);
-      document.removeEventListener('click', unlockAudio);
-    };
-    document.addEventListener('touchstart', unlockAudio, { once: true });
-    document.addEventListener('click', unlockAudio, { once: true });
-
-    // Add a small audio hint after splash hides
-    setTimeout(() => {
-      const hint = document.createElement('div');
-      hint.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:100;pointer-events:none;opacity:1;transition:opacity 1s';
-      hint.textContent = '🔊 Tap screen to enable audio';
-      document.body.appendChild(hint);
-      setTimeout(() => { hint.style.opacity = '0'; setTimeout(() => hint.remove(), 1000); }, 4000);
-    }, dur + 500);
-  }
+// Simple persistent audio button — iOS requires user gesture to play audio.
+// This button sits in the corner, user taps it once, audio unlocks.
+// Nothing else — no AudioContext hacks, no event listeners on the document.
+function showAudioButton() {
+  const btn = document.createElement('button');
+  btn.id = 'audio-btn';
+  btn.textContent = '🔊';
+  btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:22px;cursor:pointer;z-index:100;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center';
+  btn.onclick = () => {
+    // This tap is the user gesture that unlocks audio on iOS
+    const audios = document.querySelectorAll('audio');
+    audios.forEach(a => { a.play().catch(() => {}); });
+    btn.style.background = 'rgba(139,92,246,0.6)';
+    btn.style.borderColor = 'rgba(139,92,246,0.8)';
+    setTimeout(() => { btn.style.opacity = '0.4'; }, 2000);
+  };
+  document.body.appendChild(btn);
 }
 function showError(t, m) { el('err-title').textContent = t; el('err-msg').textContent = m; el('error-screen').classList.add('show'); hideSplash(); }
 function showARUI() { el('ar-ui').classList.add('show'); }
@@ -533,12 +249,13 @@ function buildAssets(objects) {
         if (config.src) config.src = `#${vid}`;
       }
 
-      // Audio sources — DON'T create <audio> asset elements for our custom
-      // components (audio-on-target, audio-ambient). They create their own
-      // Audio objects internally. Only create assets for native xrextras
-      // components that expect an asset reference.
-      if (key === 'xrextras-target-video-sound') {
-        // This native component handles its own audio via the video element
+      // Audio sources — create <audio> asset for A-Frame sound component
+      const audioSrc = config.src;
+      if (audioSrc && !audioSrc.startsWith('#') &&
+          (key === 'audio-on-target' || key === 'audio-ambient')) {
+        const aud = `aud-${i}-${mediaIdx++}`;
+        assets += `<audio id="${aud}" src="${audioSrc}" preload="auto" crossorigin="anonymous"></audio>\n`;
+        config.src = `#${aud}`;
       }
     });
   });
