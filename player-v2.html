@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
+<meta name="version" content="3.2.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -611,11 +612,32 @@ function buildEntity(obj, i) {
   if (ix.faceCamera) attrs += ' look-at="[camera]"';
   if (ix.castShadow !== false) attrs += ' shadow="cast: true"';
 
-  // xrComponents{} — new format with config values
+  // xrComponents{} — convert to A-Frame attributes
   const xr = obj.xrComponents || {};
   Object.entries(xr).forEach(([key, config]) => {
-    // Skip if already added from interactions above
     if (attrs.includes(key)) return;
+
+    // Convert audio-on-target to native A-Frame sound component
+    // The xrextras-named-image-target parent handles visibility,
+    // which automatically pauses/plays the sound.
+    if (key === 'audio-on-target' && config && typeof config === 'object') {
+      const src = config.src || '';
+      if (src) {
+        attrs += ` sound="src: ${src}; autoplay: false; loop: ${config.loop !== false}; volume: ${config.volume || 0.8}"`;
+      }
+      return;
+    }
+
+    // Convert audio-ambient to native A-Frame sound with autoplay
+    if (key === 'audio-ambient' && config && typeof config === 'object') {
+      const src = config.src || '';
+      if (src) {
+        attrs += ` sound="src: ${src}; autoplay: ${config.autoplay !== false}; loop: ${config.loop !== false}; volume: ${config.volume || 0.5}"`;
+      }
+      return;
+    }
+
+    // All other components pass through as-is
     if (config === true) {
       attrs += ` ${key}`;
     } else if (config && typeof config === 'object') {
@@ -695,18 +717,32 @@ function buildSLAM() {
 // ═══════════════════════════════════════════════════════════
 function buildImage() {
   const objects = getObjects();
-  if (!objects.length) { showError('Empty', 'No models.'); return; }
+  if (!objects.length) { showError('Empty', 'No models in scene.'); return; }
 
-  // New multi-target system (8th Wall native)
+  // 8th Wall native image targets (primary and only path)
   if (APP.targets && APP.targets.length > 0) {
     buildImageNative(objects);
     return;
   }
 
-  // Legacy single-target (MindAR fallback)
-  const mindUrl = APP.mindUrl || APP.target?.mindUrl || '';
-  if (!mindUrl) { showError('No target', 'No image target configured.'); return; }
-  loadMindAR(objects, mindUrl);
+  // Legacy single-target — try to use 8th Wall if we have image URLs
+  if (APP.target?.imageUrl) {
+    // Convert legacy target to native format
+    APP.targets = [{
+      id: 'legacy',
+      name: 'target',
+      type: 'PLANAR',
+      luminanceUrl: APP.target.imageUrl,
+      originalUrl: APP.target.imageUrl,
+      thumbnailUrl: APP.target.imageUrl,
+      properties: {},
+      objectIds: objects.map(o => o.id),
+    }];
+    buildImageNative(objects);
+    return;
+  }
+
+  showError('No target', 'No image target configured. Add a target in the studio.');
 }
 
 // ═══════════════════════════════════════════════════════════

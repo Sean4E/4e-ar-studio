@@ -348,7 +348,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.Splash.init();
   Studio.Preview.init();
 
-  Studio.log('4E AR Studio v2 ready');
+  Studio.VERSION = document.querySelector('meta[name="version"]')?.content || '3.2.0';
+  Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
+  // Show version in toolbar
+  const tbStatus = document.getElementById('tb-status');
+  if (tbStatus) tbStatus.title = 'v' + Studio.VERSION;
 
   // Load project from URL if ?edit=ID
   const editId = new URLSearchParams(location.search).get('edit');
