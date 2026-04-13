@@ -19,5 +19,5 @@ window.AR_GITHUB_CONFIG = {
   token: ""
 };
 
-// Base URL for the player (GitHub Pages)
-window.AR_BASE_URL = "https://ar-studio-4e.web.app";
+// Base URL for the player (GitHub Pages — single deployment, no Firebase needed)
+window.AR_BASE_URL = "https://sean4e.github.io/4e-ar-studio";
