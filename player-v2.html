@@ -107,7 +107,16 @@ if (typeof AFRAME !== 'undefined') {
       this._audio.loop = this.data.loop;
       this._targetVolume = this.data.volume;
 
-      const onFound = () => {
+      // Get the target name from our parent xrextras-named-image-target
+      const targetEl = this.el.closest('[xrextras-named-image-target]');
+      const targetName = targetEl?.getAttribute('xrextras-named-image-target')?.name
+                      || targetEl?.getAttribute('name') || '';
+
+      const onFound = (e) => {
+        // Only respond to OUR target (match by name)
+        const evtName = e?.detail?.name || e?.name || '';
+        if (targetName && evtName !== targetName) return;
+
         if (!this._audio) return;
         if (!this.data.resumeOnFound) this._audio.currentTime = 0;
         const startAudio = () => {
@@ -120,17 +129,26 @@ if (typeof AFRAME !== 'undefined') {
           startAudio();
         }
       };
-      const onLost = () => {
+      const onLost = (e) => {
+        const evtName = e?.detail?.name || e?.name || '';
+        if (targetName && evtName !== targetName) return;
+
         if (!this._audio) return;
         if (this._delayTimer) { clearTimeout(this._delayTimer); this._delayTimer = null; }
         this._fade(0, this.data.fadeOut, () => this._audio.pause());
       };
 
-      const targetEl = this.el.closest('[xrextras-named-image-target]') || this.el;
-      targetEl.addEventListener('xrimagefound', onFound);
-      targetEl.addEventListener('xrimagelost', onLost);
-      targetEl.addEventListener('targetFound', onFound);
-      targetEl.addEventListener('targetLost', onLost);
+      // Listen on the SCENE for XR8 events (they bubble up from the engine)
+      const sceneEl = this.el.sceneEl || document.querySelector('a-scene');
+      if (sceneEl) {
+        sceneEl.addEventListener('xrimagefound', onFound);
+        sceneEl.addEventListener('xrimagelost', onLost);
+      }
+      // MindAR events fire on the target entity
+      if (targetEl) {
+        targetEl.addEventListener('targetFound', onFound);
+        targetEl.addEventListener('targetLost', onLost);
+      }
     },
     _fade(targetVol, duration, onDone) {
       if (this._fadeInterval) clearInterval(this._fadeInterval);
@@ -276,11 +294,25 @@ if (typeof AFRAME !== 'undefined') {
         });
       };
 
-      const targetEl = this.el.closest('[xrextras-named-image-target]') || this.el;
-      targetEl.addEventListener('xrimagefound', onFound);
-      targetEl.addEventListener('xrimagelost', onLost);
-      targetEl.addEventListener('targetFound', onFound);
-      targetEl.addEventListener('targetLost', onLost);
+      // Match events to our specific target by name
+      const targetEl = this.el.closest('[xrextras-named-image-target]');
+      const targetName = targetEl?.getAttribute('xrextras-named-image-target')?.name
+                      || targetEl?.getAttribute('name') || '';
+
+      const filterFound = (e) => {
+        const n = e?.detail?.name || e?.name || '';
+        if (targetName && n !== targetName) return;
+        onFound();
+      };
+      const filterLost = (e) => {
+        const n = e?.detail?.name || e?.name || '';
+        if (targetName && n !== targetName) return;
+        onLost();
+      };
+
+      const sceneEl = this.el.sceneEl || document.querySelector('a-scene');
+      if (sceneEl) { sceneEl.addEventListener('xrimagefound', filterFound); sceneEl.addEventListener('xrimagelost', filterLost); }
+      if (targetEl) { targetEl.addEventListener('targetFound', filterFound); targetEl.addEventListener('targetLost', filterLost); }
     },
     _fade(targetVol, targetOpacity, duration, onDone) {
       if (this._fadeInterval) clearInterval(this._fadeInterval);
@@ -496,12 +528,12 @@ function buildAssets(objects) {
         if (config.src) config.src = `#${vid}`;
       }
 
-      // Audio sources (audio-on-target, audio-ambient)
-      const audioUrl = config.src;
-      if (audioUrl && (key.includes('audio') || key.includes('Audio') || key.includes('sound') || key.includes('Sound'))) {
-        const aud = `aud-${i}-${mediaIdx++}`;
-        assets += `<audio id="${aud}" src="${audioUrl}" preload="auto" crossorigin="anonymous"></audio>\n`;
-        config.src = `#${aud}`;
+      // Audio sources — DON'T create <audio> asset elements for our custom
+      // components (audio-on-target, audio-ambient). They create their own
+      // Audio objects internally. Only create assets for native xrextras
+      // components that expect an asset reference.
+      if (key === 'xrextras-target-video-sound') {
+        // This native component handles its own audio via the video element
       }
     });
   });
