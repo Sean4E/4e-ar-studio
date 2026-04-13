@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.6">
+<meta name="version" content="3.2.7">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -69,7 +69,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.6';
+const PLAYER_VERSION = '3.2.7';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -92,6 +92,7 @@ if (typeof AFRAME !== 'undefined') {
       this._audio.src = src;
       this._audio.loop = this.data.loop;
       this._audio.volume = this.data.volume;
+      this._audio.muted = true;  // start muted (matches button default)
       this._audio.preload = 'auto';
       this._audio.crossOrigin = 'anonymous';
       this._audio.autoplay = false;
@@ -113,11 +114,12 @@ if (typeof AFRAME !== 'undefined') {
       const src = this.data.src;
       if (!src) return;
 
-      // Create <audio> element — paused, no autoplay
+      // Create <audio> element — paused, no autoplay, muted by default
       this._audio = document.createElement('audio');
       this._audio.src = src;
       this._audio.loop = this.data.loop;
       this._audio.volume = 0;
+      this._audio.muted = true;  // start muted (matches button default)
       this._audio.preload = 'auto';
       this._audio.crossOrigin = 'anonymous';
       this._audio.autoplay = false;
@@ -229,39 +231,42 @@ window._4E_AUDIO = {
 };
 
 // 🔊 button — three states:
-//   1. Locked (iOS hasn't been tapped yet) — tap unlocks audio + starts ambient
-//   2. Unlocked + unmuted — tap to mute everything
-//   3. Muted — tap to unmute
+//   1. Muted (default) — tap to enable audio (also unlocks iOS)
+//   2. Unmuted — tap to mute
+//   3. Re-mute → unmute again
 function showAudioButton() {
+  // Start muted by default
+  window._4E_AUDIO.muted = true;
+
   const btn = document.createElement('button');
   btn.id = 'audio-btn';
-  btn.textContent = '🔊';
-  btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:22px;cursor:pointer;z-index:100;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center';
+  btn.textContent = '🔇';
+  btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:52px;height:52px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(0,0,0,0.6);color:#fff;font-size:22px;cursor:pointer;z-index:100;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite';
 
   const updateBtn = () => {
-    if (!window._4E_AUDIO.unlocked) {
-      btn.textContent = '🔊';
-      btn.title = 'Tap to enable audio';
-    } else if (window._4E_AUDIO.muted) {
+    if (window._4E_AUDIO.muted) {
       btn.textContent = '🔇';
-      btn.title = 'Tap to unmute';
+      btn.title = 'Tap to enable audio';
+      btn.style.borderColor = 'rgba(255,255,255,0.4)';
     } else {
       btn.textContent = '🔊';
       btn.title = 'Tap to mute';
+      btn.style.borderColor = 'rgba(139,92,246,0.8)';
+      btn.style.animation = 'none';
     }
   };
 
   btn.onclick = () => {
-    if (!window._4E_AUDIO.unlocked) {
-      // First tap: unlock audio, start ambient sounds
+    window._4E_AUDIO.muted = !window._4E_AUDIO.muted;
+
+    // Apply mute to all registered audios
+    const allAudios = [...window._4E_AUDIO.ambient, ...window._4E_AUDIO.onTarget];
+    allAudios.forEach(a => { a.muted = window._4E_AUDIO.muted; });
+
+    // Unlock + start ambient on first unmute
+    if (!window._4E_AUDIO.muted && !window._4E_AUDIO.unlocked) {
       window._4E_AUDIO.unlocked = true;
       window._4E_AUDIO.ambient.forEach(a => a.play().catch(() => {}));
-      // Don't touch onTarget audios — they'll play when their target is found
-    } else {
-      // Subsequent taps: toggle mute
-      window._4E_AUDIO.muted = !window._4E_AUDIO.muted;
-      const allAudios = [...window._4E_AUDIO.ambient, ...window._4E_AUDIO.onTarget];
-      allAudios.forEach(a => { a.muted = window._4E_AUDIO.muted; });
     }
     updateBtn();
   };
@@ -295,18 +300,39 @@ async function init() {
     // Custom splash
     applySplash(APP);
 
-    // Preload image target images in parallel — speeds up tracking init
+    // Preload ALL assets in parallel during splash — targets, audio, GLB, video
+    setSplashStatus('Preloading assets…');
+    const preloads = [];
+
+    // Image target luminance images
     if (APP.targets && APP.targets.length > 0) {
-      setSplashStatus('Preloading targets…');
-      await Promise.all(APP.targets.map(t => {
-        return new Promise(res => {
-          if (!t.luminanceUrl) return res();
+      APP.targets.forEach(t => {
+        if (t.luminanceUrl) preloads.push(new Promise(res => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = img.onerror = () => res();
           img.src = t.luminanceUrl;
-        });
-      }));
+        }));
+      });
+    }
+
+    // GLB models, audio files, video files from xrComponents
+    (APP.objects || []).forEach(o => {
+      if (o.glbUrl) preloads.push(fetch(o.glbUrl, { mode: 'cors' }).catch(() => {}));
+      const xr = o.xrComponents || {};
+      Object.values(xr).forEach(cfg => {
+        if (cfg && typeof cfg === 'object') {
+          const url = cfg.src || cfg.video;
+          if (url && typeof url === 'string' && !url.startsWith('#')) {
+            preloads.push(fetch(url, { mode: 'cors' }).catch(() => {}));
+          }
+        }
+      });
+    });
+
+    if (preloads.length > 0) {
+      setSplashStatus(`Preloading ${preloads.length} asset${preloads.length > 1 ? 's' : ''}…`);
+      await Promise.all(preloads);
     }
 
     setSplashStatus('Waiting for AR engine…');
