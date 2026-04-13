@@ -370,31 +370,34 @@ function projectHasMedia() {
 function hideSplash() {
   const dur = (APP?.splash?.duration || 3) * 1000;
 
-  // If the project has audio/video, show a "Tap to Start" button
-  // instead of auto-hiding. iOS requires a user gesture to unlock audio.
+  // Always auto-hide the splash after the duration
+  setTimeout(() => el('splash').classList.add('hidden'), dur);
+
+  // If project has audio/video, unlock AudioContext on first user tap
+  // (non-blocking — camera starts immediately, audio unlocks on first touch)
   if (projectHasMedia()) {
+    const unlockAudio = () => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx.resume().then(() => ctx.close());
+      } catch(e) {}
+      document.querySelectorAll('audio, video').forEach(m => {
+        m.play().then(() => m.pause()).catch(() => {});
+      });
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('click', unlockAudio);
+    };
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+    document.addEventListener('click', unlockAudio, { once: true });
+
+    // Add a small audio hint after splash hides
     setTimeout(() => {
-      setSplashStatus('');
-      const startBtn = document.createElement('button');
-      startBtn.textContent = '▶  Tap to Start';
-      startBtn.style.cssText = 'margin-top:20px;padding:14px 36px;font-size:16px;font-weight:700;border:none;border-radius:28px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#8b5cf6,#6d28d9);box-shadow:0 4px 20px rgba(139,92,246,0.4);letter-spacing:0.5px';
-      startBtn.onclick = () => {
-        // This tap unlocks AudioContext on iOS
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          ctx.resume().then(() => ctx.close());
-        } catch(e) {}
-        // Also try to play any existing audio elements
-        document.querySelectorAll('audio, video').forEach(m => {
-          m.play().then(() => m.pause()).catch(() => {});
-        });
-        el('splash').classList.add('hidden');
-      };
-      el('splash-inner').appendChild(startBtn);
-    }, dur);
-  } else {
-    // No media — auto-hide as before
-    setTimeout(() => el('splash').classList.add('hidden'), dur);
+      const hint = document.createElement('div');
+      hint.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:100;pointer-events:none;opacity:1;transition:opacity 1s';
+      hint.textContent = '🔊 Tap screen to enable audio';
+      document.body.appendChild(hint);
+      setTimeout(() => { hint.style.opacity = '0'; setTimeout(() => hint.remove(), 1000); }, 4000);
+    }, dur + 500);
   }
 }
 function showError(t, m) { el('err-title').textContent = t; el('err-msg').textContent = m; el('error-screen').classList.add('show'); hideSplash(); }
