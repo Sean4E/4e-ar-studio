@@ -78,6 +78,10 @@ let APP = null, arScene = null;
 // Plays audio when the parent image target is found, pauses when lost.
 // iOS: audio is unlocked by the 8th Wall tap-to-start gesture.
 if (typeof AFRAME !== 'undefined') {
+  // Studio preview detection — only skip in the studio's preview iframe
+  const _isStudioPreview = (window.self !== window.top) &&
+    (document.referrer.includes('/studio/') || window.location.search.includes('_preview=1'));
+
   AFRAME.registerComponent('audio-on-target', {
     schema: {
       src: { type: 'string', default: '' },
@@ -89,8 +93,7 @@ if (typeof AFRAME !== 'undefined') {
       delay: { type: 'number', default: 0 }
     },
     init() {
-      // Don't run in iframe preview (studio)
-      if (window.self !== window.top) return;
+      if (_isStudioPreview) return;
 
       this._audio = null;
       this._fadeInterval = null;
@@ -165,8 +168,7 @@ if (typeof AFRAME !== 'undefined') {
       fadeIn: { type: 'number', default: 1.0 }
     },
     init() {
-      // Don't run in iframe preview (studio)
-      if (window.self !== window.top) return;
+      if (_isStudioPreview) return;
 
       const srcVal = this.data.src;
       if (!srcVal) return;
@@ -219,8 +221,7 @@ if (typeof AFRAME !== 'undefined') {
       muted: { type: 'boolean', default: false }
     },
     init() {
-      // Don't run in iframe preview (studio)
-      if (window.self !== window.top) return;
+      if (_isStudioPreview) return;
 
       this._video = null;
       this._fadeInterval = null;
