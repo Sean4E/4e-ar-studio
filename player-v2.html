@@ -189,6 +189,117 @@ if (typeof AFRAME !== 'undefined') {
       if (this._audio) { this._audio.pause(); this._audio = null; }
     }
   });
+
+  // Video on target with full fade control — mirrors audio-on-target pattern.
+  // Creates a <video> element, plays on target found, fades opacity + volume.
+  AFRAME.registerComponent('video-on-target', {
+    schema: {
+      src: { type: 'string', default: '' },
+      volume: { type: 'number', default: 1.0 },
+      loop: { type: 'boolean', default: true },
+      fadeIn: { type: 'number', default: 0.5 },
+      fadeOut: { type: 'number', default: 1.0 },
+      resumeOnFound: { type: 'boolean', default: true },
+      muted: { type: 'boolean', default: false }
+    },
+    init() {
+      this._video = null;
+      this._fadeInterval = null;
+      this._opacity = 0;
+      const srcVal = this.data.src;
+      if (!srcVal) return;
+
+      // Resolve asset reference (#id) or direct URL
+      const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
+      if (assetEl && assetEl.tagName === 'VIDEO') {
+        this._video = assetEl;
+      } else {
+        this._video = document.createElement('video');
+        this._video.src = srcVal.startsWith('#') ? '' : srcVal;
+        this._video.crossOrigin = 'anonymous';
+        this._video.playsInline = true;
+        this._video.setAttribute('webkit-playsinline', '');
+        document.body.appendChild(this._video);
+      }
+      this._video.loop = this.data.loop;
+      this._video.muted = this.data.muted;
+      this._video.volume = 0;
+
+      // Make entity invisible initially
+      this.el.object3D.visible = false;
+
+      // Apply video as texture to entity (replaces material)
+      this._video.addEventListener('loadeddata', () => {
+        const tex = new THREE.VideoTexture(this._video);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        // Create a plane geometry matching video aspect
+        const aspect = this._video.videoWidth / this._video.videoHeight || 16/9;
+        const mesh = this.el.getObject3D('mesh');
+        if (mesh && mesh.material) {
+          mesh.material.map = tex;
+          mesh.material.needsUpdate = true;
+        }
+      }, { once: true });
+
+      const onFound = () => {
+        if (!this._video) return;
+        if (!this.data.resumeOnFound) this._video.currentTime = 0;
+        this._video.play().catch(() => {});
+        this.el.object3D.visible = true;
+        this._fade(this.data.volume, 1.0, this.data.fadeIn);
+      };
+      const onLost = () => {
+        if (!this._video) return;
+        this._fade(0, 0, this.data.fadeOut, () => {
+          this._video.pause();
+          this.el.object3D.visible = false;
+        });
+      };
+
+      const targetEl = this.el.closest('[xrextras-named-image-target]') || this.el;
+      targetEl.addEventListener('xrimagefound', onFound);
+      targetEl.addEventListener('xrimagelost', onLost);
+      targetEl.addEventListener('targetFound', onFound);
+      targetEl.addEventListener('targetLost', onLost);
+    },
+    _fade(targetVol, targetOpacity, duration, onDone) {
+      if (this._fadeInterval) clearInterval(this._fadeInterval);
+      if (!this._video || duration <= 0) {
+        if (this._video) this._video.volume = targetVol;
+        this._setOpacity(targetOpacity);
+        if (onDone) onDone();
+        return;
+      }
+      const steps = Math.max(1, Math.round(duration * 20));
+      const volDelta = (targetVol - this._video.volume) / steps;
+      const opDelta = (targetOpacity - this._opacity) / steps;
+      let step = 0;
+      this._fadeInterval = setInterval(() => {
+        step++;
+        this._video.volume = Math.max(0, Math.min(1, this._video.volume + volDelta));
+        this._opacity = Math.max(0, Math.min(1, this._opacity + opDelta));
+        this._setOpacity(this._opacity);
+        if (step >= steps) {
+          clearInterval(this._fadeInterval);
+          this._fadeInterval = null;
+          this._video.volume = targetVol;
+          this._setOpacity(targetOpacity);
+          if (onDone) onDone();
+        }
+      }, duration * 1000 / steps);
+    },
+    _setOpacity(v) {
+      const mesh = this.el.getObject3D('mesh');
+      if (mesh && mesh.material) {
+        mesh.material.opacity = v;
+        mesh.material.transparent = v < 1;
+      }
+    },
+    remove() {
+      if (this._fadeInterval) clearInterval(this._fadeInterval);
+      if (this._video) { this._video.pause(); this._video = null; }
+    }
+  });
 }
 
 function setSplashStatus(msg) { const s = el('splash-status'); if (s) s.textContent = msg; }

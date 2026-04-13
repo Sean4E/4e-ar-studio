@@ -142,23 +142,33 @@ Studio.Components = {
       trackingModes: ['image'], appliesTo: 'entity', type: 'boolean',
     },
     'xrextras-target-video-fade': {
-      name: 'Target Video Fade', category: 'image', icon: '🎬',
-      description: 'Play video on image target — fades in when found, fades out when lost. Video replaces the 3D model.',
+      name: 'Target Video Fade (native)', category: 'image', icon: '🎬',
+      description: '8th Wall native — video fades on target. No custom fade controls.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
-        video: { type: 'text', label: 'Video URL (.mp4)', default: '' },
-        loop: { type: 'boolean', label: 'Loop', default: true },
-        volume: { type: 'range', label: 'Volume', default: 1.0, min: 0, max: 1, step: 0.05 }
+        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
       }
     },
     'xrextras-target-video-sound': {
-      name: 'Target Video + Sound', category: 'image', icon: '🔊',
-      description: 'Play video with audio on image target — plays when found, pauses when lost. iOS unlocks audio on first tap.',
+      name: 'Target Video + Sound (native)', category: 'image', icon: '🔊',
+      description: '8th Wall native — video + audio on target. No custom fade controls.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
-        video: { type: 'text', label: 'Video URL (.mp4)', default: '' },
+        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
+      }
+    },
+    'video-on-target': {
+      name: 'Video on Target', category: 'image', icon: '📹',
+      description: 'Play video when image target found. Full control: fade in/out, volume, loop, resume.',
+      trackingModes: ['image'], appliesTo: 'entity', type: 'config',
+      properties: {
+        src: { type: 'text', label: 'Video URL (.mp4)', default: '' },
+        volume: { type: 'range', label: 'Volume', default: 1.0, min: 0, max: 1, step: 0.05 },
         loop: { type: 'boolean', label: 'Loop', default: true },
-        volume: { type: 'range', label: 'Volume', default: 1.0, min: 0, max: 1, step: 0.05 }
+        fadeIn: { type: 'range', label: 'Fade In (s)', default: 0.5, min: 0, max: 3, step: 0.1 },
+        fadeOut: { type: 'range', label: 'Fade Out (s)', default: 1.0, min: 0, max: 3, step: 0.1 },
+        resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true },
+        muted: { type: 'boolean', label: 'Mute audio', default: false }
       }
     },
 
