@@ -222,11 +222,16 @@ Studio.publishProject = async function() {
     const showReady = () => {
       urlEl.value = url;
       new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
-      statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!</div>';
+      statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!<br><span style="font-size:10px;color:var(--muted)">Player v' + Studio.VERSION + '</span></div>';
       Studio.toast('Published & deployed ✓', 'ok');
     };
 
-    if (checkUrl && checkUrl.includes && checkUrl.includes('github.io')) {
+    // For re-publishes with no new assets, data is instant via Firestore
+    // but player code updates via GitHub Action (~45s)
+    const hasNewUploads = state.objects.some(o => o.file && !o.glbUrl) ||
+                          (state.targets || []).some(t => !t.luminanceUrl);
+
+    if (hasNewUploads && checkUrl && checkUrl.includes && checkUrl.includes('github.io')) {
       Studio.log('Waiting for GitHub Pages deployment…');
       const start = Date.now();
       const poll = async () => {
@@ -348,11 +353,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.Splash.init();
   Studio.Preview.init();
 
-  Studio.VERSION = document.querySelector('meta[name="version"]')?.content || '3.2.0';
+  Studio.VERSION = '3.2.1';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
-  // Show version in toolbar
-  const tbStatus = document.getElementById('tb-status');
-  if (tbStatus) tbStatus.title = 'v' + Studio.VERSION;
+  const tbVersion = document.getElementById('tb-version');
+  if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;
 
   // Load project from URL if ?edit=ID
   const editId = new URLSearchParams(location.search).get('edit');

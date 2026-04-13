@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.0">
+<meta name="version" content="3.2.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -69,6 +69,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
+const PLAYER_VERSION = '3.2.1';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -487,7 +488,7 @@ function applySplash(app) {
     html += '<div id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
   }
   if (sp.showBranding !== false) {
-    html += '<div style="position:absolute;bottom:14px;font-size:9px;color:' + text + ';opacity:.15">Powered by 4E AR Studio</div>';
+    html += '<div style="position:absolute;bottom:14px;font-size:9px;color:' + text + ';opacity:.15">Powered by 4E AR Studio v' + PLAYER_VERSION + '</div>';
   }
   inner.innerHTML = html;
   el('ar-title').textContent = title;
