@@ -214,10 +214,35 @@ Studio.Targets = {
         target._imageFile = file;
         target._luminanceDataUrl = lumCanvas.toDataURL('image/jpeg', 0.9);
         target._thumbnailDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.85);
-        // Clear uploaded URLs so they get re-uploaded on publish
-        target.originalUrl = '';
-        target.luminanceUrl = '';
-        target.thumbnailUrl = '';
+
+        // Upload immediately so the image persists across saves
+        const gh = Studio.GitHub.getConfig();
+        if (gh.token) {
+          const projId = Studio.Project.state.id || Studio.Project._genId();
+          if (!Studio.Project.state.id) Studio.Project.state.id = projId;
+          const base = 'assets/' + projId;
+
+          Studio.toast('Uploading replacement image…', 'ok');
+          try {
+            const origB64 = await Studio.GitHub.file2b64(file);
+            target.originalUrl = await Studio.GitHub.upload(base + '/' + target.id + '_original.jpg', origB64);
+            target.luminanceUrl = await Studio.GitHub.upload(base + '/' + target.id + '_luminance.jpg',
+              target._luminanceDataUrl.split(',')[1]);
+            target.thumbnailUrl = await Studio.GitHub.upload(base + '/' + target.id + '_thumb.jpg',
+              target._thumbnailDataUrl.split(',')[1]);
+          } catch(e) {
+            Studio.log('Upload failed, will retry on publish: ' + e.message);
+            // Clear URLs so publish re-uploads
+            target.originalUrl = '';
+            target.luminanceUrl = '';
+            target.thumbnailUrl = '';
+          }
+        } else {
+          // No token — clear URLs, will upload on publish
+          target.originalUrl = '';
+          target.luminanceUrl = '';
+          target.thumbnailUrl = '';
+        }
 
         Studio.Project.markDirty();
         this.render();
