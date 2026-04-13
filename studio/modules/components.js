@@ -230,7 +230,7 @@ Studio.Components = {
     },
     'audio-on-target': {
       name: 'Audio on Target', category: 'image', icon: '🎵',
-      description: 'Play audio when image target found. Fades out when lost. iOS requires tap gesture.',
+      description: 'Play audio when image target found. Fades out when lost. iOS: tap to start unlocks audio.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
         src: { type: 'text', label: 'Audio URL (.mp3)', default: '' },
@@ -238,12 +238,13 @@ Studio.Components = {
         loop: { type: 'boolean', label: 'Loop', default: true },
         fadeIn: { type: 'range', label: 'Fade In (s)', default: 0.5, min: 0, max: 3, step: 0.1 },
         fadeOut: { type: 'range', label: 'Fade Out (s)', default: 1.0, min: 0, max: 3, step: 0.1 },
-        resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true }
+        resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true },
+        delay: { type: 'range', label: 'Delay (s)', default: 0, min: 0, max: 5, step: 0.1 }
       }
     },
     'audio-ambient': {
       name: 'Ambient Audio', category: 'media', icon: '🔊',
-      description: 'Background audio that plays when AR starts. iOS requires tap gesture.',
+      description: 'Background audio that plays when AR starts. iOS: tap to start unlocks audio.',
       trackingModes: ['slam','image','face'], appliesTo: 'entity', type: 'config',
       properties: {
         src: { type: 'text', label: 'Audio URL (.mp3)', default: '' },

@@ -85,11 +85,16 @@ if (typeof AFRAME !== 'undefined') {
       loop: { type: 'boolean', default: true },
       fadeIn: { type: 'number', default: 0.5 },
       fadeOut: { type: 'number', default: 1.0 },
-      resumeOnFound: { type: 'boolean', default: true }
+      resumeOnFound: { type: 'boolean', default: true },
+      delay: { type: 'number', default: 0 }
     },
     init() {
+      // Don't run in iframe preview (studio)
+      if (window.self !== window.top) return;
+
       this._audio = null;
       this._fadeInterval = null;
+      this._delayTimer = null;
       const srcVal = this.data.src;
       if (!srcVal) return;
 
@@ -102,11 +107,19 @@ if (typeof AFRAME !== 'undefined') {
       const onFound = () => {
         if (!this._audio) return;
         if (!this.data.resumeOnFound) this._audio.currentTime = 0;
-        this._audio.play().catch(() => {});
-        this._fade(this._targetVolume, this.data.fadeIn);
+        const startAudio = () => {
+          this._audio.play().catch(() => {});
+          this._fade(this._targetVolume, this.data.fadeIn);
+        };
+        if (this.data.delay > 0) {
+          this._delayTimer = setTimeout(startAudio, this.data.delay * 1000);
+        } else {
+          startAudio();
+        }
       };
       const onLost = () => {
         if (!this._audio) return;
+        if (this._delayTimer) { clearTimeout(this._delayTimer); this._delayTimer = null; }
         this._fade(0, this.data.fadeOut, () => this._audio.pause());
       };
 
@@ -152,6 +165,9 @@ if (typeof AFRAME !== 'undefined') {
       fadeIn: { type: 'number', default: 1.0 }
     },
     init() {
+      // Don't run in iframe preview (studio)
+      if (window.self !== window.top) return;
+
       const srcVal = this.data.src;
       if (!srcVal) return;
 
@@ -203,6 +219,9 @@ if (typeof AFRAME !== 'undefined') {
       muted: { type: 'boolean', default: false }
     },
     init() {
+      // Don't run in iframe preview (studio)
+      if (window.self !== window.top) return;
+
       this._video = null;
       this._fadeInterval = null;
       this._opacity = 0;
