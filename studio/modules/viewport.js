@@ -592,13 +592,19 @@ Studio.Viewport = {
       plane:    { geo: new THREE.PlaneGeometry(0.5, 0.5),          name: 'Plane',    color: 0xfb923c },
       cone:     { geo: new THREE.ConeGeometry(0.18, 0.35, 24),     name: 'Cone',     color: 0xf87171 },
       torus:    { geo: new THREE.TorusGeometry(0.15, 0.05, 12, 32),name: 'Torus',    color: 0xa78bfa },
+      empty:    { geo: new THREE.SphereGeometry(0.04, 8, 6),       name: 'Empty',    color: 0x666666 },
     };
     const def = defs[type];
     if (!def) return;
 
-    const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.5, metalness: 0.1 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: def.color, roughness: 0.5, metalness: 0.1,
+      wireframe: type === 'empty',
+      opacity: type === 'empty' ? 0.4 : 1,
+      transparent: type === 'empty',
+    });
     const mesh = new THREE.Mesh(def.geo, mat);
-    mesh.castShadow = true;
+    mesh.castShadow = type !== 'empty';
     mesh.position.y = type === 'plane' ? 0.001 : 0.2;
     if (type === 'plane') mesh.rotation.x = -Math.PI / 2;
 

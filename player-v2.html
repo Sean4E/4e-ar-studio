@@ -471,10 +471,13 @@ function buildPrimitive(obj, i) {
 }
 
 function buildEntity(obj, i) {
-  // Primitive objects use A-Frame built-in elements
-  if (obj.type === 'primitive' && obj.primitiveType) {
+  // Primitive objects (except empty) use A-Frame built-in elements
+  if (obj.type === 'primitive' && obj.primitiveType && obj.primitiveType !== 'empty') {
     return buildPrimitive(obj, i);
   }
+
+  // Empty primitives fall through to here — rendered as invisible <a-entity>
+  // with xrComponents (audio, video, etc.) attached
 
   const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
   const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
@@ -531,6 +534,11 @@ function buildEntity(obj, i) {
       }
     }
   });
+
+  // Empty objects or objects with no GLB → <a-entity> (invisible container for components)
+  if (!obj.glbUrl && (obj.primitiveType === 'empty' || obj.type === 'primitive')) {
+    return `<a-entity id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-entity>`;
+  }
 
   return `<a-gltf-model id="gltf-${i}" class="cantap" src="#m${i}" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-gltf-model>`;
 }

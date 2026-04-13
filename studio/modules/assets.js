@@ -32,6 +32,7 @@ Studio.Assets = {
         ${this._primCard('plane',    '▬',  'Plane')}
         ${this._primCard('cone',     '🔺', 'Cone')}
         ${this._primCard('torus',    '⭕', 'Torus')}
+        ${this._primCard('empty',    '◇',  'Empty')}
       </div>
     </div>`;
 
