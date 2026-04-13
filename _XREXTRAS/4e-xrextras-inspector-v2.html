@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>4E · XR Extras Inspector v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #07080c;
+    --bg-1: #0d1017;
+    --bg-2: #12161f;
+    --line: rgba(255,255,255,0.08);
+    --line-strong: rgba(255,255,255,0.14);
+    --text: #e7ecf3;
+    --text-dim: #8a93a6;
+    --text-faint: #5a6378;
+    --cyan: #22d3ee;
+    --amber: #fbbf24;
+    --purple: #a78bfa;
+    --green: #34d399;
+    --pink: #f472b6;
+    --red: #f87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; }
+  body {
+    background:
+      radial-gradient(1100px 700px at 85% -10%, rgba(167,139,250,0.10), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(34,211,238,0.08), transparent 60%),
+      linear-gradient(180deg, var(--bg-0), #05060a);
+    color: var(--text);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity:0.35; pointer-events:none; z-index:0; }
+  .orb.a { width:420px; height:420px; background:#22d3ee; top:-120px; right:-120px; animation: drift 22s ease-in-out infinite alternate;}
+  .orb.b { width:360px; height:360px; background:#a78bfa; bottom:-120px; left:-120px; animation: drift 28s ease-in-out infinite alternate-reverse;}
+  @keyframes drift { to { transform: translate(40px,30px) scale(1.08);} }
+
+  header {
+    position: sticky; top:0; z-index: 20;
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    background: rgba(7,8,12,0.72);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .brand { font-family:'Syne', sans-serif; font-weight: 800; letter-spacing: 0.04em; font-size: 18px; }
+  .brand .accent { color: var(--cyan); }
+  .brand .v { color: var(--amber); font-size: 11px; margin-left: 6px; vertical-align: super; }
+  .tag { font-size:11px; color: var(--text-dim); text-transform: uppercase; letter-spacing:0.14em; }
+  .sep { width:1px; height:22px; background: var(--line); }
+  .search {
+    flex: 1; min-width: 220px; max-width: 380px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 12px;
+    color: var(--text);
+    font: inherit;
+  }
+  .search:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,0.15);}
+  .context-group { display:flex; gap:6px; flex-wrap: wrap; }
+  .ctx {
+    padding: 7px 11px; border-radius: 8px;
+    background: var(--bg-2); border:1px solid var(--line);
+    color: var(--text-dim); cursor: pointer; font: inherit;
+    transition: all 0.15s;
+  }
+  .ctx:hover { color: var(--text); border-color: var(--line-strong); }
+  .ctx.active { color: var(--bg-0); background: var(--cyan); border-color: var(--cyan); font-weight:600; }
+  .ctx[data-ctx="empty"].active     { background: var(--amber); border-color: var(--amber); }
+  .ctx[data-ctx="object3d"].active   { background: var(--purple); border-color: var(--purple); }
+  .ctx[data-ctx="imagetarget"].active{ background: var(--green); border-color: var(--green); }
+  .ctx[data-ctx="hand"].active       { background: var(--pink); border-color: var(--pink); }
+  .ctx[data-ctx="face"].active       { background: #fb923c; border-color: #fb923c; }
+
+  main {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: 240px 1fr 400px;
+    gap: 18px;
+    padding: 18px 22px 120px;
+    max-width: 1640px;
+    margin: 0 auto;
+  }
+  @media (max-width: 1280px) { main { grid-template-columns: 1fr; } aside.sidebar, aside.output { position:static !important; max-height:none !important;} }
+
+  aside.sidebar {
+    position: sticky; top: 86px; align-self: start;
+    background: rgba(18,22,31,0.55);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px;
+    backdrop-filter: blur(14px);
+    max-height: calc(100vh - 110px);
+    overflow: auto;
+  }
+  .cat-title { font-family:'Syne', sans-serif; font-size: 11px; color: var(--text-faint); letter-spacing: 0.18em; text-transform: uppercase; padding: 10px 10px 6px;}
+  .cat-btn {
+    display: flex; justify-content: space-between; align-items: center;
+    width: 100%; padding: 8px 10px;
+    background: transparent; border: 0; color: var(--text-dim);
+    font: inherit; cursor: pointer; border-radius: 8px; text-align:left;
+  }
+  .cat-btn:hover { background: var(--bg-2); color: var(--text);}
+  .cat-btn.active { background: rgba(34,211,238,0.10); color: var(--cyan);}
+  .cat-count { font-size: 11px; color: var(--text-faint); }
+
+  section.components { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .cat-section h2 {
+    font-family:'Syne', sans-serif; font-weight: 700; font-size: 14px; letter-spacing:0.14em;
+    text-transform: uppercase; color: var(--text-dim); margin: 18px 2px 8px;
+    display:flex; align-items:center; gap: 10px;
+  }
+  .cat-section h2::before { content:''; width:6px; height:6px; border-radius:50%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+
+  .component {
+    background: rgba(18,22,31,0.55);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    backdrop-filter: blur(14px);
+    transition: border-color 0.2s;
+  }
+  .component.enabled { border-color: rgba(34,211,238,0.45); box-shadow: 0 0 0 1px rgba(34,211,238,0.15), 0 8px 30px rgba(0,0,0,0.35);}
+  .comp-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chip {
+    font-size: 10px; letter-spacing:0.12em; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 999px; border: 1px solid var(--line-strong);
+    color: var(--text-faint);
+  }
+  .chip.scene      { color: var(--cyan);   border-color: rgba(34,211,238,0.4); }
+  .chip.empty      { color: var(--amber);  border-color: rgba(251,191,36,0.4); }
+  .chip.object3d   { color: var(--purple); border-color: rgba(167,139,250,0.4); }
+  .chip.imagetarget{ color: var(--green);  border-color: rgba(52,211,153,0.4); }
+  .chip.hand       { color: var(--pink);   border-color: rgba(244,114,182,0.4); }
+  .chip.face       { color: #fb923c;       border-color: rgba(251,146,60,0.4); }
+  .src {
+    font-size: 9px; letter-spacing:0.14em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 4px; margin-left: 6px;
+    border: 1px solid var(--line-strong); color: var(--text-faint);
+  }
+  .src.xrextras     { color: var(--cyan);   border-color: rgba(34,211,238,0.35);}
+  .src.engine       { color: var(--pink);   border-color: rgba(244,114,182,0.35);}
+  .src.meta-package { color: var(--amber);  border-color: rgba(251,191,36,0.35);}
+  .src.aframe       { color: var(--text-dim); }
+  .src.aframe-extras{ color: var(--purple); border-color: rgba(167,139,250,0.35);}
+  .src.pipeline     { color: var(--green);  border-color: rgba(52,211,153,0.35);}
+
+  .comp-title { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0;}
+  .comp-name  { font-family:'Syne', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.02em; display:flex; align-items:center; flex-wrap:wrap;}
+  .comp-attr  { font-size: 11px; color: var(--text-faint); }
+  .comp-desc  { font-size: 12px; color: var(--text-dim); margin-top: 2px; line-height:1.45; }
+
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink:0; }
+  .toggle input { opacity:0; width:0; height:0; }
+  .toggle .slider {
+    position:absolute; inset:0; background: var(--bg-2);
+    border: 1px solid var(--line-strong); border-radius: 999px;
+    cursor: pointer; transition: 0.2s;
+  }
+  .toggle .slider::before {
+    content:''; position:absolute; height:16px; width:16px; left:2px; top:2px;
+    background: var(--text-dim); border-radius: 50%; transition: 0.2s;
+  }
+  .toggle input:checked + .slider { background: rgba(34,211,238,0.22); border-color: var(--cyan); }
+  .toggle input:checked + .slider::before { transform: translateX(18px); background: var(--cyan); box-shadow: 0 0 10px var(--cyan);}
+
+  .comp-body {
+    display: none;
+    padding: 0 14px 14px;
+    border-top: 1px dashed var(--line);
+  }
+  .component.enabled .comp-body { display: block; }
+
+  .props { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+  .prop { display:flex; flex-direction: column; gap:4px; min-width:0; }
+  .prop.full { grid-column: 1 / -1; }
+  .prop label {
+    font-size: 11px; color: var(--text-dim);
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+  }
+  .prop label .type { color: var(--text-faint); font-size:10px; text-transform: uppercase; letter-spacing:0.1em; }
+  .prop input[type=text],
+  .prop input[type=number],
+  .prop select,
+  .prop textarea {
+    background: var(--bg-1); border: 1px solid var(--line);
+    color: var(--text); padding: 7px 9px; border-radius: 8px;
+    font: inherit; width: 100%;
+  }
+  .prop input:focus, .prop select:focus, .prop textarea:focus {
+    outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,0.12);
+  }
+  .prop input[type=color] { width:100%; height: 34px; padding:2px; background: var(--bg-1); border:1px solid var(--line); border-radius:8px;}
+  .vec3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .bool { display: flex; align-items:center; gap: 8px; padding-top: 4px; }
+
+  aside.output {
+    position: sticky; top: 86px; align-self: start;
+    background: rgba(18,22,31,0.7);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    max-height: calc(100vh - 110px);
+    overflow: auto;
+    backdrop-filter: blur(14px);
+  }
+  aside.output h3 {
+    font-family:'Syne',sans-serif; font-size:12px; letter-spacing:0.16em;
+    text-transform: uppercase; color: var(--text-dim); margin: 0 0 10px;
+  }
+  .output-tabs { display:flex; gap:4px; margin-bottom: 10px; flex-wrap:wrap;}
+  .out-tab {
+    flex:1; min-width: 60px;
+    padding: 7px; background: var(--bg-2); border:1px solid var(--line);
+    color: var(--text-dim); cursor:pointer; border-radius:8px; font:inherit; font-size:11px;
+  }
+  .out-tab.active { color: var(--cyan); border-color: var(--cyan); background: rgba(34,211,238,0.08);}
+  pre.code {
+    margin:0; padding: 12px; background: var(--bg-0);
+    border: 1px solid var(--line); border-radius: 10px;
+    font-size: 11px; color: #cfe3f2; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow:auto;
+  }
+  .btn-row { display:flex; gap:8px; margin-top:10px; }
+  .btn { flex:1; padding: 9px; background: var(--bg-2); border:1px solid var(--line); color: var(--text); border-radius:8px; cursor:pointer; font:inherit; font-size:11px;}
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .btn.primary { background: var(--cyan); color: var(--bg-0); border-color: var(--cyan); font-weight:600;}
+
+  .stack-summary {
+    margin-top: 12px; padding: 10px; background: var(--bg-1);
+    border:1px dashed var(--line-strong); border-radius: 10px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .stack-summary strong { color: var(--amber); font-weight:500; }
+  .stack-summary ul { margin: 6px 0 0; padding-left: 16px; }
+  .stack-summary li { margin-bottom:3px; }
+
+  .footer-info { color: var(--text-faint); font-size:11px; padding: 20px 22px 40px; text-align:center; }
+  .footer-info a { color: var(--text-dim); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+</style>
+</head>
+<body>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+
+  <header>
+    <div class="brand">4E <span class="accent">·</span> XR EXTRAS INSPECTOR <span class="v">v2</span></div>
+    <div class="sep"></div>
+    <div class="tag">AR Developer Studio / Component Palette</div>
+    <input id="search" class="search" placeholder="Search components, attributes, properties…" />
+    <div class="context-group" id="ctxGroup">
+      <button class="ctx active" data-ctx="all">All</button>
+      <button class="ctx" data-ctx="scene">Scene</button>
+      <button class="ctx" data-ctx="empty">Empty</button>
+      <button class="ctx" data-ctx="object3d">3D Object</button>
+      <button class="ctx" data-ctx="imagetarget">Image Target</button>
+      <button class="ctx" data-ctx="hand">Hand</button>
+      <button class="ctx" data-ctx="face">Face</button>
+    </div>
+  </header>
+
+  <main>
+    <aside class="sidebar" id="sidebar"></aside>
+    <section class="components" id="components"></section>
+    <aside class="output">
+      <h3>Live Output</h3>
+      <div class="output-tabs">
+        <button class="out-tab active" data-out="html">HTML</button>
+        <button class="out-tab" data-out="attrs">Attributes</button>
+        <button class="out-tab" data-out="deps">Dependencies</button>
+        <button class="out-tab" data-out="json">State</button>
+      </div>
+      <pre class="code" id="codeOut"></pre>
+      <div class="btn-row">
+        <button class="btn" id="copyBtn">Copy</button>
+        <button class="btn" id="resetBtn">Reset</button>
+        <button class="btn primary" id="exportBtn">Export</button>
+      </div>
+      <div class="stack-summary" id="stackSummary"></div>
+    </aside>
+  </main>
+
+  <div class="footer-info">
+    4E Virtual Design · XR Extras v2 · ground-truth from <a href="https://github.com/8thwall/web/tree/master/xrextras" target="_blank">8thwall/web</a> + <a href="https://github.com/8thwall/8thwall" target="_blank">8thwall/8thwall</a>
+  </div>
+
+<script>
+/* ============================================================
+   COMPONENT REGISTRY v2
+   ------------------------------------------------------------
+   context: scene | empty | object3d | imagetarget | hand | face
+   source : xrextras | engine | meta-package | aframe | aframe-extras | pipeline
+   ============================================================ */
+const REGISTRY = [
+
+  /* ═══════════════════════ ENGINE MODE ═══════════════════════ */
+  { cat:'Engine Mode', attr:'xrconfig', label:'XR Config', source:'engine', context:['scene'],
+    desc:'Camera feed configuration. Best practice: always include on <a-scene>. Auto-injected if xrweb/xrface/xrhand/xrlayers are used without it.',
+    props:[
+      {name:'allowedDevices', type:'enum', options:['any','mobile','mobile-and-headsets'], def:'any'},
+      {name:'cameraDirection', type:'enum', options:['back','front'], def:'back'},
+      {name:'mirroredDisplay', type:'bool', def:false, desc:'Mirror the camera feed (useful for selfie/front-camera).'},
+    ]},
+  { cat:'Engine Mode', attr:'xrweb', label:'XR Web (World / Image / VPS)', source:'engine', context:['scene'],
+    desc:'Enables SLAM world tracking, image targets, and/or Lightship VPS on this scene.',
+    props:[
+      {name:'disableWorldTracking', type:'bool', def:false, desc:'Disable SLAM; required if front camera.'},
+      {name:'allowedDevices', type:'enum', options:['any','mobile','mobile-and-headsets'], def:'any'},
+    ]},
+  { cat:'Engine Mode', attr:'xrface', label:'XR Face (Face Effects)', source:'engine', context:['scene'],
+    desc:'Puts the scene into face-effects mode. Mutually exclusive with xrweb on the same scene.',
+    props:[
+      {name:'allowedDevices', type:'enum', options:['any','mobile','mobile-and-headsets'], def:'any'},
+      {name:'meshGeometry', type:'enum', options:['standard','projected'], def:'standard', desc:'Projected UVs let you paint designs across the whole face.'},
+    ]},
+  { cat:'Engine Mode', attr:'xrhand', label:'XR Hand (Hand Tracking)', source:'engine', context:['scene'],
+    desc:'Enables Hand Tracking with up to 36 attachment points across the hand.',
+    props:[
+      {name:'enableWrist', type:'bool', def:true, desc:'Runs wrist detection alongside hand tracking.'},
+    ]},
+  { cat:'Engine Mode', attr:'xrlayers', label:'XR Layers (Sky Effects)', source:'engine', context:['scene'],
+    desc:'Enables layer-based compositing used by Sky Effects (+ World Tracking).',
+    props:[]},
+
+  /* ═══════════════════════ SCENE & LIFECYCLE ═══════════════════════ */
+  { cat:'Scene & Lifecycle', attr:'landing-pages', label:'Landing Pages', source:'xrextras', context:['scene'],
+    desc:'Shows a helper page when the user is on an unsupported device/browser.',
+    props:[]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-loading', label:'Loading Overlay', source:'xrextras', context:['scene'],
+    desc:'Displays a loading overlay and camera-permissions prompt during boot.',
+    props:[
+      {name:'loadBackgroundColor', type:'color', def:'#ffffff'},
+      {name:'cameraBackgroundColor', type:'color', def:'#000000'},
+      {name:'loadImage', type:'string', def:'', desc:'URL for the load logo.'},
+      {name:'loadAnimation', type:'enum', options:['spinner','none'], def:'spinner'},
+    ]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-runtime-error', label:'Runtime Error Handler', source:'xrextras', context:['scene'],
+    desc:'Hides the scene and shows an error image when a runtime error occurs.',
+    props:[]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-almost-there', label:'Almost There', source:'xrextras', context:['scene'],
+    desc:'Legacy unsupported-device redirect (predecessor of landing-pages).',
+    props:[
+      {name:'url', type:'string', def:'', desc:'Fallback URL to display.'},
+    ]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-pwa-installer', label:'PWA Installer', source:'xrextras', context:['scene'],
+    desc:'Prompts users to install the experience as a PWA / add to home screen.',
+    props:[
+      {name:'name', type:'string', def:'My AR Experience'},
+      {name:'iconSrc', type:'string', def:''},
+      {name:'promptLocation', type:'enum', options:['first-view','experience-launch'], def:'first-view'},
+    ]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-log-to-screen', label:'Log to Screen', source:'xrextras', context:['scene'],
+    desc:'Pipes console.log output to an on-screen overlay (mobile debugging).',
+    props:[]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-pause-on-hidden', label:'Pause on Hidden', source:'pipeline', context:['scene'],
+    desc:'Pipeline module: pauses the camera feed when the browser tab is hidden. Emits XRExtras.PauseOnHidden.pipelineModule() at build time.',
+    props:[]},
+  { cat:'Scene & Lifecycle', attr:'xrextras-generate-image-targets', label:'Generate Image Targets', source:'xrextras', context:['scene'],
+    desc:'Auto-generates a named-image-target entity per configured target in the project.',
+    props:[
+      {name:'primitive', type:'enum', options:['a-entity','a-plane','a-image'], def:'a-entity'},
+    ]},
+
+  /* ═══════════════════════ TRACKING & ANCHORS ═══════════════════════ */
+  { cat:'Tracking & Anchors', attr:'xrextras-tap-recenter', label:'Tap to Recenter', source:'xrextras', context:['scene'],
+    desc:'Calls XR.recenter() when the scene is tapped.',
+    props:[]},
+  { cat:'Tracking & Anchors', attr:'xrextras-named-image-target', label:'Named Image Target', source:'xrextras', context:['imagetarget'],
+    desc:'Attaches content to a specific tracked image target by name. Supports flat, cylindrical, and conical targets.',
+    props:[
+      {name:'name', type:'string', def:'target-name', desc:'Must match the target name in your project.'},
+      {name:'visible', type:'enum', options:['both','front','back'], def:'both'},
+      {name:'shape', type:'enum', options:['flat','cylindrical','conical'], def:'flat', desc:'Geometry of the physical target.'},
+      {name:'heightTop', type:'number', def:0.1, step:0.01, desc:'Conical/cylindrical only — metres.'},
+      {name:'heightBottom', type:'number', def:0.1, step:0.01, desc:'Conical/cylindrical only — metres.'},
+      {name:'radiusTop', type:'number', def:0.05, step:0.005, desc:'Conical only — metres.'},
+      {name:'radiusBottom', type:'number', def:0.05, step:0.005, desc:'Conical/cylindrical — metres.'},
+    ]},
+  { cat:'Tracking & Anchors', attr:'xrextras-faceanchor', label:'Face Anchor', source:'xrextras', context:['face','empty','object3d'],
+    desc:'Anchors content to a detected face feature. Supports multi-face (up to 3) via face-id.',
+    props:[
+      {name:'anchor', type:'enum', options:['nose','leftEye','rightEye','mouth','forehead','chin','leftCheek','rightCheek','leftEar','rightEar','rootNode'], def:'nose'},
+      {name:'face-id', type:'enum', options:['0','1','2'], def:'0', desc:'Which detected face (0, 1, or 2) to anchor to.'},
+    ]},
+
+  /* ═══════════════════════ VPS (LIGHTSHIP) ═══════════════════════ */
+  { cat:'VPS (Lightship)', attr:'xrweb-vps', label:'Enable VPS on xrweb', source:'engine', context:['scene'],
+    desc:'Activated implicitly by xrweb when a project is linked to Lightship VPS wayspots. Toggle here so the studio surfaces VPS setup in the export.',
+    props:[
+      {name:'meshPreview', type:'bool', def:false, desc:'Render the wayspot mesh for debugging.'},
+    ]},
+
+  /* ═══════════════════════ HAND TRACKING ═══════════════════════ */
+  { cat:'Hand Tracking', attr:'xrextras-hand-mesh', label:'Hand Mesh', source:'xrextras', context:['hand','empty'],
+    desc:'Renders the adaptive hand mesh. Supports left/right UVs for drawing designs on the hand.',
+    props:[
+      {name:'side', type:'enum', options:['both','left','right'], def:'both'},
+      {name:'uv-orientation', type:'enum', options:['mirrored','independent'], def:'mirrored', desc:'mirrored = same texture flips for each hand; independent = separate L/R UVs.'},
+      {name:'src', type:'string', def:'', desc:'Texture URL or #asset-id for the hand material.'},
+      {name:'color', type:'color', def:'#ffffff'},
+      {name:'opacity', type:'number', def:1, step:0.05, min:0, max:1},
+    ]},
+  { cat:'Hand Tracking', attr:'xrextras-hand-occluder', label:'Hand Occluder', source:'xrextras', context:['hand','empty'],
+    desc:'Depth-only hand material — occludes content behind the hand without rendering it (hider-material for hands).',
+    props:[
+      {name:'side', type:'enum', options:['both','left','right'], def:'both'},
+    ]},
+  { cat:'Hand Tracking', attr:'xrextras-hand-attachment', label:'Hand Attachment Point', source:'xrextras', context:['hand','empty','object3d'],
+    desc:'Attaches this entity to one of 36 hand attachment points across fingers, knuckles, wrist, and palm.',
+    props:[
+      {name:'point', type:'enum', options:[
+        'palm','palmBack','wrist','wristInner','wristOuter','wristTop','wristBottom',
+        'thumbTip','thumbMid','thumbBase',
+        'indexTip','indexMid','indexBase','indexKnuckle',
+        'middleTip','middleMid','middleBase','middleKnuckle',
+        'ringTip','ringMid','ringBase','ringKnuckle',
+        'pinkyTip','pinkyMid','pinkyBase','pinkyKnuckle'
+      ], def:'palm'},
+      {name:'hand', type:'enum', options:['left','right','either'], def:'either'},
+      {name:'lerpSpeed', type:'number', def:0.4, step:0.05, min:0, max:1, desc:'Smoothing — 1 = snap, 0 = frozen.'},
+    ]},
+
+  /* ═══════════════════════ SKY EFFECTS ═══════════════════════ */
+  { cat:'Sky Effects', attr:'xrlayerscene', label:'Layer Scene (Sky)', source:'engine', context:['empty'],
+    desc:'Declares an entity as the sky layer content root. Used together with xrlayers on the scene.',
+    props:[
+      {name:'name', type:'enum', options:['sky','ground'], def:'sky'},
+      {name:'edgeSmoothness', type:'number', def:0.6, step:0.05, min:0, max:1},
+      {name:'invertLayerMask', type:'bool', def:true},
+    ]},
+  { cat:'Sky Effects', attr:'sky-coaching-overlay', label:'Sky Coaching Overlay', source:'meta-package', pkg:'@8thwall.coaching-overlay', context:['scene'],
+    desc:'Shows a UI overlay prompting the user to look toward the sky until detection is confident. Requires <meta name="8thwall:package" content="@8thwall.coaching-overlay">.',
+    props:[]},
+  { cat:'Sky Effects', attr:'sky-remote-authoring', label:'Sky Remote Authoring', source:'xrextras', context:['empty'],
+    desc:'Desktop authoring helper — reconfigures the scene so sky content can be positioned in a desktop browser. Automatically strips mobile-only components.',
+    props:[
+      {name:'foreground', type:'bool', def:false, desc:'Toggle a foreground element for compositing tests.'},
+    ]},
+
+  /* ═══════════════════════ GESTURES & INTERACTION ═══════════════════════ */
+  { cat:'Gestures & Interaction', attr:'xrextras-gesture-detector', label:'Gesture Detector', source:'xrextras', context:['scene'],
+    desc:'Required on <a-scene> for xrextras gesture components. Emits onefingermove, twofingermove, pinch events.',
+    props:[
+      {name:'element', type:'selector', def:'', desc:'Element to attach touch listeners to (default: scene).'},
+    ]},
+  { cat:'Gestures & Interaction', attr:'xrextras-one-finger-rotate', label:'One-Finger Rotate', source:'xrextras', context:['object3d','empty'],
+    desc:'Drag with one finger to spin the entity around its Y axis.',
+    props:[
+      {name:'factor', type:'number', def:6, step:0.5, min:0.1, max:30},
+    ]},
+  { cat:'Gestures & Interaction', attr:'xrextras-two-finger-rotate', label:'Two-Finger Rotate', source:'xrextras', context:['object3d','empty'],
+    desc:'Twist two fingers to spin the entity around its Y axis.',
+    props:[
+      {name:'factor', type:'number', def:5, step:0.5, min:0.1, max:30},
+    ]},
+  { cat:'Gestures & Interaction', attr:'xrextras-pinch-scale', label:'Pinch to Scale', source:'xrextras', context:['object3d','empty'],
+    desc:'Scales the entity with a pinch gesture.',
+    props:[
+      {name:'min', type:'number', def:0.33, step:0.01, min:0.01, max:10},
+      {name:'max', type:'number', def:3,    step:0.1,  min:0.1,  max:50},
+      {name:'scale', type:'number', def:1, step:0.1, desc:'Starting scale factor.'},
+    ]},
+  { cat:'Gestures & Interaction', attr:'xrextras-hold-drag', label:'Hold & Drag', source:'xrextras', context:['object3d','empty'],
+    desc:'Lifts and drags the entity on the ground plane while held. Entity must receive raycasts.',
+    props:[
+      {name:'cameraId', type:'string', def:'camera', desc:'ID of the <a-camera>.'},
+      {name:'groundId', type:'string', def:'ground', desc:'ID of the ground entity.'},
+      {name:'dragDelay', type:'number', def:300, step:50, min:0, desc:'ms finger-down before lift.'},
+      {name:'riseHeight', type:'number', def:1, step:0.1, desc:'Lift height while dragging.'},
+    ]},
+
+  /* ═══════════════════════ TRANSFORM & ATTACHMENT ═══════════════════════ */
+  { cat:'Transform & Attachment', attr:'position', label:'Position', source:'aframe', context:['empty','object3d','imagetarget'],
+    desc:'World-space XYZ position (metres).',
+    props:[ {name:'value', type:'vec3', def:[0,0,0], desc:'x y z in metres'} ], inline:true},
+  { cat:'Transform & Attachment', attr:'rotation', label:'Rotation', source:'aframe', context:['empty','object3d','imagetarget'],
+    desc:'Euler rotation in degrees.',
+    props:[ {name:'value', type:'vec3', def:[0,0,0], desc:'x y z in degrees'} ], inline:true},
+  { cat:'Transform & Attachment', attr:'scale', label:'Scale', source:'aframe', context:['empty','object3d','imagetarget'],
+    desc:'Per-axis scale multiplier.',
+    props:[ {name:'value', type:'vec3', def:[1,1,1]} ], inline:true},
+  { cat:'Transform & Attachment', attr:'xrextras-attach', label:'Attach', source:'xrextras', context:['empty','object3d'],
+    desc:'Parents this entity to another entity, optionally with an offset.',
+    props:[
+      {name:'target', type:'string', def:'scene-root', desc:'Target entity id (no #).'},
+      {name:'offset', type:'vec3', def:[0,0,0]},
+    ]},
+  { cat:'Transform & Attachment', attr:'xrextras-spin', label:'Spin', source:'xrextras', context:['object3d','empty'],
+    desc:'Continuous rotation on a given axis.',
+    props:[
+      {name:'axis', type:'enum', options:['x','y','z'], def:'y'},
+      {name:'speed', type:'number', def:2000, step:100, min:100, desc:'ms per full revolution.'},
+    ]},
+
+  /* ═══════════════════════ GEOMETRY & MODELS ═══════════════════════ */
+  { cat:'Geometry & Models', attr:'geometry', label:'Geometry', source:'aframe', context:['object3d'],
+    desc:'A-Frame primitive geometry (box/sphere/plane/…).',
+    props:[
+      {name:'primitive', type:'enum', options:['box','sphere','plane','cylinder','cone','circle','torus','ring','octahedron','tetrahedron','dodecahedron'], def:'box'},
+      {name:'width', type:'number', def:1, step:0.1},
+      {name:'height', type:'number', def:1, step:0.1},
+      {name:'depth', type:'number', def:1, step:0.1},
+      {name:'radius', type:'number', def:0.5, step:0.05},
+      {name:'segmentsHeight', type:'number', def:18, step:1},
+      {name:'segmentsWidth', type:'number', def:36, step:1},
+    ]},
+  { cat:'Geometry & Models', attr:'gltf-model', label:'GLTF Model', source:'aframe', context:['object3d'],
+    desc:'Load a .glb / .gltf model into this entity.',
+    props:[
+      {name:'value', type:'string', def:'#my-model', desc:'URL or #asset-id'},
+    ], inline:true},
+  { cat:'Geometry & Models', attr:'animation-mixer', label:'Animation Mixer', source:'aframe-extras', context:['object3d'],
+    desc:'Plays clips embedded in a GLTF model.',
+    props:[
+      {name:'clip', type:'string', def:'*', desc:'Clip name or "*" for all.'},
+      {name:'loop', type:'enum', options:['repeat','once','pingpong'], def:'repeat'},
+      {name:'timeScale', type:'number', def:1, step:0.1},
+      {name:'crossFadeDuration', type:'number', def:0, step:0.1},
+    ]},
+  { cat:'Geometry & Models', attr:'shadow', label:'Shadow', source:'aframe', context:['object3d'],
+    desc:'Cast and/or receive shadows.',
+    props:[
+      {name:'cast', type:'bool', def:true},
+      {name:'receive', type:'bool', def:true},
+    ]},
+  { cat:'Geometry & Models', attr:'visible', label:'Visible', source:'aframe', context:['empty','object3d','imagetarget'],
+    desc:'Toggle entity visibility.',
+    props:[ {name:'value', type:'bool', def:true} ], inline:true},
+
+  /* ═══════════════════════ MATERIALS ═══════════════════════ */
+  { cat:'Materials', attr:'material', label:'Standard Material', source:'aframe', context:['object3d'],
+    desc:'A-Frame standard / flat material shader.',
+    props:[
+      {name:'shader', type:'enum', options:['standard','flat'], def:'standard'},
+      {name:'color', type:'color', def:'#ffffff'},
+      {name:'opacity', type:'number', def:1, step:0.05, min:0, max:1},
+      {name:'transparent', type:'bool', def:false},
+      {name:'roughness', type:'number', def:0.5, step:0.05, min:0, max:1},
+      {name:'metalness', type:'number', def:0, step:0.05, min:0, max:1},
+      {name:'src', type:'string', def:'', desc:'Texture URL or #asset-id'},
+      {name:'side', type:'enum', options:['front','back','double'], def:'front'},
+    ]},
+  { cat:'Materials', attr:'xrextras-basic-material', label:'XR Basic Material', source:'xrextras', context:['object3d'],
+    desc:'MeshBasicMaterial — unlit, fastest, good for UI / billboards.',
+    props:[
+      {name:'color', type:'color', def:'#ffffff'},
+      {name:'opacity', type:'number', def:1, step:0.05, min:0, max:1},
+      {name:'src', type:'string', def:''},
+    ]},
+  { cat:'Materials', attr:'xrextras-pbr-material', label:'XR PBR Material', source:'xrextras', context:['object3d'],
+    desc:'MeshStandardMaterial tuned for 8th Wall lighting.',
+    props:[
+      {name:'color', type:'color', def:'#ffffff'},
+      {name:'roughness', type:'number', def:0.7, step:0.05, min:0, max:1},
+      {name:'metalness', type:'number', def:0.1, step:0.05, min:0, max:1},
+      {name:'src', type:'string', def:''},
+      {name:'normalMap', type:'string', def:''},
+    ]},
+  { cat:'Materials', attr:'xrextras-hider-material', label:'Hider Material', source:'xrextras', context:['object3d'],
+    desc:'Writes only to depth buffer — used to occlude content behind invisible geometry (portals, portals, cutouts).',
+    props:[]},
+  { cat:'Materials', attr:'xrextras-video', label:'Video Material', source:'xrextras', context:['object3d'],
+    desc:'Maps a <video> element as the object\'s texture (with autoplay unlock).',
+    props:[
+      {name:'video', type:'selector', def:'#myVideo'},
+      {name:'autoplay', type:'bool', def:true},
+      {name:'loop', type:'bool', def:true},
+      {name:'muted', type:'bool', def:true},
+    ]},
+  { cat:'Materials', attr:'xrextras-alpha-video', label:'Alpha Video Material', source:'xrextras', context:['object3d'],
+    desc:'Plays a video with an alpha channel (side-by-side RGB + mask) as a transparent material. Common in "hologram" effects.',
+    props:[
+      {name:'src', type:'string', def:'#alphaVideo'},
+      {name:'autoplay', type:'bool', def:true},
+      {name:'loop', type:'bool', def:true},
+      {name:'muted', type:'bool', def:true},
+    ]},
+
+  /* ═══════════════════════ AUDIO ═══════════════════════ */
+  { cat:'Audio', attr:'sound', label:'Sound Source', source:'aframe', context:['empty','object3d'],
+    desc:'A-Frame positional/ambient audio source.',
+    props:[
+      {name:'src', type:'string', def:'#myClip', desc:'URL or #asset-id'},
+      {name:'autoplay', type:'bool', def:false},
+      {name:'loop', type:'bool', def:false},
+      {name:'volume', type:'number', def:1, step:0.05, min:0, max:2},
+      {name:'positional', type:'bool', def:true},
+      {name:'rolloffFactor', type:'number', def:1, step:0.1, min:0},
+      {name:'maxDistance', type:'number', def:10000, step:1, min:1},
+    ]},
+  { cat:'Audio', attr:'xrextras-play-video', label:'Play Video (unlock)', source:'xrextras', context:['scene','object3d','imagetarget'],
+    desc:'Unlocks and starts playback of a <video> element on user interaction. Can also be auto-driven by image-target found/lost events.',
+    props:[
+      {name:'video', type:'selector', def:'#myVideo'},
+      {name:'canstop', type:'bool', def:true},
+      {name:'event', type:'string', def:'click'},
+    ]},
+
+  /* ═══════════════════════ LIGHTING ═══════════════════════ */
+  { cat:'Lighting', attr:'light', label:'Light', source:'aframe', context:['empty'],
+    desc:'A-Frame light source.',
+    props:[
+      {name:'type', type:'enum', options:['ambient','directional','point','spot','hemisphere'], def:'directional'},
+      {name:'color', type:'color', def:'#ffffff'},
+      {name:'intensity', type:'number', def:1, step:0.05, min:0, max:5},
+      {name:'castShadow', type:'bool', def:false},
+      {name:'shadowMapWidth', type:'number', def:1024, step:256},
+      {name:'shadowMapHeight', type:'number', def:1024, step:256},
+    ]},
+
+  /* ═══════════════════════ TEXT ═══════════════════════ */
+  { cat:'Text', attr:'text', label:'Text', source:'aframe', context:['object3d','empty'],
+    desc:'MSDF text (A-Frame core text component).',
+    props:[
+      {name:'value', type:'string', def:'Hello'},
+      {name:'color', type:'color', def:'#ffffff'},
+      {name:'align', type:'enum', options:['left','center','right'], def:'center'},
+      {name:'width', type:'number', def:4, step:0.1},
+      {name:'wrapCount', type:'number', def:40, step:1},
+      {name:'font', type:'string', def:'', desc:'URL to MSDF font atlas.'},
+    ]},
+
+  /* ═══════════════════════ ANIMATION & FX ═══════════════════════ */
+  { cat:'Animation & FX', attr:'animation', label:'Animation', source:'aframe', context:['object3d','empty','imagetarget'],
+    desc:'Animate any component property.',
+    props:[
+      {name:'property', type:'string', def:'rotation'},
+      {name:'from', type:'string', def:'0 0 0'},
+      {name:'to',   type:'string', def:'0 360 0'},
+      {name:'dur',  type:'number', def:2000, step:100, min:0},
+      {name:'easing', type:'enum', options:['linear','easeInQuad','easeOutQuad','easeInOutQuad','easeInCubic','easeOutCubic','easeInOutCubic','easeInElastic','easeOutElastic','easeInOutElastic'], def:'easeInOutQuad'},
+      {name:'loop', type:'bool', def:false},
+      {name:'dir',  type:'enum', options:['normal','alternate','reverse'], def:'normal'},
+      {name:'delay', type:'number', def:0, step:100, min:0},
+    ]},
+  { cat:'Animation & FX', attr:'fade', label:'Fade In / Out', source:'aframe', context:['object3d','empty'],
+    desc:'Convenience fade using animation on material.opacity.',
+    props:[
+      {name:'direction', type:'enum', options:['in','out'], def:'in'},
+      {name:'dur', type:'number', def:800, step:100, min:0},
+      {name:'delay', type:'number', def:0, step:50, min:0},
+    ]},
+
+  /* ═══════════════════════ MEDIA CAPTURE ═══════════════════════ */
+  { cat:'Media Capture', attr:'xrextras-capture-button', label:'Capture Button', source:'xrextras', context:['scene'],
+    desc:'Renders a record/photo button that captures the AR scene.',
+    props:[
+      {name:'captureMode', type:'enum', options:['standard','fixed','photo'], def:'standard'},
+    ]},
+  { cat:'Media Capture', attr:'xrextras-capture-preview', label:'Capture Preview', source:'xrextras', context:['scene'],
+    desc:'Shows the captured media in a share-ready preview overlay.',
+    props:[
+      {name:'actionButtonSrc', type:'string', def:''},
+      {name:'actionButtonHref', type:'string', def:''},
+    ]},
+  { cat:'Media Capture', attr:'xrextras-capture-config', label:'Capture Config', source:'xrextras', context:['scene'],
+    desc:'Controls bitrate, max duration, audio, watermark, and end-card for captures.',
+    props:[
+      {name:'enableEndCard', type:'bool', def:true},
+      {name:'endCardImageUrl', type:'string', def:''},
+      {name:'shortLink', type:'string', def:''},
+      {name:'coverImageUrl', type:'string', def:''},
+      {name:'footerImageUrl', type:'string', def:''},
+      {name:'watermarkImageUrl', type:'string', def:''},
+      {name:'watermarkMaxWidth', type:'number', def:80, step:1, min:0},
+      {name:'watermarkMaxHeight', type:'number', def:80, step:1, min:0},
+      {name:'maxDurationMs', type:'number', def:15000, step:1000, min:1000},
+      {name:'maxDimension', type:'number', def:1280, step:16, min:256},
+      {name:'enableMic', type:'enum', options:['auto','on','off'], def:'auto'},
+    ]},
+
+  /* ═══════════════════════ UTILITIES ═══════════════════════ */
+  { cat:'Utilities', attr:'xrextras-opaque-background', label:'Opaque Background', source:'xrextras', context:['scene'],
+    desc:'Forces a solid scene background instead of the camera feed (face effects / previews).',
+    props:[
+      {name:'color', type:'color', def:'#000000'},
+    ]},
+  { cat:'Utilities', attr:'xrextras-resource', label:'Resource', source:'xrextras', context:['empty'],
+    desc:'Lightweight asset-preloader tag used in 8th Wall examples.',
+    props:[
+      {name:'src', type:'string', def:''},
+    ]},
+  { cat:'Utilities', attr:'cursor', label:'Cursor / Raycaster', source:'aframe', context:['empty'],
+    desc:'A-Frame cursor + raycaster for hit detection on entities.',
+    props:[
+      {name:'rayOrigin', type:'enum', options:['mouse','entity'], def:'mouse'},
+      {name:'fuse', type:'bool', def:false},
+      {name:'objects', type:'string', def:'', desc:'Selector for raycast targets.'},
+    ]},
+];
+
+/* ============================================================
+   DEPENDENCY MAP — what to emit per active source
+   ============================================================ */
+const DEPS = {
+  'aframe':        { script:'//cdn.8thwall.com/web/aframe/8frame-1.5.0.min.js', note:'A-Frame (8th Wall build)' },
+  'aframe-extras': { script:'//cdn.8thwall.com/web/aframe/aframe-extras-6.1.1.min.js', note:'aframe-extras (animation-mixer etc.)' },
+  'xrextras':      { script:'//cdn.8thwall.com/web/xrextras/xrextras.js', note:'XR Extras library' },
+  'pipeline':      { script:'//cdn.8thwall.com/web/xrextras/xrextras.js', note:'XR Extras (pipeline modules)' },
+  'engine':        { script:'//apps.8thwall.com/xrweb?appKey=YOUR_APP_KEY', note:'8th Wall engine — replace appKey' },
+  'meta-package':  { script:null, note:'Delivered via <meta name="8thwall:package">' },
+};
+
+/* always include landing-page script if landing-pages is enabled */
+const EXTRA_DEPS = {
+  'landing-pages': { script:'//cdn.8thwall.com/web/landing-page/landing-page.js', note:'Landing pages' },
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  context: 'all',
+  search: '',
+  selectedCat: null,
+  enabled: {},
+  values:  {},
+  outTab: 'html'
+};
+
+const $components = document.getElementById('components');
+const $sidebar    = document.getElementById('sidebar');
+const $codeOut    = document.getElementById('codeOut');
+const $stack      = document.getElementById('stackSummary');
+
+function categoriesInContext() {
+  const ctx = state.context;
+  const filtered = REGISTRY.filter(c => ctx === 'all' || c.context.includes(ctx));
+  const map = new Map();
+  filtered.forEach(c => {
+    if (!map.has(c.cat)) map.set(c.cat, []);
+    map.get(c.cat).push(c);
+  });
+  return map;
+}
+
+function renderSidebar() {
+  const map = categoriesInContext();
+  let html = '<div class="cat-title">Categories</div>';
+  html += `<button class="cat-btn ${state.selectedCat===null?'active':''}" data-cat="__all">
+            <span>All components</span><span class="cat-count">${[...map.values()].flat().length}</span>
+          </button>`;
+  for (const [cat, list] of map) {
+    html += `<button class="cat-btn ${state.selectedCat===cat?'active':''}" data-cat="${cat}">
+              <span>${cat}</span><span class="cat-count">${list.length}</span>
+            </button>`;
+  }
+  $sidebar.innerHTML = html;
+  $sidebar.querySelectorAll('.cat-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      state.selectedCat = b.dataset.cat === '__all' ? null : b.dataset.cat;
+      renderSidebar();
+      renderComponents();
+    });
+  });
+}
+
+function matchSearch(c) {
+  if (!state.search) return true;
+  const q = state.search.toLowerCase();
+  return c.attr.toLowerCase().includes(q)
+      || c.label.toLowerCase().includes(q)
+      || (c.desc||'').toLowerCase().includes(q)
+      || (c.props||[]).some(p => p.name.toLowerCase().includes(q));
+}
+
+function renderComponents() {
+  const map = categoriesInContext();
+  let html = '';
+  for (const [cat, list] of map) {
+    if (state.selectedCat && state.selectedCat !== cat) continue;
+    const filtered = list.filter(matchSearch);
+    if (!filtered.length) continue;
+    html += `<div class="cat-section"><h2>${cat}</h2>`;
+    filtered.forEach(c => html += renderComponent(c));
+    html += `</div>`;
+  }
+  if (!html) html = `<div style="padding:60px; text-align:center; color: var(--text-faint);">No components match the current filter.</div>`;
+  $components.innerHTML = html;
+  wireComponents();
+  renderOutput();
+}
+
+function renderComponent(c) {
+  const enabled = !!state.enabled[c.attr];
+  const chips = c.context.map(ctx => `<span class="chip ${ctx}">${ctx}</span>`).join(' ');
+  const srcChip = `<span class="src ${c.source}">${c.source}</span>`;
+  return `
+    <div class="component ${enabled?'enabled':''}" data-attr="${c.attr}">
+      <div class="comp-head">
+        <label class="toggle" onclick="event.stopPropagation()">
+          <input type="checkbox" data-toggle="${c.attr}" ${enabled?'checked':''}>
+          <span class="slider"></span>
+        </label>
+        <div class="comp-title">
+          <div class="comp-name">${c.label}${srcChip}</div>
+          <div class="comp-attr">${c.attr}${c.pkg?`  ·  pkg: ${c.pkg}`:''}</div>
+          <div class="comp-desc">${c.desc||''}</div>
+        </div>
+        <div>${chips}</div>
+      </div>
+      <div class="comp-body">${renderProps(c)}</div>
+    </div>
+  `;
+}
+
+function renderProps(c) {
+  if (!c.props || !c.props.length) {
+    return `<div style="padding:10px 0; color: var(--text-faint); font-size:12px;">This component has no configurable properties — enabling it toggles the attribute on.</div>`;
+  }
+  const vals = state.values[c.attr] || {};
+  return `<div class="props">${c.props.map(p => renderProp(c, p, vals[p.name])).join('')}</div>`;
+}
+
+function renderProp(c, p, val) {
+  if (val === undefined) val = p.def;
+  const full = (p.desc||'').length>0 || p.type==='vec3' ? 'full' : '';
+  const typeLabel = `<span class="type">${p.type}</span>`;
+  let field = '';
+  const dk = `data-prop="${c.attr}::${p.name}"`;
+
+  switch (p.type) {
+    case 'bool':
+      field = `<div class="bool">
+        <label class="toggle">
+          <input type="checkbox" ${dk} ${val?'checked':''}>
+          <span class="slider"></span>
+        </label>
+        <span style="color: var(--text-dim); font-size:12px;">${val?'true':'false'}</span>
+      </div>`; break;
+    case 'number':
+      field = `<input type="number" ${dk} value="${val}" step="${p.step||1}" ${p.min!==undefined?`min="${p.min}"`:''} ${p.max!==undefined?`max="${p.max}"`:''}>`;
+      break;
+    case 'color':
+      field = `<input type="color" ${dk} value="${val||'#ffffff'}">`;
+      break;
+    case 'enum':
+      field = `<select ${dk}>${p.options.map(o => `<option ${o===val?'selected':''} value="${o}">${o}</option>`).join('')}</select>`;
+      break;
+    case 'selector':
+      field = `<input type="text" ${dk} value="${val||''}" placeholder="#element-id or .class">`;
+      break;
+    case 'vec3':
+      const v = Array.isArray(val) ? val : (p.def||[0,0,0]);
+      field = `<div class="vec3">
+        ${[0,1,2].map(i => `<input type="number" step="0.1" data-prop="${c.attr}::${p.name}" data-vec3="${i}" value="${v[i]}">`).join('')}
+      </div>`;
+      break;
+    default:
+      field = `<input type="text" ${dk} value="${val||''}" placeholder="${p.desc||''}">`;
+  }
+
+  return `<div class="prop ${full}">
+    <label>${p.name} ${typeLabel}</label>
+    ${field}
+    ${p.desc ? `<div style="font-size:10.5px;color:var(--text-faint);">${p.desc}</div>` : ''}
+  </div>`;
+}
+
+function wireComponents() {
+  $components.querySelectorAll('[data-toggle]').forEach(el => {
+    el.addEventListener('change', () => {
+      const attr = el.dataset.toggle;
+      state.enabled[attr] = el.checked;
+      const comp = REGISTRY.find(c => c.attr===attr);
+      if (el.checked && comp && !state.values[attr]) {
+        state.values[attr] = {};
+        (comp.props||[]).forEach(p => state.values[attr][p.name] = p.def);
+      }
+      const host = el.closest('.component');
+      host.classList.toggle('enabled', el.checked);
+      renderOutput();
+    });
+  });
+  $components.querySelectorAll('[data-prop]').forEach(el => {
+    el.addEventListener('input', () => {
+      const [attr, prop] = el.dataset.prop.split('::');
+      const compDef = REGISTRY.find(c => c.attr===attr);
+      const propDef = compDef.props.find(p => p.name===prop);
+      if (!state.values[attr]) state.values[attr] = {};
+      if (propDef.type === 'vec3') {
+        const idx = parseInt(el.dataset.vec3,10);
+        const cur = state.values[attr][prop] || [...propDef.def];
+        cur[idx] = parseFloat(el.value)||0;
+        state.values[attr][prop] = cur;
+      } else if (propDef.type === 'bool') {
+        state.values[attr][prop] = el.checked;
+        const booly = el.closest('.bool');
+        if (booly) booly.querySelector('span').textContent = el.checked?'true':'false';
+      } else if (propDef.type === 'number') {
+        state.values[attr][prop] = parseFloat(el.value);
+      } else {
+        state.values[attr][prop] = el.value;
+      }
+      renderOutput();
+    });
+  });
+}
+
+/* ============================================================
+   OUTPUT
+   ============================================================ */
+function serialiseValue(type, v) {
+  if (type === 'vec3') return `${v[0]} ${v[1]} ${v[2]}`;
+  if (type === 'bool') return v ? 'true' : 'false';
+  return String(v);
+}
+
+function buildAttributes() {
+  const out = [];
+  REGISTRY.forEach(c => {
+    if (!state.enabled[c.attr]) return;
+    if (c.source === 'pipeline') { out.push({comp:c, attr:c.attr, value:'', pipelineOnly:true}); return; }
+    if (c.source === 'meta-package') { out.push({comp:c, attr:c.attr, value:''}); return; }
+    if (!c.props || !c.props.length) { out.push({comp:c, attr:c.attr, value:''}); return; }
+    if (c.inline && c.props.length === 1 && c.props[0].name === 'value') {
+      const v = (state.values[c.attr]||{}).value ?? c.props[0].def;
+      out.push({comp:c, attr:c.attr, value: serialiseValue(c.props[0].type, v)});
+      return;
+    }
+    const pairs = c.props
+      .filter(p => {
+        const v = (state.values[c.attr]||{})[p.name];
+        if (v === undefined || v === '') return false;
+        if (Array.isArray(v) && Array.isArray(p.def) && v.every((x,i)=>x===p.def[i])) return false;
+        return true;
+      })
+      .map(p => {
+        const v = state.values[c.attr][p.name];
+        return `${p.name}: ${serialiseValue(p.type, v)}`;
+      });
+    out.push({comp:c, attr:c.attr, value: pairs.join('; ')});
+  });
+  return out;
+}
+
+function collectDeps() {
+  const attrs = buildAttributes();
+  const sources = new Set();
+  const metaPackages = new Set();
+  const pipelineModules = new Set();
+  let needsLandingPage = false;
+
+  attrs.forEach(a => {
+    sources.add(a.comp.source);
+    if (a.comp.source === 'meta-package' && a.comp.pkg) metaPackages.add(a.comp.pkg);
+    if (a.comp.source === 'pipeline') pipelineModules.add(a.comp.attr);
+    if (a.comp.attr === 'landing-pages') needsLandingPage = true;
+  });
+
+  // xrextras needed whenever pipeline modules are used
+  if (sources.has('pipeline')) sources.add('xrextras');
+  // engine script needed for any scene-mode or tracking components
+  if (attrs.some(a => a.comp.source === 'engine')) sources.add('engine');
+  // aframe always assumed (A-Frame is the host)
+  sources.add('aframe');
+
+  return { sources, metaPackages, pipelineModules, needsLandingPage, attrs };
+}
+
+function renderOutput() {
+  const dep = collectDeps();
+  const tab = state.outTab;
+  let text = '';
+
+  if (tab === 'attrs') {
+    const entries = dep.attrs.filter(a => !a.pipelineOnly);
+    text = entries.map(a => a.value ? `${a.attr}="${a.value}"` : a.attr).join('\n') || '# no components enabled';
+  }
+  else if (tab === 'json') {
+    text = JSON.stringify({context: state.context, enabled: state.enabled, values: state.values}, null, 2);
+  }
+  else if (tab === 'deps') {
+    const lines = ['/* Required dependencies for current component set */', ''];
+    const ordered = ['aframe','aframe-extras','xrextras','engine'];
+    ordered.forEach(k => {
+      if (dep.sources.has(k) && DEPS[k].script) {
+        lines.push(`<script src="${DEPS[k].script}"${k==='engine'?' async':''}><\/script>  <!-- ${DEPS[k].note} -->`);
+      }
+    });
+    if (dep.needsLandingPage) {
+      lines.push(`<script src="${EXTRA_DEPS['landing-pages'].script}"><\/script>  <!-- ${EXTRA_DEPS['landing-pages'].note} -->`);
+    }
+    if (dep.metaPackages.size) {
+      lines.push('');
+      lines.push('/* Meta packages */');
+      dep.metaPackages.forEach(pkg => lines.push(`<meta name="8thwall:package" content="${pkg}">`));
+    }
+    if (dep.pipelineModules.size) {
+      lines.push('');
+      lines.push('/* Pipeline modules (add to XR8.addCameraPipelineModules) */');
+      dep.pipelineModules.forEach(p => {
+        const name = p.replace('xrextras-','').split('-').map(s => s[0].toUpperCase()+s.slice(1)).join('');
+        lines.push(`XRExtras.${name}.pipelineModule(),`);
+      });
+    }
+    text = lines.join('\n') || '# no dependencies required';
+  }
+  else { // html
+    const sceneAttrs  = dep.attrs.filter(a => a.comp.context.includes('scene') && !a.pipelineOnly && a.comp.source !== 'meta-package');
+    const otherAttrs  = dep.attrs.filter(a => !a.comp.context.includes('scene'));
+    const metaPkgs    = [...dep.metaPackages];
+
+    const sceneStr = sceneAttrs.map(a => a.value ? `  ${a.attr}="${a.value}"` : `  ${a.attr}`).join('\n');
+    const entStr   = otherAttrs.map(a => a.value ? `  ${a.attr}="${a.value}"` : `  ${a.attr}`).join('\n');
+
+    const deps = [];
+    const ordered = ['aframe','aframe-extras','xrextras','engine'];
+    ordered.forEach(k => {
+      if (dep.sources.has(k) && DEPS[k].script) {
+        deps.push(`<script src="${DEPS[k].script}"${k==='engine'?' async':''}><\/script>`);
+      }
+    });
+    if (dep.needsLandingPage) deps.push(`<script src="${EXTRA_DEPS['landing-pages'].script}"><\/script>`);
+
+    text  = `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">\n`;
+    metaPkgs.forEach(p => text += `  <meta name="8thwall:package" content="${p}">\n`);
+    text += deps.map(d => '  ' + d).join('\n') + '\n';
+    text += `</head>\n<body>\n`;
+    text += `<a-scene${sceneStr?'\n'+sceneStr:''}>\n`;
+    if (entStr) text += `  <a-entity\n${entStr.split('\n').map(l=>'  '+l).join('\n')}>\n  </a-entity>\n`;
+    else        text += `  <!-- entity components will render here -->\n`;
+    text += `</a-scene>\n</body>\n</html>`;
+  }
+
+  $codeOut.textContent = text;
+  renderStackSummary(dep);
+}
+
+function renderStackSummary(dep) {
+  const enabledCount = Object.values(state.enabled).filter(Boolean).length;
+  if (!enabledCount) { $stack.innerHTML = '<span style="color:var(--text-faint);">Toggle a component to see the required 8th Wall stack.</span>'; return; }
+  let html = `<strong>${enabledCount}</strong> component${enabledCount===1?'':'s'} enabled · requires:`;
+  html += '<ul>';
+  ['engine','xrextras','aframe','aframe-extras'].forEach(k => {
+    if (dep.sources.has(k)) html += `<li>${DEPS[k].note}</li>`;
+  });
+  if (dep.needsLandingPage) html += `<li>${EXTRA_DEPS['landing-pages'].note}</li>`;
+  dep.metaPackages.forEach(p => html += `<li>Meta package: <code>${p}</code></li>`);
+  if (dep.pipelineModules.size) html += `<li>${dep.pipelineModules.size} pipeline module${dep.pipelineModules.size===1?'':'s'}</li>`;
+  html += '</ul>';
+  $stack.innerHTML = html;
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+document.getElementById('ctxGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.ctx'); if (!btn) return;
+  document.querySelectorAll('.ctx').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.context = btn.dataset.ctx;
+  state.selectedCat = null;
+  renderSidebar();
+  renderComponents();
+});
+
+document.getElementById('search').addEventListener('input', (e) => {
+  state.search = e.target.value;
+  renderComponents();
+});
+
+document.querySelectorAll('.out-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.out-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    state.outTab = t.dataset.out;
+    renderOutput();
+  });
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($codeOut.textContent);
+    const btn = document.getElementById('copyBtn');
+    const prev = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = prev; btn.style.color = ''; }, 1200);
+  } catch(e) { console.warn(e); }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  state.enabled = {}; state.values = {};
+  renderComponents();
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const ext = state.outTab === 'json' ? 'json'
+            : state.outTab === 'attrs' ? 'txt'
+            : state.outTab === 'deps' ? 'txt'
+            : 'html';
+  const blob = new Blob([$codeOut.textContent], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `4e-xrextras-${state.outTab}.${ext}`;
+  a.click();
+});
+
+renderSidebar();
+renderComponents();
+</script>
+</body>
+</html>

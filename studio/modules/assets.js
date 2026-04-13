@@ -82,6 +82,31 @@ Studio.Assets = {
       </div>
     </div>`;
 
+    // ─── Section: Media Library ──────────────────────────
+    const media = state.media || [];
+    if (media.length > 0) {
+      html += `<div class="ast-section">
+        <div class="ast-section-title">Media Library (${media.length})</div>
+        <div class="ast-row">`;
+      media.forEach((m, idx) => {
+        const icon = m.type?.startsWith('audio') ? '🎵'
+                   : m.type?.startsWith('video') ? '🎬'
+                   : m.type?.startsWith('image') ? '🖼'
+                   : '📎';
+        const ext = m.name?.split('.').pop() || '';
+        html += `
+          <div class="ast-card ast-media" title="${m.name}\n${m.url}">
+            <div class="ast-card-icon">${icon}</div>
+            <div class="ast-card-label">${this._truncate(m.name || 'Media', 14)}</div>
+            <div class="ast-card-sub">${ext}
+              <button class="ast-copy-btn" onclick="event.stopPropagation(); navigator.clipboard.writeText('${m.url}'); Studio.toast('URL copied', 'ok')" title="Copy URL">📋</button>
+              <button class="ast-copy-btn" onclick="event.stopPropagation(); Studio.Assets.removeMedia(${idx})" title="Remove">✕</button>
+            </div>
+          </div>`;
+      });
+      html += `</div></div>`;
+    }
+
     // ─── Section: Scene Objects ────────────────────────
     if (state.objects.length > 0) {
       html += `<div class="ast-section">
@@ -121,8 +146,18 @@ Studio.Assets = {
   },
 
   _primIcon(type) {
-    const icons = { cube: '⬜', sphere: '⚪', cylinder: '🔷', plane: '▬', cone: '🔺', torus: '⭕' };
+    const icons = { cube: '⬜', sphere: '⚪', cylinder: '🔷', plane: '▬', cone: '🔺', torus: '⭕', empty: '◇' };
     return icons[type] || '🔲';
+  },
+
+  removeMedia(idx) {
+    const media = Studio.Project.state.media;
+    if (!media || idx < 0 || idx >= media.length) return;
+    const name = media[idx].name;
+    media.splice(idx, 1);
+    Studio.Project.markDirty();
+    this.render();
+    Studio.toast(name + ' removed from library', 'ok');
   },
 
   // ─── Load sample target via new Targets system ────────

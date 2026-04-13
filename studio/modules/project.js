@@ -38,6 +38,8 @@ Studio.Project = {
       showSpinner: true,
     },
 
+    media: [],  // uploaded audio/video/image files { name, url, type }
+
     dirty: false,
     createdAt: null,
     updatedAt: null
@@ -147,6 +149,7 @@ Studio.Project = {
         showSubtitle: s.splash.showSubtitle, gradient: s.splash.gradient,
         duration: s.splash.duration || 3
       },
+      media: (s.media || []).map(m => ({ name: m.name, url: m.url, type: m.type })),
       updatedAt: null // set by Firebase
     };
   },
@@ -171,6 +174,7 @@ Studio.Project = {
     }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
+    s.media = (data.media || []).map(m => ({ name: m.name, url: m.url, type: m.type }));
     s.createdAt = data.createdAt;
     s.updatedAt = data.updatedAt;
 
