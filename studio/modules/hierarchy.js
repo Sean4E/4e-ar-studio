@@ -32,20 +32,61 @@ Studio.Hierarchy = {
 
     html += `<div class="h-track">${modeIcons[mode] || '🌐'} ${modeLabels[mode] || mode}</div>`;
 
-    // Image target (if image mode)
+    // Image targets (if image mode)
     if (mode === 'image') {
-      const hasTarget = state.target.mindBuffer || state.target.mindUrl;
-      html += `<div class="h-item" style="opacity:${hasTarget ? 1 : 0.4}" onclick="document.getElementById('fi-target').click()">
-        <span class="h-icon">🎯</span>
-        <span class="h-name">Image Target</span>
-        <span style="font-size:9px;color:${hasTarget ? 'var(--green)' : 'var(--faint)'}">${hasTarget ? '✓' : 'none'}</span>
-      </div>`;
+      const targets = state.targets || [];
+      if (targets.length === 0) {
+        html += `<div class="h-item" style="opacity:0.4" onclick="Studio.Targets.addTarget()">
+          <span class="h-icon">🎯</span>
+          <span class="h-name">+ Add Image Target</span>
+        </div>`;
+      } else {
+        targets.forEach(t => {
+          const assigned = (t.objectIds || []).length;
+          const qCol = t.quality >= 70 ? 'var(--green)' : t.quality >= 45 ? 'var(--amber,#f0a)' : 'var(--faint)';
+          html += `<div class="h-item" onclick="Studio.Hierarchy.selectTarget('${t.id}')">
+            <span class="h-icon">🎯</span>
+            <span class="h-name">${t.name}</span>
+            <span style="font-size:9px;color:${qCol}">${assigned} obj</span>
+          </div>`;
+
+          // Show assigned objects indented under their target
+          (t.objectIds || []).forEach(oid => {
+            const obj = Studio.Project.getObject(oid);
+            if (!obj) return;
+            const sel = obj.id === this._selectedId;
+            const icon = obj.type === 'primitive' ? (obj.primitiveType === 'empty' ? '◇' : '🔲') : '📦';
+            html += `<div class="h-item h-indent${sel ? ' selected' : ''}" onclick="Studio.Viewport.selectObject('${obj.id}')" style="padding-left:24px">
+              <span class="h-icon">${icon}</span>
+              <span class="h-name">${obj.name}</span>
+              <span class="h-vis${obj.visible ? '' : ' off'}" onclick="event.stopPropagation();Studio.Hierarchy.toggleVisibility('${obj.id}')">${obj.visible ? '👁' : '🚫'}</span>
+            </div>`;
+          });
+        });
+
+        html += `<div class="h-item" style="opacity:0.5" onclick="Studio.Targets.addTarget()">
+          <span class="h-icon">➕</span>
+          <span class="h-name">Add Target</span>
+        </div>`;
+      }
     }
 
-    // Scene objects
-    state.objects.forEach(obj => {
+    // Scene objects (exclude those already shown under targets)
+    const shownUnderTargets = new Set();
+    if (mode === 'image') {
+      (state.targets || []).forEach(t => (t.objectIds || []).forEach(id => shownUnderTargets.add(id)));
+    }
+
+    // Unassigned objects
+    const unassigned = state.objects.filter(o => !shownUnderTargets.has(o.id));
+    if (unassigned.length > 0 && mode === 'image' && (state.targets || []).length > 0) {
+      html += `<div class="h-track" style="font-size:9px;opacity:0.5;margin-top:4px">Unassigned Objects</div>`;
+    }
+    unassigned.forEach(obj => {
       const sel = obj.id === this._selectedId;
-      const icon = obj.type === 'model' ? '📦' : obj.type === 'light' ? '💡' : '🔲';
+      const icon = obj.type === 'model' ? '📦'
+        : obj.primitiveType === 'empty' ? '◇'
+        : obj.type === 'light' ? '💡' : '🔲';
       html += `<div class="h-item${sel ? ' selected' : ''}" onclick="Studio.Viewport.selectObject('${obj.id}')">
         <span class="h-icon">${icon}</span>
         <span class="h-name">${obj.name}</span>
@@ -59,6 +100,15 @@ Studio.Hierarchy = {
 
     list.innerHTML = html;
     this._updateStatus();
+  },
+
+  selectTarget(targetId) {
+    // Switch to Targets tab and select this target
+    Studio.switchTab('targets');
+    if (Studio.Targets._selectedId !== targetId) {
+      Studio.Targets._selectedId = targetId;
+      Studio.Targets.render();
+    }
   },
 
   toggleVisibility(id) {
