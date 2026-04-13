@@ -206,16 +206,27 @@ Studio.publishProject = async function() {
     await Studio.saveProject();
 
     const url = (window.AR_BASE_URL || location.origin) + '/player-v2.html?id=' + state.id;
-    document.getElementById('pub-url').value = url;
     const qrEl = document.getElementById('qr-code');
+    const urlEl = document.getElementById('pub-url');
+    const statusEl = document.getElementById('deploy-status');
+
+    // Show modal in "deploying" state — QR hidden until ready
     qrEl.innerHTML = '';
-    new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+    urlEl.value = '';
+    statusEl.innerHTML = '<div style="color:var(--orange);font-size:14px;text-align:center;padding:20px">⏳ Publishing…<br><span style="font-size:11px;color:var(--muted)">Uploading assets and waiting for deployment</span></div>';
     document.getElementById('modal-publish').classList.remove('hidden');
 
-    // Track deployment — poll until assets are live on GitHub Pages
+    // Track deployment — poll until assets are live
     const checkUrl = state.objects.find(o => o.glbUrl && typeof o.glbUrl === 'string')?.glbUrl || '';
+
+    const showReady = () => {
+      urlEl.value = url;
+      new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+      statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!</div>';
+      Studio.toast('Published & deployed ✓', 'ok');
+    };
+
     if (checkUrl && checkUrl.includes && checkUrl.includes('github.io')) {
-      document.getElementById('deploy-status').innerHTML = '<div style="color:var(--orange);font-size:12px">⏳ Deploying to GitHub Pages…</div>';
       Studio.log('Waiting for GitHub Pages deployment…');
       const start = Date.now();
       const poll = async () => {
@@ -223,25 +234,25 @@ Studio.publishProject = async function() {
           const r = await fetch(checkUrl + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
           if (r.ok) {
             const sec = Math.round((Date.now() - start) / 1000);
-            document.getElementById('deploy-status').innerHTML = `<div style="color:var(--green);font-size:12px">✅ Live! Ready to scan (${sec}s)</div>`;
-            Studio.toast('Published & deployed ✓', 'ok');
             Studio.log('Deployed in ' + sec + 's');
+            showReady();
             return;
           }
         } catch(e) {}
-        if (Date.now() - start < 300000) { // 5 min max
+        if (Date.now() - start < 300000) {
           const sec = Math.round((Date.now() - start) / 1000);
-          document.getElementById('deploy-status').innerHTML = `<div style="color:var(--orange);font-size:12px">⏳ Deploying… ${sec}s<br><span style="font-size:10px;color:var(--muted)">GitHub Pages rebuilding — this can take 1-3 min</span></div>`;
+          statusEl.innerHTML = `<div style="color:var(--orange);font-size:13px;text-align:center">⏳ Deploying… ${sec}s<br><span style="font-size:10px;color:var(--muted)">GitHub Pages rebuilding — usually 1-3 minutes</span></div>`;
           setTimeout(poll, 5000);
         } else {
-          document.getElementById('deploy-status').innerHTML = '<div style="color:var(--orange);font-size:12px">⚠ Taking longer than usual. Try scanning in a minute.</div>';
+          // Timeout — show anyway with warning
+          showReady();
+          statusEl.innerHTML += '<div style="color:var(--orange);font-size:10px;margin-top:4px">Took longer than usual — if it doesn\'t work, wait a moment and try again.</div>';
         }
       };
       poll();
     } else {
-      // Firebase-hosted samples — instant
-      document.getElementById('deploy-status').innerHTML = '<div style="color:var(--green);font-size:12px">✅ Published & ready to scan</div>';
-      Studio.toast('Published ✓', 'ok');
+      // Firestore-only (no GitHub assets) — instant
+      showReady();
     }
     Studio.log('Published: ' + url);
 
