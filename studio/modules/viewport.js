@@ -387,8 +387,10 @@ Studio.Viewport = {
     });
     toRemove.forEach(obj => this.scene.remove(obj));
     this.mixers.length = 0;
-    // Remove target plane
+    // Remove target planes (legacy + multi-target)
     if (this.targetPlane) { this.scene.remove(this.targetPlane); this.targetPlane = null; }
+    this.targetPlanes.forEach(p => this.scene.remove(p));
+    this.targetPlanes = [];
     // Remove tracking helper
     this.removeTrackingHelper();
     this.deselectAll();
@@ -426,13 +428,18 @@ Studio.Viewport = {
           plane:    () => new THREE.PlaneGeometry(0.5, 0.5),
           cone:     () => new THREE.ConeGeometry(0.18, 0.35, 24),
           torus:    () => new THREE.TorusGeometry(0.15, 0.05, 12, 32),
+          empty:    () => new THREE.SphereGeometry(0.04, 8, 6),
         };
         const geoFn = defs[obj.primitiveType];
         if (geoFn) {
-          const color = obj.primitiveColor || '#8b5cf6';
-          const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.1 });
+          const isEmpty = obj.primitiveType === 'empty';
+          const color = obj.primitiveColor || (isEmpty ? '#666666' : '#8b5cf6');
+          const mat = new THREE.MeshStandardMaterial({
+            color, roughness: 0.5, metalness: 0.1,
+            wireframe: isEmpty, opacity: isEmpty ? 0.4 : 1, transparent: isEmpty,
+          });
           const mesh = new THREE.Mesh(geoFn(), mat);
-          mesh.castShadow = true;
+          mesh.castShadow = !isEmpty;
           mesh.userData._objId = obj.id;
           mesh.traverse(c => { c.userData._objId = obj.id; });
           this.scene.add(mesh);
@@ -608,8 +615,13 @@ Studio.Viewport = {
     mesh.position.y = type === 'plane' ? 0.001 : 0.2;
     if (type === 'plane') mesh.rotation.x = -Math.PI / 2;
 
+    // Auto-suffix name if duplicates exist (Empty 1, Empty 2, Cube 2, etc.)
+    let name = def.name;
+    const existing = Studio.Project.state.objects.filter(o => o.name === name || o.name.startsWith(name + ' '));
+    if (existing.length > 0) name = def.name + ' ' + (existing.length + 1);
+
     const obj = Studio.Project.createObject({
-      name: def.name,
+      name: name,
       type: 'primitive',
       primitiveType: type,
       primitiveColor: '#' + def.color.toString(16).padStart(6, '0'),

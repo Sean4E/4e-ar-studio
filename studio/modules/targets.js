@@ -192,6 +192,46 @@ Studio.Targets = {
     this.render();
   },
 
+  // ─── Replace Target Image ───────────────────────────────
+  replaceImage(id) {
+    const target = this._getTarget(id);
+    if (!target) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file) return;
+      try {
+        const img = await this._loadImage(file);
+        const crop = this._autoCrop(img.width, img.height);
+        const lumCanvas = this._generateLuminance(img, crop);
+        const thumbCanvas = this._generateThumbnail(img, crop);
+        const quality = this._analyzeQuality(lumCanvas);
+
+        target.quality = quality;
+        target.properties = { top: crop.top, left: crop.left, width: crop.width, height: crop.height, originalWidth: img.width, originalHeight: img.height, isRotated: false };
+        target._imageFile = file;
+        target._luminanceDataUrl = lumCanvas.toDataURL('image/jpeg', 0.9);
+        target._thumbnailDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.85);
+        // Clear uploaded URLs so they get re-uploaded on publish
+        target.originalUrl = '';
+        target.luminanceUrl = '';
+        target.thumbnailUrl = '';
+
+        Studio.Project.markDirty();
+        this.render();
+        Studio.EventBus.emit('target:changed');
+
+        const qLabel = quality >= 70 ? 'Excellent' : quality >= 45 ? 'Good' : quality >= 25 ? 'Fair' : 'Poor';
+        Studio.toast('Image replaced — Quality: ' + qLabel + ' (' + quality + ')', 'ok');
+      } catch (e) {
+        Studio.toast('Replace failed: ' + e.message, 'err');
+      }
+    };
+    input.click();
+  },
+
   // ─── Assign / Unassign Object ──────────────────────────
   assignObject(targetId, objectId) {
     const target = this._getTarget(targetId);
@@ -599,6 +639,7 @@ Studio.Targets = {
 
         <!-- Actions -->
         <div class="tgt-detail-section">
+          <button class="insp-btn" onclick="Studio.Targets.replaceImage('${target.id}')" style="margin-bottom:6px">Replace Image</button>
           <button class="insp-btn danger" onclick="if(confirm('Remove this target?')) Studio.Targets.removeTarget('${target.id}')">Remove Target</button>
         </div>
       </div>
