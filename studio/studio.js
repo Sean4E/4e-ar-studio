@@ -353,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.Splash.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.2.5';
+  Studio.VERSION = '3.2.6';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;

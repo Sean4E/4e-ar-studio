@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.5">
+<meta name="version" content="3.2.6">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -69,14 +69,38 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.5';
+const PLAYER_VERSION = '3.2.6';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
-// Direct audio control — simple <audio> element, no A-Frame sound.
-// Pauses/plays based on 8th Wall xrimagefound/xrimagelost.
-// The audio is created paused, only plays when its target is found.
+// Direct audio control — simple <audio> elements, controlled by image targets
+// or as global ambient. Pauses/plays based on 8th Wall xrimagefound/xrimagelost
+// or scene loaded events.
 if (typeof AFRAME !== 'undefined') {
+
+  // Ambient audio — registered, plays when iOS audio is unlocked
+  AFRAME.registerComponent('ambient-audio-direct', {
+    schema: {
+      src: { type: 'string', default: '' },
+      volume: { type: 'number', default: 0.5 },
+      loop: { type: 'boolean', default: true }
+    },
+    init() {
+      const src = this.data.src;
+      if (!src) return;
+      this._audio = document.createElement('audio');
+      this._audio.src = src;
+      this._audio.loop = this.data.loop;
+      this._audio.volume = this.data.volume;
+      this._audio.preload = 'auto';
+      this._audio.crossOrigin = 'anonymous';
+      this._audio.autoplay = false;
+      document.body.appendChild(this._audio);
+      if (window._4E_AUDIO) window._4E_AUDIO.ambient.push(this._audio);
+    },
+    remove() { if (this._audio) { this._audio.pause(); this._audio.remove(); } }
+  });
+
   AFRAME.registerComponent('target-audio-direct', {
     schema: {
       src: { type: 'string', default: '' },
@@ -89,17 +113,18 @@ if (typeof AFRAME !== 'undefined') {
       const src = this.data.src;
       if (!src) return;
 
-      // Create <audio> element — starts paused, no autoplay
+      // Create <audio> element — paused, no autoplay
       this._audio = document.createElement('audio');
       this._audio.src = src;
       this._audio.loop = this.data.loop;
       this._audio.volume = 0;
       this._audio.preload = 'auto';
       this._audio.crossOrigin = 'anonymous';
-      this._audio.style.display = 'none';
-      // CRITICAL: don't autoplay
       this._audio.autoplay = false;
       document.body.appendChild(this._audio);
+
+      // Register so the global mute button can control it
+      if (window._4E_AUDIO) window._4E_AUDIO.onTarget.push(this._audio);
 
       this._fadeId = null;
       this._isPlaying = false;
@@ -195,33 +220,53 @@ function hideSplash() {
   }, dur);
 }
 
-// iOS audio unlock — this button's tap is a user gesture that primes
-// audio elements so they can later be triggered programmatically.
-// We play+pause each audio (silent) to mark them as "user-initiated".
+// Global audio state — used by all audio components
+window._4E_AUDIO = {
+  unlocked: false,    // iOS AudioContext unlocked
+  muted: false,       // global mute toggle
+  ambient: [],        // ambient audio elements (autoplay)
+  onTarget: [],       // image-target audio elements (paused until found)
+};
+
+// 🔊 button — three states:
+//   1. Locked (iOS hasn't been tapped yet) — tap unlocks audio + starts ambient
+//   2. Unlocked + unmuted — tap to mute everything
+//   3. Muted — tap to unmute
 function showAudioButton() {
   const btn = document.createElement('button');
   btn.id = 'audio-btn';
   btn.textContent = '🔊';
   btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:22px;cursor:pointer;z-index:100;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center';
+
+  const updateBtn = () => {
+    if (!window._4E_AUDIO.unlocked) {
+      btn.textContent = '🔊';
+      btn.title = 'Tap to enable audio';
+    } else if (window._4E_AUDIO.muted) {
+      btn.textContent = '🔇';
+      btn.title = 'Tap to unmute';
+    } else {
+      btn.textContent = '🔊';
+      btn.title = 'Tap to mute';
+    }
+  };
+
   btn.onclick = () => {
-    // Prime each audio: play (silently) then immediately pause.
-    // This marks them as user-initiated so future programmatic play() works.
-    const audios = document.querySelectorAll('audio');
-    audios.forEach(a => {
-      const wasVol = a.volume;
-      a.volume = 0;
-      a.play().then(() => {
-        a.pause();
-        a.currentTime = 0;
-        a.volume = wasVol;
-      }).catch(() => { a.volume = wasVol; });
-    });
-    btn.style.background = 'rgba(139,92,246,0.6)';
-    btn.style.borderColor = 'rgba(139,92,246,0.8)';
-    btn.textContent = '🔊✓';
-    setTimeout(() => { btn.style.opacity = '0.4'; }, 2000);
+    if (!window._4E_AUDIO.unlocked) {
+      // First tap: unlock audio, start ambient sounds
+      window._4E_AUDIO.unlocked = true;
+      window._4E_AUDIO.ambient.forEach(a => a.play().catch(() => {}));
+      // Don't touch onTarget audios — they'll play when their target is found
+    } else {
+      // Subsequent taps: toggle mute
+      window._4E_AUDIO.muted = !window._4E_AUDIO.muted;
+      const allAudios = [...window._4E_AUDIO.ambient, ...window._4E_AUDIO.onTarget];
+      allAudios.forEach(a => { a.muted = window._4E_AUDIO.muted; });
+    }
+    updateBtn();
   };
   document.body.appendChild(btn);
+  updateBtn();
 }
 function showError(t, m) { el('err-title').textContent = t; el('err-msg').textContent = m; el('error-screen').classList.add('show'); hideSplash(); }
 function showARUI() { el('ar-ui').classList.add('show'); }
@@ -249,6 +294,20 @@ async function init() {
 
     // Custom splash
     applySplash(APP);
+
+    // Preload image target images in parallel — speeds up tracking init
+    if (APP.targets && APP.targets.length > 0) {
+      setSplashStatus('Preloading targets…');
+      await Promise.all(APP.targets.map(t => {
+        return new Promise(res => {
+          if (!t.luminanceUrl) return res();
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = img.onerror = () => res();
+          img.src = t.luminanceUrl;
+        });
+      }));
+    }
 
     setSplashStatus('Waiting for AR engine…');
     await waitForXR8(12000);
@@ -354,14 +413,8 @@ function buildAssets(objects) {
         if (config.src) config.src = `#${vid}`;
       }
 
-      // Audio sources — create <audio> asset for A-Frame sound component
-      const audioSrc = config.src;
-      if (audioSrc && !audioSrc.startsWith('#') &&
-          (key === 'audio-on-target' || key === 'audio-ambient')) {
-        const aud = `aud-${i}-${mediaIdx++}`;
-        assets += `<audio id="${aud}" src="${audioSrc}" preload="auto" crossorigin="anonymous"></audio>\n`;
-        config.src = `#${aud}`;
-      }
+      // Audio components create their own <audio> elements (target-audio-direct,
+      // ambient-audio-direct). No asset needed here.
     });
   });
 
@@ -454,11 +507,13 @@ function buildEntity(obj, i) {
       return;
     }
 
-    // Convert audio-ambient to native A-Frame sound with autoplay
+    // Ambient audio — direct element controlled by global mute state
     if (key === 'audio-ambient' && config && typeof config === 'object') {
       const src = config.src || '';
       if (src) {
-        attrs += ` sound="src: ${src}; autoplay: ${config.autoplay !== false}; loop: ${config.loop !== false}; volume: ${config.volume || 0.5}"`;
+        const vol = config.volume != null ? config.volume : 0.5;
+        const loop = config.loop !== false;
+        attrs += ` ambient-audio-direct="src: ${src}; volume: ${vol}; loop: ${loop}"`;
       }
       return;
     }
