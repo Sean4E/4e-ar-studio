@@ -36,6 +36,12 @@ Studio.Project = {
       logoUrl: '',
       logoFile: null,  // transient
       showSpinner: true,
+      showBranding: true,
+      showLogo: true,
+      showTitle: true,
+      showSubtitle: true,
+      gradient: '',
+      duration: 3,
     },
 
     media: [],  // uploaded audio/video/image files { name, url, type }
@@ -222,7 +228,8 @@ Studio.Project = {
     s.targets = [];
     s.objects = [];
     s.scene = { shadowCatcher: true, ambientIntensity: 0.5, directIntensity: 0.8 };
-    s.splash = { title:'', subtitle:'', bgColor:'#060a18', textColor:'#e2e8f0', accentColor:'#8b5cf6', logoUrl:'', logoFile:null, showSpinner:true };
+    s.splash = { title:'', subtitle:'', bgColor:'#060a18', textColor:'#e2e8f0', accentColor:'#8b5cf6', logoUrl:'', logoFile:null, showSpinner:true, showBranding:true, showLogo:true, showTitle:true, showSubtitle:true, gradient:'', duration:3 };
+    s.media = [];
     s.dirty = false;
     Studio.EventBus.emit('project:reset');
   },
