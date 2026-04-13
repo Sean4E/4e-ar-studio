@@ -303,9 +303,47 @@ if (typeof AFRAME !== 'undefined') {
 }
 
 function setSplashStatus(msg) { const s = el('splash-status'); if (s) s.textContent = msg; }
+
+// Check if any object in the project uses audio or video components
+function projectHasMedia() {
+  if (!APP?.objects) return false;
+  return APP.objects.some(o => {
+    const xr = o.xrComponents || {};
+    return Object.keys(xr).some(k =>
+      k.includes('audio') || k.includes('Audio') || k.includes('sound') ||
+      k.includes('Sound') || k.includes('video') || k.includes('Video'));
+  });
+}
+
 function hideSplash() {
   const dur = (APP?.splash?.duration || 3) * 1000;
-  setTimeout(() => el('splash').classList.add('hidden'), dur);
+
+  // If the project has audio/video, show a "Tap to Start" button
+  // instead of auto-hiding. iOS requires a user gesture to unlock audio.
+  if (projectHasMedia()) {
+    setTimeout(() => {
+      setSplashStatus('');
+      const startBtn = document.createElement('button');
+      startBtn.textContent = '▶  Tap to Start';
+      startBtn.style.cssText = 'margin-top:20px;padding:14px 36px;font-size:16px;font-weight:700;border:none;border-radius:28px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#8b5cf6,#6d28d9);box-shadow:0 4px 20px rgba(139,92,246,0.4);letter-spacing:0.5px';
+      startBtn.onclick = () => {
+        // This tap unlocks AudioContext on iOS
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          ctx.resume().then(() => ctx.close());
+        } catch(e) {}
+        // Also try to play any existing audio elements
+        document.querySelectorAll('audio, video').forEach(m => {
+          m.play().then(() => m.pause()).catch(() => {});
+        });
+        el('splash').classList.add('hidden');
+      };
+      el('splash-inner').appendChild(startBtn);
+    }, dur);
+  } else {
+    // No media — auto-hide as before
+    setTimeout(() => el('splash').classList.add('hidden'), dur);
+  }
 }
 function showError(t, m) { el('err-title').textContent = t; el('err-msg').textContent = m; el('error-screen').classList.add('show'); hideSplash(); }
 function showARUI() { el('ar-ui').classList.add('show'); }
