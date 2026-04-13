@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.3">
+<meta name="version" content="3.2.4">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -69,14 +69,87 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.3';
+const PLAYER_VERSION = '3.2.4';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
-// Audio/video is handled by converting to native A-Frame 'sound' component
-// in buildEntity(). No custom A-Frame components needed.
-// The xrextras-named-image-target parent handles show/hide,
-// which automatically pauses/plays the A-Frame sound component.
+// Single small component: pauses/plays the entity's <audio> based on
+// 8th Wall xrimagefound/xrimagelost events for the parent target.
+// Works alongside A-Frame's native 'sound' component.
+if (typeof AFRAME !== 'undefined') {
+  AFRAME.registerComponent('target-audio-control', {
+    schema: {
+      targetName: { type: 'string', default: '' },
+      fadeIn: { type: 'number', default: 0.5 },
+      fadeOut: { type: 'number', default: 1.0 }
+    },
+    init() {
+      this._fadeId = null;
+      // Wait for the sound component to be ready
+      this.el.addEventListener('sound-loaded', () => this._setup());
+      // Also try after a short delay in case sound-loaded already fired
+      setTimeout(() => this._setup(), 500);
+    },
+    _setup() {
+      if (this._setupDone) return;
+      const sc = this.el.components.sound;
+      if (!sc || !sc.pool || !sc.pool.children[0]) return;
+      this._setupDone = true;
+      this._sound = sc.pool.children[0];           // THREE.PositionalAudio or Audio
+      this._gain = this._sound.gain || this._sound; // gainNode
+      this._targetVol = sc.data.volume || 0.8;
+      // Start silent
+      if (this._sound.setVolume) this._sound.setVolume(0);
+
+      const tName = this.data.targetName;
+      const onFound = (e) => {
+        const n = e?.detail?.name || '';
+        if (tName && n !== tName) return;
+        this._play();
+      };
+      const onLost = (e) => {
+        const n = e?.detail?.name || '';
+        if (tName && n !== tName) return;
+        this._stop();
+      };
+
+      const sceneEl = this.el.sceneEl;
+      sceneEl.addEventListener('xrimagefound', onFound);
+      sceneEl.addEventListener('xrimagelost', onLost);
+    },
+    _play() {
+      if (!this._sound) return;
+      try {
+        if (!this._sound.isPlaying) this._sound.play();
+        this._fadeTo(this._targetVol, this.data.fadeIn);
+      } catch(e) {}
+    },
+    _stop() {
+      if (!this._sound) return;
+      this._fadeTo(0, this.data.fadeOut, () => {
+        try { this._sound.pause && this._sound.pause(); } catch(e) {}
+      });
+    },
+    _fadeTo(target, dur, done) {
+      if (this._fadeId) clearInterval(this._fadeId);
+      if (!this._sound.setVolume) { if (done) done(); return; }
+      const start = this._sound.getVolume ? this._sound.getVolume() : 0;
+      const steps = Math.max(1, Math.round(dur * 20));
+      let i = 0;
+      this._fadeId = setInterval(() => {
+        i++;
+        const v = start + (target - start) * (i / steps);
+        this._sound.setVolume(Math.max(0, Math.min(1, v)));
+        if (i >= steps) {
+          clearInterval(this._fadeId);
+          this._fadeId = null;
+          this._sound.setVolume(target);
+          if (done) done();
+        }
+      }, dur * 1000 / steps);
+    }
+  });
+}
 
 function setSplashStatus(msg) { const s = el('splash-status'); if (s) s.textContent = msg; }
 
@@ -204,7 +277,7 @@ function applySplash(app) {
     html += '<div id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
   }
   if (sp.showBranding !== false) {
-    html += '<div style="position:absolute;bottom:14px;font-size:9px;color:' + text + ';opacity:.15">Powered by 4E AR Studio v' + PLAYER_VERSION + '</div>';
+    html += '<div style="position:absolute;bottom:14px;font-size:10px;color:' + text + ';opacity:.55">Powered by 4E AR Studio v' + PLAYER_VERSION + '</div>';
   }
   inner.innerHTML = html;
   el('ar-title').textContent = title;
@@ -335,13 +408,18 @@ function buildEntity(obj, i) {
   Object.entries(xr).forEach(([key, config]) => {
     if (attrs.includes(key)) return;
 
-    // Convert audio-on-target to native A-Frame sound component
-    // The xrextras-named-image-target parent handles visibility,
-    // which automatically pauses/plays the sound.
+    // Audio on target — A-Frame sound + our target-audio-control
+    // The control component listens for xrimagefound/lost on the scene
+    // and pauses/plays/fades the sound based on the parent target name.
     if (key === 'audio-on-target' && config && typeof config === 'object') {
       const src = config.src || '';
       if (src) {
-        attrs += ` sound="src: ${src}; autoplay: false; loop: ${config.loop !== false}; volume: ${config.volume || 0.8}"`;
+        const vol = config.volume != null ? config.volume : 0.8;
+        attrs += ` sound="src: ${src}; autoplay: false; loop: ${config.loop !== false}; volume: ${vol}; positional: false"`;
+        // target-audio-control attribute is added later when we know targetName
+        attrs += ` data-audio-on-target="1"`;
+        attrs += ` data-fade-in="${config.fadeIn != null ? config.fadeIn : 0.5}"`;
+        attrs += ` data-fade-out="${config.fadeOut != null ? config.fadeOut : 1.0}"`;
       }
       return;
     }
@@ -544,7 +622,17 @@ function buildImageNative(objects) {
   document.body.appendChild(container);
   arScene = container.querySelector('a-scene');
 
-  arScene.addEventListener('loaded', () => { hideSplash(); showARUI(); buildAnimBar(objects); });
+  arScene.addEventListener('loaded', () => {
+    hideSplash(); showARUI(); buildAnimBar(objects);
+    // Wire target-audio-control on entities marked with data-audio-on-target
+    arScene.querySelectorAll('[data-audio-on-target]').forEach(el => {
+      const targetEl = el.closest('xrextras-named-image-target');
+      const tName = targetEl?.getAttribute('name') || '';
+      const fIn = parseFloat(el.getAttribute('data-fade-in')) || 0.5;
+      const fOut = parseFloat(el.getAttribute('data-fade-out')) || 1.0;
+      el.setAttribute('target-audio-control', `targetName: ${tName}; fadeIn: ${fIn}; fadeOut: ${fOut}`);
+    });
+  });
 
   // Listen for image target events
   const targetNames = APP.targets.map(t => t.name);
