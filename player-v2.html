@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.4">
+<meta name="version" content="3.2.5">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -69,39 +69,46 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.4';
+const PLAYER_VERSION = '3.2.5';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
-// Single small component: pauses/plays the entity's <audio> based on
-// 8th Wall xrimagefound/xrimagelost events for the parent target.
-// Works alongside A-Frame's native 'sound' component.
+// Direct audio control — simple <audio> element, no A-Frame sound.
+// Pauses/plays based on 8th Wall xrimagefound/xrimagelost.
+// The audio is created paused, only plays when its target is found.
 if (typeof AFRAME !== 'undefined') {
-  AFRAME.registerComponent('target-audio-control', {
+  AFRAME.registerComponent('target-audio-direct', {
     schema: {
-      targetName: { type: 'string', default: '' },
+      src: { type: 'string', default: '' },
+      volume: { type: 'number', default: 0.8 },
+      loop: { type: 'boolean', default: true },
       fadeIn: { type: 'number', default: 0.5 },
       fadeOut: { type: 'number', default: 1.0 }
     },
     init() {
-      this._fadeId = null;
-      // Wait for the sound component to be ready
-      this.el.addEventListener('sound-loaded', () => this._setup());
-      // Also try after a short delay in case sound-loaded already fired
-      setTimeout(() => this._setup(), 500);
-    },
-    _setup() {
-      if (this._setupDone) return;
-      const sc = this.el.components.sound;
-      if (!sc || !sc.pool || !sc.pool.children[0]) return;
-      this._setupDone = true;
-      this._sound = sc.pool.children[0];           // THREE.PositionalAudio or Audio
-      this._gain = this._sound.gain || this._sound; // gainNode
-      this._targetVol = sc.data.volume || 0.8;
-      // Start silent
-      if (this._sound.setVolume) this._sound.setVolume(0);
+      const src = this.data.src;
+      if (!src) return;
 
-      const tName = this.data.targetName;
+      // Create <audio> element — starts paused, no autoplay
+      this._audio = document.createElement('audio');
+      this._audio.src = src;
+      this._audio.loop = this.data.loop;
+      this._audio.volume = 0;
+      this._audio.preload = 'auto';
+      this._audio.crossOrigin = 'anonymous';
+      this._audio.style.display = 'none';
+      // CRITICAL: don't autoplay
+      this._audio.autoplay = false;
+      document.body.appendChild(this._audio);
+
+      this._fadeId = null;
+      this._isPlaying = false;
+
+      // Find our target name from parent
+      const targetEl = this.el.closest('xrextras-named-image-target');
+      const tName = targetEl?.getAttribute('name') || '';
+      this._targetName = tName;
+
       const onFound = (e) => {
         const n = e?.detail?.name || '';
         if (tName && n !== tName) return;
@@ -113,40 +120,55 @@ if (typeof AFRAME !== 'undefined') {
         this._stop();
       };
 
+      // Wait for scene to be ready before listening
       const sceneEl = this.el.sceneEl;
-      sceneEl.addEventListener('xrimagefound', onFound);
-      sceneEl.addEventListener('xrimagelost', onLost);
+      const attach = () => {
+        sceneEl.addEventListener('xrimagefound', onFound);
+        sceneEl.addEventListener('xrimagelost', onLost);
+      };
+      if (sceneEl.hasLoaded) attach();
+      else sceneEl.addEventListener('loaded', attach);
     },
     _play() {
-      if (!this._sound) return;
-      try {
-        if (!this._sound.isPlaying) this._sound.play();
-        this._fadeTo(this._targetVol, this.data.fadeIn);
-      } catch(e) {}
+      if (!this._audio || this._isPlaying) return;
+      this._isPlaying = true;
+      this._audio.play().catch(err => {
+        console.warn('[target-audio-direct] play failed:', err);
+        this._isPlaying = false;
+      });
+      this._fadeTo(this.data.volume, this.data.fadeIn);
     },
     _stop() {
-      if (!this._sound) return;
+      if (!this._audio || !this._isPlaying) return;
       this._fadeTo(0, this.data.fadeOut, () => {
-        try { this._sound.pause && this._sound.pause(); } catch(e) {}
+        this._audio.pause();
+        this._isPlaying = false;
       });
     },
     _fadeTo(target, dur, done) {
       if (this._fadeId) clearInterval(this._fadeId);
-      if (!this._sound.setVolume) { if (done) done(); return; }
-      const start = this._sound.getVolume ? this._sound.getVolume() : 0;
+      if (!this._audio || dur <= 0) {
+        if (this._audio) this._audio.volume = target;
+        if (done) done();
+        return;
+      }
+      const start = this._audio.volume;
       const steps = Math.max(1, Math.round(dur * 20));
       let i = 0;
       this._fadeId = setInterval(() => {
         i++;
-        const v = start + (target - start) * (i / steps);
-        this._sound.setVolume(Math.max(0, Math.min(1, v)));
+        this._audio.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
         if (i >= steps) {
           clearInterval(this._fadeId);
           this._fadeId = null;
-          this._sound.setVolume(target);
+          this._audio.volume = target;
           if (done) done();
         }
       }, dur * 1000 / steps);
+    },
+    remove() {
+      if (this._fadeId) clearInterval(this._fadeId);
+      if (this._audio) { this._audio.pause(); this._audio.remove(); }
     }
   });
 }
@@ -173,20 +195,30 @@ function hideSplash() {
   }, dur);
 }
 
-// Simple persistent audio button — iOS requires user gesture to play audio.
-// This button sits in the corner, user taps it once, audio unlocks.
-// Nothing else — no AudioContext hacks, no event listeners on the document.
+// iOS audio unlock — this button's tap is a user gesture that primes
+// audio elements so they can later be triggered programmatically.
+// We play+pause each audio (silent) to mark them as "user-initiated".
 function showAudioButton() {
   const btn = document.createElement('button');
   btn.id = 'audio-btn';
   btn.textContent = '🔊';
   btn.style.cssText = 'position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:22px;cursor:pointer;z-index:100;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center';
   btn.onclick = () => {
-    // This tap is the user gesture that unlocks audio on iOS
+    // Prime each audio: play (silently) then immediately pause.
+    // This marks them as user-initiated so future programmatic play() works.
     const audios = document.querySelectorAll('audio');
-    audios.forEach(a => { a.play().catch(() => {}); });
+    audios.forEach(a => {
+      const wasVol = a.volume;
+      a.volume = 0;
+      a.play().then(() => {
+        a.pause();
+        a.currentTime = 0;
+        a.volume = wasVol;
+      }).catch(() => { a.volume = wasVol; });
+    });
     btn.style.background = 'rgba(139,92,246,0.6)';
     btn.style.borderColor = 'rgba(139,92,246,0.8)';
+    btn.textContent = '🔊✓';
     setTimeout(() => { btn.style.opacity = '0.4'; }, 2000);
   };
   document.body.appendChild(btn);
@@ -408,18 +440,16 @@ function buildEntity(obj, i) {
   Object.entries(xr).forEach(([key, config]) => {
     if (attrs.includes(key)) return;
 
-    // Audio on target — A-Frame sound + our target-audio-control
-    // The control component listens for xrimagefound/lost on the scene
-    // and pauses/plays/fades the sound based on the parent target name.
+    // Audio on target — uses raw <audio> element via target-audio-direct.
+    // Skip A-Frame sound entirely (it's unreliable for pause/play on visibility).
     if (key === 'audio-on-target' && config && typeof config === 'object') {
       const src = config.src || '';
       if (src) {
         const vol = config.volume != null ? config.volume : 0.8;
-        attrs += ` sound="src: ${src}; autoplay: false; loop: ${config.loop !== false}; volume: ${vol}; positional: false"`;
-        // target-audio-control attribute is added later when we know targetName
-        attrs += ` data-audio-on-target="1"`;
-        attrs += ` data-fade-in="${config.fadeIn != null ? config.fadeIn : 0.5}"`;
-        attrs += ` data-fade-out="${config.fadeOut != null ? config.fadeOut : 1.0}"`;
+        const loop = config.loop !== false;
+        const fIn = config.fadeIn != null ? config.fadeIn : 0.5;
+        const fOut = config.fadeOut != null ? config.fadeOut : 1.0;
+        attrs += ` target-audio-direct="src: ${src}; volume: ${vol}; loop: ${loop}; fadeIn: ${fIn}; fadeOut: ${fOut}"`;
       }
       return;
     }
