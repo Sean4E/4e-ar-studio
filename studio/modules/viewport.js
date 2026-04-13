@@ -13,6 +13,7 @@ Studio.Viewport = {
   clock: new THREE.Clock(),
   mixers: [],
   targetPlane: null,
+  targetPlanes: [],  // multi-target: one plane per target
   presetRafs: {},
   _selectedId: null,
   _trackingHelper: null, // face/hand reference mesh
@@ -84,6 +85,9 @@ Studio.Viewport = {
     Studio.EventBus.on('project:reset', () => this._clearScene());
     Studio.EventBus.on('project:loaded', () => this._rebuildScene());
     Studio.EventBus.on('object:removed', ({ id, object }) => this._removeFromScene(object));
+    Studio.EventBus.on('target:changed', () => {
+      if (Studio.Project.state.trackingMode === 'image') this.showMultiTargets();
+    });
 
     Studio.log('Viewport ready');
   },
@@ -299,6 +303,69 @@ Studio.Viewport = {
     };
   },
 
+  // ─── Multi-Target Visualization ────────────────────────
+  showMultiTargets() {
+    // Clear old target planes
+    this.targetPlanes.forEach(p => this.scene.remove(p));
+    this.targetPlanes = [];
+    // Also clear legacy single plane
+    if (this.targetPlane) { this.scene.remove(this.targetPlane); this.targetPlane = null; }
+
+    const targets = Studio.Project.state.targets || [];
+    if (targets.length === 0) return;
+
+    const spacing = 2.0; // distance between targets
+    const startX = -(targets.length - 1) * spacing / 2;
+
+    targets.forEach((target, idx) => {
+      const url = target.originalUrl || target._thumbnailDataUrl || target.thumbnailUrl;
+      if (!url) return;
+
+      const tex = new THREE.TextureLoader().load(url);
+      tex.colorSpace = THREE.SRGBColorSpace;
+
+      // Default 3:4 aspect (matches target processing)
+      const pw = 1.2, ph = pw * (4/3);
+      const geo = new THREE.PlaneGeometry(pw, ph);
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex, side: THREE.DoubleSide,
+        transparent: true, opacity: 0.7
+      });
+
+      const plane = new THREE.Mesh(geo, mat);
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(startX + idx * spacing, 0.001, 0);
+      plane.userData.targetId = target.id;
+      plane.userData.targetName = target.name;
+      this.targetPlanes.push(plane);
+      this.scene.add(plane);
+
+      // Label above the target
+      this._addTargetLabel(target.name, startX + idx * spacing, 0, ph / 2 + 0.15);
+    });
+  },
+
+  _addTargetLabel(text, x, y, z) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 48;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, 256, 48);
+    ctx.fillStyle = '#00e5ff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 128, 24);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(x, y + 0.3, z);
+    sprite.scale.set(0.8, 0.15, 1);
+    this.targetPlanes.push(sprite); // track for cleanup
+    this.scene.add(sprite);
+  },
+
   // ─── Remove from Scene ─────────────────────────────────
   _removeFromScene(obj) {
     if (!obj) return;
@@ -333,13 +400,19 @@ Studio.Viewport = {
     this._clearScene();
     const state = Studio.Project.state;
 
-    // Target plane
-    if (state.target.imageUrl) {
-      this._showTargetPlaneFromUrl(state.target.imageUrl);
-    }
-    // Hide target plane for non-image modes
-    if (state.trackingMode !== 'image' && this.targetPlane) {
-      this.targetPlane.visible = false;
+    // Target planes
+    if (state.trackingMode === 'image') {
+      // New multi-target system takes priority
+      if (state.targets && state.targets.length > 0) {
+        this.showMultiTargets();
+      } else if (state.target.imageUrl) {
+        // Legacy single target fallback
+        this._showTargetPlaneFromUrl(state.target.imageUrl);
+      }
+    } else {
+      // Hide target planes for non-image modes
+      if (this.targetPlane) this.targetPlane.visible = false;
+      this.targetPlanes.forEach(p => p.visible = false);
     }
 
     // Load objects

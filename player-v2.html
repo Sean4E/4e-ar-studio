@@ -71,6 +71,86 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
+// ═══════════════════════════════════════════════════════════
+// CUSTOM A-FRAME COMPONENTS — Audio
+// ═══════════════════════════════════════════════════════════
+
+// Plays audio when the parent image target is found, pauses when lost.
+// iOS: audio is unlocked by the 8th Wall tap-to-start gesture.
+if (typeof AFRAME !== 'undefined') {
+  AFRAME.registerComponent('audio-on-target', {
+    schema: {
+      src: { type: 'string', default: '' },
+      volume: { type: 'number', default: 0.8 },
+      loop: { type: 'boolean', default: true }
+    },
+    init() {
+      this._audio = null;
+      const srcVal = this.data.src;
+      if (!srcVal) return;
+
+      // Resolve asset reference (#id) or direct URL
+      const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
+      this._audio = assetEl || new Audio(srcVal);
+      this._audio.volume = this.data.volume;
+      this._audio.loop = this.data.loop;
+
+      // Listen for target found/lost on parent xrextras-named-image-target
+      const targetEl = this.el.closest('[xrextras-named-image-target]') || this.el;
+      targetEl.addEventListener('xrimagefound', () => {
+        if (this._audio) this._audio.play().catch(() => {});
+      });
+      targetEl.addEventListener('xrimagelost', () => {
+        if (this._audio) this._audio.pause();
+      });
+      // Also listen for MindAR events
+      targetEl.addEventListener('targetFound', () => {
+        if (this._audio) this._audio.play().catch(() => {});
+      });
+      targetEl.addEventListener('targetLost', () => {
+        if (this._audio) this._audio.pause();
+      });
+    },
+    remove() {
+      if (this._audio) { this._audio.pause(); this._audio = null; }
+    }
+  });
+
+  // Background audio that starts when the scene loads.
+  AFRAME.registerComponent('audio-ambient', {
+    schema: {
+      src: { type: 'string', default: '' },
+      volume: { type: 'number', default: 0.5 },
+      loop: { type: 'boolean', default: true },
+      autoplay: { type: 'boolean', default: true }
+    },
+    init() {
+      const srcVal = this.data.src;
+      if (!srcVal) return;
+
+      const assetEl = srcVal.startsWith('#') ? document.querySelector(srcVal) : null;
+      this._audio = assetEl || new Audio(srcVal);
+      this._audio.volume = this.data.volume;
+      this._audio.loop = this.data.loop;
+
+      if (this.data.autoplay) {
+        // Try immediately — will work if user already tapped (8th Wall start)
+        this._audio.play().catch(() => {
+          // iOS: wait for user gesture then play
+          const tryPlay = () => {
+            this._audio.play().catch(() => {});
+            document.removeEventListener('touchstart', tryPlay);
+          };
+          document.addEventListener('touchstart', tryPlay, { once: true });
+        });
+      }
+    },
+    remove() {
+      if (this._audio) { this._audio.pause(); this._audio = null; }
+    }
+  });
+}
+
 function setSplashStatus(msg) { const s = el('splash-status'); if (s) s.textContent = msg; }
 function hideSplash() {
   const dur = (APP?.splash?.duration || 3) * 1000;
@@ -183,10 +263,41 @@ function getObjects() {
 }
 
 function buildAssets(objects) {
-  return objects.map((o,i) => {
-    if (o.type === 'primitive' || !o.glbUrl) return '';
-    return `<a-asset-item id="m${i}" src="${o.glbUrl}"></a-asset-item>`;
-  }).join('\n');
+  let assets = '';
+  let mediaIdx = 0;
+
+  objects.forEach((o, i) => {
+    // GLB model assets
+    if (o.type !== 'primitive' && o.glbUrl) {
+      assets += `<a-asset-item id="m${i}" src="${o.glbUrl}"></a-asset-item>\n`;
+    }
+
+    // Video/Audio assets from xrComponents
+    const xr = o.xrComponents || {};
+    Object.entries(xr).forEach(([key, config]) => {
+      if (!config || typeof config !== 'object') return;
+
+      // Video sources (xrextras-target-video-fade, xrextras-target-video-sound, xrextras-play-video, xrextras-video-material)
+      const videoUrl = config.video || config.src;
+      if (videoUrl && (key.includes('video') || key.includes('Video'))) {
+        const vid = `vid-${i}-${mediaIdx++}`;
+        assets += `<video id="${vid}" src="${videoUrl}" preload="auto" loop playsinline webkit-playsinline crossorigin="anonymous"></video>\n`;
+        // Replace the URL with the asset ID so A-Frame can reference it
+        if (config.video) config.video = `#${vid}`;
+        if (config.src) config.src = `#${vid}`;
+      }
+
+      // Audio sources (audio-on-target, audio-ambient)
+      const audioUrl = config.src;
+      if (audioUrl && (key.includes('audio') || key.includes('Audio') || key.includes('sound') || key.includes('Sound'))) {
+        const aud = `aud-${i}-${mediaIdx++}`;
+        assets += `<audio id="${aud}" src="${audioUrl}" preload="auto" crossorigin="anonymous"></audio>\n`;
+        config.src = `#${aud}`;
+      }
+    });
+  });
+
+  return assets;
 }
 
 // Map primitive types to A-Frame elements

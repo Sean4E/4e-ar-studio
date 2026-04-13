@@ -143,18 +143,18 @@ Studio.Components = {
     },
     'xrextras-target-video-fade': {
       name: 'Target Video Fade', category: 'image', icon: '🎬',
-      description: 'Play video on image target with fade effect',
+      description: 'Play video on image target — fades in when target found, fades out when lost. Video replaces the 3D model.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
-        video: { type: 'text', label: 'Video URL', default: '' }
+        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
       }
     },
     'xrextras-target-video-sound': {
-      name: 'Target Video Sound', category: 'image', icon: '🔊',
-      description: 'Play video with sound on image target',
+      name: 'Target Video + Sound', category: 'image', icon: '🔊',
+      description: 'Play video with audio on image target — plays when found, pauses when lost. iOS unlocks audio on first tap.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
-        video: { type: 'text', label: 'Video URL', default: '' }
+        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
       }
     },
 
@@ -212,6 +212,27 @@ Studio.Components = {
       properties: {
         src: { type: 'text', label: 'Video URL', default: '' },
         loop: { type: 'boolean', label: 'Loop', default: true }
+      }
+    },
+    'audio-on-target': {
+      name: 'Audio on Target', category: 'image', icon: '🎵',
+      description: 'Play audio when image target is detected. Pauses when lost. iOS requires tap gesture.',
+      trackingModes: ['image'], appliesTo: 'entity', type: 'config',
+      properties: {
+        src: { type: 'text', label: 'Audio URL (.mp3)', default: '' },
+        volume: { type: 'range', label: 'Volume', default: 0.8, min: 0, max: 1, step: 0.05 },
+        loop: { type: 'boolean', label: 'Loop', default: true }
+      }
+    },
+    'audio-ambient': {
+      name: 'Ambient Audio', category: 'media', icon: '🔊',
+      description: 'Background audio that plays when AR starts. iOS requires tap gesture.',
+      trackingModes: ['slam','image','face'], appliesTo: 'entity', type: 'config',
+      properties: {
+        src: { type: 'text', label: 'Audio URL (.mp3)', default: '' },
+        volume: { type: 'range', label: 'Volume', default: 0.5, min: 0, max: 1, step: 0.05 },
+        loop: { type: 'boolean', label: 'Loop', default: true },
+        autoplay: { type: 'boolean', label: 'Autoplay', default: true }
       }
     },
     'xrextras-attach': {
