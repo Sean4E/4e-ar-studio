@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E AR Studio — Architecture & Performance</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--bg2:#0f1424;--bg3:#141a2e;
+  --border:#1e2844;--border2:#2a3456;
+  --text:#d4daf0;--muted:#8899b0;--faint:#4a5578;
+  --purple:#8b5cf6;--purple2:#a78bfa;--purple3:rgba(139,92,246,0.12);
+  --cyan:#22d3ee;--green:#34d399;--red:#f87171;--orange:#fb923c;--amber:#f4bf50;
+}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.55;padding:32px 24px 80px;max-width:1180px;margin:0 auto}
+.hero{margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-0.02em;color:var(--purple2)}
+.hero .sub{font-size:14px;color:var(--muted);margin-top:6px;font-family:'Space Mono',monospace}
+h2{font-size:18px;margin:28px 0 14px;color:var(--purple2);font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:8px}
+h2::before{content:"";display:block;width:3px;height:18px;background:var(--purple);border-radius:2px}
+h3{font-size:14px;margin:18px 0 8px;color:var(--text);font-weight:600}
+p{color:var(--muted);font-size:13px;margin-bottom:10px}
+code{font-family:'Space Mono',monospace;font-size:12px;background:var(--bg3);padding:1px 5px;border-radius:3px;color:var(--cyan)}
+strong{color:var(--text);font-weight:600}
+.grid{display:grid;gap:14px;margin:14px 0}
+.cols-2{grid-template-columns:repeat(2,1fr)}
+.cols-3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:820px){.cols-2,.cols-3{grid-template-columns:1fr}}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px}
+.card h3{margin-top:0;display:flex;align-items:center;gap:8px}
+.card h3 .tag{font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);font-weight:700;background:var(--bg3);padding:3px 7px;border-radius:10px;border:1px solid var(--border2)}
+.card p{font-size:12px;line-height:1.55}
+.card ul{list-style:none;padding:0;font-size:12px;color:var(--muted);margin-top:6px}
+.card ul li{padding:3px 0;display:flex;align-items:flex-start;gap:6px}
+.card ul li::before{content:"→";color:var(--faint);flex-shrink:0}
+.pipeline{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;margin:14px 0}
+.pipeline .stage{display:grid;grid-template-columns:120px 1fr auto;gap:14px;padding:10px 0;border-bottom:1px dashed var(--border);align-items:center}
+.pipeline .stage:last-child{border-bottom:none}
+.pipeline .stage .label{font-family:'Space Mono',monospace;font-size:10px;color:var(--cyan);font-weight:700}
+.pipeline .stage .desc{font-size:12px;color:var(--muted);line-height:1.5}
+.pipeline .stage .desc b{color:var(--text)}
+.pipeline .stage .time{font-family:'Space Mono',monospace;font-size:10px;color:var(--amber);text-align:right;white-space:nowrap}
+.pipeline .stage .time.fast{color:var(--green)}
+.pipeline .stage .time.slow{color:var(--orange)}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+table th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--border2)}
+table td{padding:10px;border-bottom:1px solid var(--border);color:var(--muted);vertical-align:top}
+table td b{color:var(--text);font-weight:600}
+table td.m{font-family:'Space Mono',monospace;font-size:11px;color:var(--cyan)}
+.diagram{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;margin:14px 0}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:stretch}
+.flow > div{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:14px;position:relative}
+.flow > div h4{font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--purple2);margin-bottom:6px;font-weight:700}
+.flow > div p{font-size:11px;color:var(--muted);margin:0}
+.flow > div .host{font-family:'Space Mono',monospace;font-size:10px;color:var(--cyan);margin-top:8px;padding-top:6px;border-top:1px dashed var(--border2)}
+@media(max-width:820px){.flow{grid-template-columns:1fr}}
+.tag-green{color:var(--green)}
+.tag-orange{color:var(--orange)}
+.tag-cyan{color:var(--cyan)}
+.tag-purple{color:var(--purple2)}
+.tag-red{color:var(--red)}
+.rule{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:var(--bg3);border-left:3px solid var(--purple);border-radius:6px;margin:8px 0;font-size:12px;color:var(--muted)}
+.rule .icon{font-size:16px;flex-shrink:0;margin-top:-2px}
+.rule b{color:var(--text)}
+footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--border);font-size:11px;color:var(--faint);font-family:'Space Mono',monospace}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>4E AR Studio · Architecture & Performance</h1>
+  <div class="sub">How the pieces fit together · What's fast vs slow · When to expect what</div>
+</div>
+
+<!-- ───────────────────────── WHERE THINGS LIVE ───────────────────────── -->
+<h2>Where things live</h2>
+<p>Three hosting layers. Different speeds, different jobs — use the right one for the right thing.</p>
+
+<div class="diagram">
+  <div class="flow">
+    <div>
+      <h4>🎨 Studio UI</h4>
+      <p><b>GitHub Pages</b> hosts the editor HTML, modules, CSS. You iterate the studio by pushing to the repo.</p>
+      <div class="host">sean4e.github.io/4e-ar-studio/studio/</div>
+    </div>
+    <div>
+      <h4>📦 Assets & library</h4>
+      <p><b>GitHub Pages</b> hosts every uploaded GLB, thumbnail, audio, video, image-target PNG, splash logo, PWA icon. Free, CDN-backed, cross-origin OK.</p>
+      <div class="host">sean4e.github.io/4e-ar-studio/assets/{id}/…</div>
+    </div>
+    <div>
+      <h4>🚀 Published player</h4>
+      <p><b>Firebase Hosting</b> serves only the player shell (tiny). Everything else (assets/ studio/ projects.html) is excluded from Firebase deploys.</p>
+      <div class="host">ar-studio-4e.web.app/player-v2.html?id=…</div>
+    </div>
+    <div>
+      <h4>🗂 Project data</h4>
+      <p><b>Firestore</b> stores one JSON document per project — objects, prefabs, targets, splash config, PWA URLs. Tiny payloads, fast reads.</p>
+      <div class="host">firestore/ar_apps/{projectId}</div>
+    </div>
+    <div>
+      <h4>⚙ CI</h4>
+      <p><b>GitHub Actions</b> deploys the player shell to Firebase. Path-scoped: triggers only when actual player files change.</p>
+      <div class="host">.github/workflows/firebase-deploy.yml</div>
+    </div>
+    <div>
+      <h4>🔑 Auth</h4>
+      <p><b>Firebase service account</b> held as a GitHub Actions secret. Lets the workflow deploy without interactive login.</p>
+      <div class="host">FIREBASE_SERVICE_ACCOUNT_AR_STUDIO_4E</div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────── WHAT PROPAGATES WHEN ───────────────────── -->
+<h2>What propagates when — and how long to wait</h2>
+
+<div class="pipeline">
+  <div class="stage">
+    <span class="label">Instant</span>
+    <span class="desc"><b>Studio edits</b> — transforms, inspector changes, material toggles, hierarchy. All happen in RAM on your browser. No network, no wait.</span>
+    <span class="time fast">0 ms</span>
+  </div>
+  <div class="stage">
+    <span class="label">&lt; 1 s</span>
+    <span class="desc"><b>Save to Firestore</b> — serialised project JSON committed. Visible on other devices / published apps within seconds.</span>
+    <span class="time fast">~200-800 ms</span>
+  </div>
+  <div class="stage">
+    <span class="label">&lt; 2 s</span>
+    <span class="desc"><b>Asset upload</b> — GLB / image / video sent to GitHub via Contents API. Creates a commit on <code>main</code>. Returns a URL immediately.</span>
+    <span class="time fast">1-3 s</span>
+  </div>
+  <div class="stage">
+    <span class="label">Variable</span>
+    <span class="desc"><b>GitHub Pages propagation</b> — the file exists in the repo but is not yet served by the CDN. This is the ONE real wait in the pipeline. Publish modal polls all asset URLs and shows live progress (<em>Assets live: N / total</em>) until everything is 200.</span>
+    <span class="time slow">30-120 s</span>
+  </div>
+  <div class="stage">
+    <span class="label">~45 s</span>
+    <span class="desc"><b>Firebase player deploy</b> — only runs when you push changes to <code>player-v2.html</code>, <code>config.js</code>, <code>sw.js</code>, <code>samples/</code>, <code>firebase.json</code>, or the workflow itself. Asset uploads never trigger it.</span>
+    <span class="time">30-60 s</span>
+  </div>
+  <div class="stage">
+    <span class="label">Instant</span>
+    <span class="desc"><b>Published app launch</b> — Firestore fetch + preload only this scene's own assets (GLBs, target PNGs, audio). Videos are background prefetch so splash never waits for big files.</span>
+    <span class="time fast">1-3 s</span>
+  </div>
+</div>
+
+<!-- ───────────────────── PUBLISH WORKFLOW ───────────────────── -->
+<h2>The publish workflow (what the modal actually does)</h2>
+
+<div class="pipeline">
+  <div class="stage">
+    <span class="label">1</span>
+    <span class="desc">Upload any <b>pending files</b> to GitHub: image targets → <code>assets/{id}/targets/…</code>, prefab GLBs → <code>assets/{id}/prefabs/…</code>, splash logo, PWA icons (regenerated from logo), splash-logo thumbnails.</span>
+    <span class="time fast">instant per file</span>
+  </div>
+  <div class="stage">
+    <span class="label">2</span>
+    <span class="desc">Call <code>Studio.saveProject()</code> → serialise state, write to Firestore.</span>
+    <span class="time fast">&lt; 1 s</span>
+  </div>
+  <div class="stage">
+    <span class="label">3</span>
+    <span class="desc">Gather every <code>github.io</code> URL the published app will ever load. Start polling all of them in parallel with HEAD requests.</span>
+    <span class="time fast">&lt; 1 s</span>
+  </div>
+  <div class="stage">
+    <span class="label">4</span>
+    <span class="desc"><b>Progress bar in modal</b> — "Assets live: 5 / 12 · 18 s". Polls every 4 s. QR code is hidden until 100 %.</span>
+    <span class="time slow">30-120 s</span>
+  </div>
+  <div class="stage">
+    <span class="label">5</span>
+    <span class="desc"><b>✅ Live and ready to scan!</b> Shows player version, QR code, theme-coloured so it matches the splash. Test URL + download QR available.</span>
+    <span class="time fast">instant</span>
+  </div>
+</div>
+
+<!-- ───────────────────── SPEED TRICKS IN PLACE ───────────────────── -->
+<h2>Speed tricks already in place</h2>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h3>🎬 Splash on first paint <span class="tag">Startup</span></h3>
+    <p>Splash DOM ships in the player HTML. A sync head-script pulls cached colours/logo from <code>localStorage</code> before body paint. Repeat visits show the branded splash from frame 1 — no Firestore round-trip needed for visuals.</p>
+  </div>
+  <div class="card">
+    <h3>⚡ Asset preload split <span class="tag">Cold start</span></h3>
+    <p>Blocking preload = <b>only what's in this scene</b> (GLBs of instances, image-target luminance PNGs, audio). Videos fire-and-forget so splash doesn't wait for MBs. Library prefabs are never preloaded.</p>
+  </div>
+  <div class="card">
+    <h3>🧠 8th Wall chunk preload <span class="tag">Cold start</span></h3>
+    <p><code>data-preload-chunks="slam,face"</code> on the engine-binary script tag warms up tracking algorithms during script load — not on first use.</p>
+  </div>
+  <div class="card">
+    <h3>🗂 Service worker <span class="tag">PWA</span></h3>
+    <p>Network-first with cache fallback for the player shell. Installed PWA launches get shell from cache instantly; online launches always fetch fresh.</p>
+  </div>
+  <div class="card">
+    <h3>🧵 URL dedupe <span class="tag">Preload</span></h3>
+    <p>The preloader uses a <code>Set</code>: five instances of one prefab = one fetch, not five. Same GLB shared across image targets = one download, many renders.</p>
+  </div>
+  <div class="card">
+    <h3>📸 Thumbnails rendered once <span class="tag">Library</span></h3>
+    <p>Offscreen WebGLRenderer auto-frames each prefab and saves a 128×128 PNG next to its GLB. Loaded from disk on subsequent library views — no runtime rendering cost.</p>
+  </div>
+  <div class="card">
+    <h3>🌐 Cross-origin CORS <span class="tag">Fetch</span></h3>
+    <p>GitHub Pages serves all static files with <code>Access-Control-Allow-Origin: *</code>. The player fetches GLBs / audio / videos / images cleanly from a different origin — no preflight.</p>
+  </div>
+  <div class="card">
+    <h3>🕒 No-cache on HTML/JS <span class="tag">Fresh code</span></h3>
+    <p>Firebase Hosting serves <code>*.html</code>, <code>*.js</code>, <code>sw.js</code> with <code>no-cache</code>. New deploys reach users on their next launch — no HTTP-cache TTL delay.</p>
+  </div>
+</div>
+
+<!-- ───────────────────── RULES OF THUMB ───────────────────── -->
+<h2>Rules of thumb</h2>
+
+<div class="rule"><span class="icon">⚡</span><div><b>Studio changes ship almost instantly.</b> Push to main → GitHub Pages rebuilds (1-2 min). Hard-refresh the studio tab to see new code. HTML is not HTTP-cached so a normal refresh usually suffices.</div></div>
+
+<div class="rule"><span class="icon">📦</span><div><b>Asset uploads go to GitHub, not Firebase.</b> Every upload triggers a commit. Don't worry about Firebase storage — <code>assets/</code> is in the <code>firebase.json</code> ignore list, each Firebase deploy stays tiny.</div></div>
+
+<div class="rule"><span class="icon">🎯</span><div><b>Publishing waits for all assets to propagate.</b> The modal polls every GitHub-hosted URL. You see "Assets live: N / total" until it's 100 % — then the QR appears. No more guessing whether the app is really ready.</div></div>
+
+<div class="rule"><span class="icon">🚀</span><div><b>Player code updates auto-deploy to Firebase.</b> When you push changes to <code>player-v2.html</code>, <code>sw.js</code>, <code>config.js</code>, <code>firebase.json</code>, or <code>samples/</code>, GitHub Actions runs <code>FirebaseExtended/action-hosting-deploy</code>. Studio-upload commits are path-scoped out of the trigger.</div></div>
+
+<div class="rule"><span class="icon">🔄</span><div><b>Version number is everywhere.</b> <code>PLAYER_VERSION</code> is stamped on the splash branding line. If you don't see the expected version on a published app, hard-refresh once — browser HTML cache is the usual culprit (and it shouldn't happen after v3.10.2's no-cache headers).</div></div>
+
+<div class="rule"><span class="icon">🌀</span><div><b>Browser "empty state" before splash is unavoidable for non-PWA.</b> When a QR scan opens a fresh browser tab, the browser shows its own blank page until your HTML bytes arrive. Only installed PWAs skip this (iOS uses <code>theme-color</code> meta for native splash — already set).</div></div>
+
+<!-- ───────────────────── WHAT NOT TO DO ───────────────────── -->
+<h2>Anti-patterns — avoid these</h2>
+
+<div class="grid cols-2">
+  <div class="card" style="border-color:var(--red)">
+    <h3 style="color:var(--red)">✕ Don't host assets on Firebase</h3>
+    <p>Firebase Hosting has a storage quota (10 GB Spark) that stacks across retained versions. Assets stay on Pages. <code>firebase.json</code> <code>ignore</code> list already enforces this.</p>
+  </div>
+  <div class="card" style="border-color:var(--red)">
+    <h3 style="color:var(--red)">✕ Don't trigger deploy on every commit</h3>
+    <p>The workflow is <b>path-scoped</b> to player-shell files only. Studio asset-upload commits never trigger deploys. Keeps Firebase deploy count low → quota stays healthy.</p>
+  </div>
+  <div class="card" style="border-color:var(--red)">
+    <h3 style="color:var(--red)">✕ Don't inline assets into Firestore</h3>
+    <p>Firestore docs have a 1 MB limit. We store URLs, not bytes. Thumbnails are PNGs on Pages; splash logos, PWA icons, GLBs, target imagery — all URLs.</p>
+  </div>
+  <div class="card" style="border-color:var(--red)">
+    <h3 style="color:var(--red)">✕ Don't preload what the scene doesn't use</h3>
+    <p>Library prefabs that aren't instantiated are not preloaded by the player. We learned this the slow way — shipping a fix in v3.10.1 to cut cold start back to fast.</p>
+  </div>
+</div>
+
+<!-- ───────────────────── PROJECT DASHBOARD ───────────────────── -->
+<h2>Project dashboard — what's there</h2>
+
+<div class="card">
+  <h3>📁 /projects.html</h3>
+  <p>Master-detail layout: left sidebar = every project in Firestore. Right panel = selected project's stored assets on GitHub.</p>
+  <ul>
+    <li><b>Open in Studio</b> — deep-links the studio to edit this project</li>
+    <li><b>Preview</b> — opens the published player URL</li>
+    <li><b>Copy URL</b> — share the player link</li>
+    <li><b>Delete Project</b> — removes Firestore doc + optionally the <code>assets/{id}/</code> folder on GitHub</li>
+    <li><b>Asset inventory</b> — lists every file under <code>assets/{id}/</code>. Unused files flagged as <span class="tag-orange">⚠ orphan</span>. "Clean up" bulk-deletes the orphans.</li>
+  </ul>
+</div>
+
+<!-- ───────────────────── KEY URLS ───────────────────── -->
+<h2>Key URLs</h2>
+<table>
+  <tr><th>What</th><th>URL</th></tr>
+  <tr><td><b>Studio editor</b></td><td class="m">https://sean4e.github.io/4e-ar-studio/studio/</td></tr>
+  <tr><td><b>Projects dashboard</b></td><td class="m">https://sean4e.github.io/4e-ar-studio/projects.html</td></tr>
+  <tr><td><b>Published app (per id)</b></td><td class="m">https://ar-studio-4e.web.app/player-v2.html?id={projectId}</td></tr>
+  <tr><td><b>Assets (any project)</b></td><td class="m">https://sean4e.github.io/4e-ar-studio/assets/{projectId}/…</td></tr>
+  <tr><td><b>Firebase Hosting console</b></td><td class="m">https://console.firebase.google.com/project/ar-studio-4e/hosting</td></tr>
+  <tr><td><b>Firestore console</b></td><td class="m">https://console.firebase.google.com/project/ar-studio-4e/firestore/data/ar_apps</td></tr>
+  <tr><td><b>GitHub repo</b></td><td class="m">https://github.com/Sean4E/4e-ar-studio</td></tr>
+</table>
+
+<!-- ───────────────────── COMMON CONCERNS ───────────────────── -->
+<h2>If you see…</h2>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h3>🐌 Slow cold launch</h3>
+    <p>Check which assets the scene uses + their total size. Big GLBs (&gt; 10 MB) will dominate. Videos don't block — GLBs do.</p>
+  </div>
+  <div class="card">
+    <h3>🟦 404 on an asset right after upload</h3>
+    <p>GitHub Pages propagation — normal for the first ~60 seconds after upload. Studio retries GLB loads; the publish modal waits until every asset is 200 before showing ✅.</p>
+  </div>
+  <div class="card">
+    <h3>🧊 Stuck on old code in browser</h3>
+    <p>Shouldn't happen after v3.10.2's no-cache headers. If it does: hard-refresh once (Ctrl+Shift+R / Cmd+Shift+R). For installed PWAs, the service worker picks up new code on the next online launch.</p>
+  </div>
+  <div class="card">
+    <h3>🧨 Firebase 429 on deploy</h3>
+    <p>Hosting storage quota. Open Firebase Console → Hosting → release retention. Set to a low number (2-5). The rare case — <code>firebase.json</code>'s <code>ignore</code> list keeps releases tiny.</p>
+  </div>
+</div>
+
+<footer>
+  Doc is static — keep this tab open as a reference while you build.<br>
+  Last reviewed: v3.10.2 · 2026-04-14
+</footer>
+
+</body>
+</html>

@@ -287,49 +287,97 @@ Studio.publishProject = async function() {
     statusEl.innerHTML = '<div style="color:var(--orange);font-size:14px;text-align:center;padding:20px">⏳ Publishing…<br><span style="font-size:11px;color:var(--muted)">Uploading assets and waiting for deployment</span></div>';
     document.getElementById('modal-publish').classList.remove('hidden');
 
-    // Track deployment — poll until assets are live
-    const checkUrl = state.objects.find(o => o.glbUrl && typeof o.glbUrl === 'string')?.glbUrl || '';
+    // Gather EVERY GitHub-hosted URL the published app will need —
+    // any of these not-yet-propagated = the player can't render. The
+    // publish modal isn't "Ready" until they're all live.
+    const assetUrls = new Set();
+    const addUrl = u => { if (u && typeof u === 'string' && u.includes('github.io')) assetUrls.add(u); };
+    // GLBs (prefabs + direct instances)
+    (state.prefabs || []).forEach(p => addUrl(p.glbUrl));
+    state.objects.forEach(o => {
+      addUrl(o.glbUrl);
+      // Audio / video / image URLs on components
+      const xr = o.xrComponents || {};
+      Object.values(xr).forEach(cfg => {
+        if (cfg && typeof cfg === 'object') {
+          [cfg.src, cfg.video, cfg.image].forEach(addUrl);
+        }
+      });
+    });
+    // Image targets
+    (state.targets || []).forEach(t => {
+      addUrl(t.luminanceUrl); addUrl(t.originalUrl); addUrl(t.thumbnailUrl);
+    });
+    // Splash + PWA
+    addUrl(state.splash?.logoUrl);
+    addUrl(state.pwa?.icon192Url);
+    addUrl(state.pwa?.icon512Url);
+    addUrl(state.pwa?.appleIconUrl);
+    const allUrls = [...assetUrls];
+    const total = allUrls.length;
 
     const showReady = () => {
       urlEl.value = url;
       Studio.resetQRColors();
       Studio.renderQR(url);
-      statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!<br><span style="font-size:10px;color:var(--muted)">Player v' + Studio.VERSION + '</span></div>';
+      statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!<br><span style="font-size:10px;color:var(--muted)">All assets propagated · Player v' + Studio.VERSION + '</span></div>';
       Studio.toast('Published & deployed ✓', 'ok');
     };
 
-    // For re-publishes with no new assets, data is instant via Firestore
-    // but player code updates via GitHub Action (~45s)
-    const hasNewUploads = state.objects.some(o => o.file && !o.glbUrl) ||
-                          (state.targets || []).some(t => !t.luminanceUrl);
-
-    if (hasNewUploads && checkUrl && checkUrl.includes && checkUrl.includes('github.io')) {
-      Studio.log('Waiting for GitHub Pages deployment…');
+    if (total === 0) {
+      // Firestore-only project — nothing to wait for
+      showReady();
+    } else {
+      // Poll EVERY asset URL until all return 200. Show live
+      // "Assets live: N / TOTAL" progress so the user sees
+      // propagation happening. Firestore write is instant; GitHub
+      // Pages propagation is the variable — usually 30-90s.
+      Studio.log('Waiting for ' + total + ' asset(s) to propagate on GitHub Pages…');
       const start = Date.now();
-      const poll = async () => {
+      const live = new Set();
+
+      const check1 = async (u) => {
         try {
-          const r = await fetch(checkUrl + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
-          if (r.ok) {
-            const sec = Math.round((Date.now() - start) / 1000);
-            Studio.log('Deployed in ' + sec + 's');
-            showReady();
-            return;
-          }
-        } catch(e) {}
-        if (Date.now() - start < 300000) {
-          const sec = Math.round((Date.now() - start) / 1000);
-          statusEl.innerHTML = `<div style="color:var(--orange);font-size:13px;text-align:center">⏳ Deploying… ${sec}s<br><span style="font-size:10px;color:var(--muted)">GitHub Pages rebuilding — usually 1-3 minutes</span></div>`;
-          setTimeout(poll, 5000);
-        } else {
-          // Timeout — show anyway with warning
+          const r = await fetch(u + (u.includes('?') ? '&' : '?') + '_t=' + Date.now(),
+                                { method: 'HEAD', cache: 'no-store' });
+          if (r.ok) live.add(u);
+        } catch (e) { /* retry next tick */ }
+      };
+
+      const paint = (elapsed) => {
+        const n = live.size;
+        const pct = Math.round(100 * n / total);
+        const bar = '<div style="margin-top:8px;background:var(--bg);border-radius:3px;overflow:hidden;height:6px"><div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width .3s"></div></div>';
+        statusEl.innerHTML =
+          '<div style="color:var(--orange);font-size:13px;text-align:center;padding:10px 0">' +
+            '⏳ Assets live: ' + n + ' / ' + total + ' · ' + elapsed + 's' +
+            '<div style="font-size:10px;color:var(--muted);margin-top:3px">GitHub Pages propagating — usually 30s-2min</div>' +
+            bar +
+          '</div>';
+      };
+
+      const tick = async () => {
+        const pending = allUrls.filter(u => !live.has(u));
+        await Promise.all(pending.map(check1));
+        const elapsed = Math.round((Date.now() - start) / 1000);
+        if (live.size === total) {
+          Studio.log('All ' + total + ' assets live in ' + elapsed + 's');
           showReady();
-          statusEl.innerHTML += '<div style="color:var(--orange);font-size:10px;margin-top:4px">Took longer than usual — if it doesn\'t work, wait a moment and try again.</div>';
+          return;
+        }
+        paint(elapsed);
+        if (Date.now() - start < 300000) {
+          setTimeout(tick, 4000);
+        } else {
+          // Timeout — surface the remaining-missing count, still
+          // show the QR so the user can retry in a moment.
+          showReady();
+          statusEl.innerHTML += '<div style="color:var(--orange);font-size:10px;margin-top:4px">' + (total - live.size) + ' asset(s) still propagating — they\'ll catch up shortly.</div>';
         }
       };
-      poll();
-    } else {
-      // Firestore-only (no GitHub assets) — instant
-      showReady();
+
+      paint(0);
+      tick();
     }
     Studio.log('Published: ' + url);
 
@@ -429,7 +477,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.PWA.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.10.2';
+  Studio.VERSION = '3.10.3';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;
