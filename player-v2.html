@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.7">
+<meta name="version" content="3.10.8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -159,7 +159,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.10.7';
+const PLAYER_VERSION = '3.10.8';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 
@@ -577,6 +577,15 @@ if (typeof AFRAME !== 'undefined') {
     init() {
       this._apply = this._apply.bind(this);
       this._flipped = new WeakSet();  // meshes already flipped to avoid double-flip on re-apply
+      // Strip A-Frame's built-in material component so it can't race us.
+      // When `<a-box color="#...">` is parsed, A-Frame attaches `material`
+      // to the entity and calls `mesh.material = ...` on every update
+      // cycle. Our component does the same. Without removing it, the
+      // last writer wins — sometimes ours, sometimes A-Frame's. Removing
+      // it once on init leaves ar-hider-material as the sole owner.
+      if (this.el.components && this.el.components.material) {
+        this.el.removeAttribute('material');
+      }
       this._apply();
       this.el.addEventListener('model-loaded', this._apply);
       this.el.addEventListener('object3dset', this._apply);
@@ -630,6 +639,11 @@ if (typeof AFRAME !== 'undefined') {
     },
     init() {
       this._apply = this._apply.bind(this);
+      // Same rationale as ar-hider-material: strip A-Frame's built-in
+      // material component so it can't race us for mesh.material.
+      if (this.el.components && this.el.components.material) {
+        this.el.removeAttribute('material');
+      }
       this._apply();
       // Re-apply on model-loaded (GLBs load async)
       this.el.addEventListener('model-loaded', this._apply);
@@ -1467,7 +1481,15 @@ function buildEntity(obj, i) {
     const tag = PRIMITIVE_TAG[obj.primitiveType];
     if (tag) {
       const geom = PRIMITIVE_GEOMETRY[obj.primitiveType] || '';
-      return `<${tag} id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}" color="${color}"${geom}${attrs}></${tag}>`;
+      // Omit `color` when a material component owns the surface.
+      // A-Frame maps `color` to its built-in material component, which
+      // races ar-hider-material / ar-material for `mesh.material` and
+      // can overwrite them on subsequent ticks (object3dset, etc.).
+      // Our material components traverse and assign the material
+      // themselves, so skipping color here leaves them uncontested.
+      const hasOwnMaterial = attrs.includes('ar-hider-material') || attrs.includes('ar-material');
+      const colorAttr = hasOwnMaterial ? '' : ` color="${color}"`;
+      return `<${tag} id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${colorAttr}${geom}${attrs}></${tag}>`;
     }
     return '';
   }

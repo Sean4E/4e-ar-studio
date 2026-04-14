@@ -830,13 +830,16 @@ Studio.Viewport = {
         // Occluder. Studio-only toggles control how we PREVIEW the
         // hider — the published player always uses the real
         // ar-hider-material (camera feed shows through).
+        //   solidFill = false (default) → colorWrite:false, truly
+        //                       invisible, matches AR behaviour exactly.
+        //                       Grid + objects behind the hider show
+        //                       through just like the three.js test
+        //                       harness.
         //   solidFill = true  → paint with viewport clear colour so
         //                       it reads as a "hole in the scene"
-        //   solidFill = false → colorWrite:false (truly invisible,
-        //                       only depth), matches AR behaviour
         // `side` controls which face renders. BackSide = portal
         // effect (interior visible because front faces cull away).
-        const useSolidFill = hider === true || hider.solidFill !== false;
+        const useSolidFill = (typeof hider === 'object' && hider !== null && hider.solidFill === true);
         const sideStr = (hider && hider.side) || 'back';
         const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
         const side = sideMap[sideStr] != null ? sideMap[sideStr] : THREE.BackSide;
