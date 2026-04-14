@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.3.2">
+<meta name="version" content="3.3.3">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -33,7 +33,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 #splash{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;transition:opacity .5s ease,background .5s ease;background:var(--sp-bg);color:var(--sp-text)}
 #splash.hidden{opacity:0;pointer-events:none}
 #sp-logo{width:140px;height:56px;margin-bottom:14px;background-image:url(samples/logo_WHT.png);background-size:contain;background-position:center;background-repeat:no-repeat;opacity:.85}
-#sp-title{font-size:20px;font-weight:700;font-family:'Syne',system-ui,sans-serif;text-align:center;padding:0 20px;line-height:1.3}
+#sp-title{font-size:20px;font-weight:700;font-family:'Syne',system-ui,sans-serif;text-align:center;padding:0 20px;line-height:1.3;min-height:26px}
 #sp-subtitle{opacity:.4;font-size:12px;margin-top:6px;text-align:center;display:none}
 #sp-spinner-row{margin-top:20px;display:flex;align-items:center;gap:6px}
 #sp-spinner{width:16px;height:16px;border:2px solid transparent;border-top-color:var(--sp-accent);border-right-color:color-mix(in srgb,var(--sp-accent) 30%,transparent);border-bottom-color:color-mix(in srgb,var(--sp-accent) 30%,transparent);border-left-color:color-mix(in srgb,var(--sp-accent) 30%,transparent);border-radius:50%;animation:spin .8s linear infinite}
@@ -84,10 +84,17 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 <body>
 
 <div id="splash">
-  <!-- Stable-ID splash — applySplash() mutates only these element
-       contents, never the DOM structure. -->
+  <!-- Single source of truth: this splash is ALWAYS the project's
+       splash (as configured in the studio's splash editor). The
+       studio editor defaults to 4E-style values, so uncustomized
+       projects render a 4E-themed splash; customized projects render
+       their own. There is no separate "default vs custom" flow. These
+       stable-ID elements are populated from localStorage cache (first
+       paint on repeat visits) and from Firestore (first-time visits)
+       — applySplash() updates them in place without touching the DOM
+       structure. -->
   <div id="sp-logo" role="img" aria-label="Logo"></div>
-  <div id="sp-title">4E AR</div>
+  <div id="sp-title"></div>
   <div id="sp-subtitle"></div>
   <div id="sp-spinner-row">
     <div id="sp-spinner"></div>
@@ -104,7 +111,8 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
   if (!sp) return;
   var setText = function(id, v) { var e = document.getElementById(id); if (e && v) e.textContent = v; };
   var setShown = function(id, v) { var e = document.getElementById(id); if (!e) return; e.style.display = v ? '' : 'none'; };
-  setText('sp-title', sp.title);
+  // Title: user-set title OR project name (matches applySplash fallback)
+  setText('sp-title', sp.title || sp.name);
   if (sp.subtitle) { setText('sp-subtitle', sp.subtitle); setShown('sp-subtitle', true); }
   if (sp.logoUrl) {
     var logo = document.getElementById('sp-logo');
@@ -143,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.3.2';
+const PLAYER_VERSION = '3.3.3';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
