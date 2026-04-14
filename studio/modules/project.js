@@ -51,12 +51,50 @@ Studio.Project = {
 
     media: [],  // uploaded audio/video/image files { name, url, type }
 
+    // Uploaded 3D models, Unity-style. Each prefab is a SOURCE; scene
+    // objects reference it via `prefabId` and can be instantiated
+    // multiple times with independent transforms / targetIds /
+    // components. Removing an instance from the scene does not remove
+    // the prefab from the library.
+    prefabs: [],  // { id, name, glbUrl, clips[], file?(transient), sortOrder }
+
     // PWA: URLs of generated app icons (populated on publish)
     pwa: { icon192Url: '', icon512Url: '', appleIconUrl: '' },
 
     dirty: false,
     createdAt: null,
     updatedAt: null
+  },
+
+  // ─── Prefab CRUD ───────────────────────────────────────
+  createPrefab(overrides = {}) {
+    return {
+      id: 'pf_' + this._genId(),
+      name: 'Model',
+      glbUrl: '',
+      file: null,     // transient, cleared after upload
+      clips: [],      // animation clip names, detected on first load
+      sortOrder: this.state.prefabs.length,
+      ...overrides
+    };
+  },
+
+  addPrefab(prefab) {
+    this.state.prefabs.push(prefab);
+    this.markDirty();
+    Studio.EventBus.emit('prefab:added', { prefab });
+    return prefab;
+  },
+
+  getPrefab(id) {
+    return this.state.prefabs.find(p => p.id === id) || null;
+  },
+
+  // Find a prefab by its glbUrl (useful for migrating legacy objects
+  // whose glbUrl was stored inline and deduping on import).
+  getPrefabByUrl(url) {
+    if (!url) return null;
+    return this.state.prefabs.find(p => p.glbUrl === url) || null;
   },
 
   // ─── Object CRUD ───────────────────────────────────────
@@ -67,8 +105,9 @@ Studio.Project = {
       type: 'model',       // 'model' | 'primitive'
       primitiveType: null, // 'cube' | 'sphere' | 'cylinder' | 'plane' | 'cone' | 'torus'
       primitiveColor: null,
-      glbUrl: '',
-      file: null,         // transient
+      prefabId: null,      // reference into state.prefabs for model instances
+      glbUrl: '',          // legacy / denormalised; always matches prefab.glbUrl when prefabId is set
+      file: null,         // transient (legacy direct-upload path)
       visible: true,
       targetId: null,      // which image target this object belongs to
       imageToSlam: false,  // on first image-found, promote object to world space (SLAM anchor) so it stays put when target is lost
@@ -120,24 +159,24 @@ Studio.Project = {
     const obj = this.state.objects.splice(idx, 1)[0];
     this.markDirty();
     Studio.EventBus.emit('object:removed', { id, object: obj });
-    // Clean up any GitHub-hosted files owned by this object (GLB, plus
-    // audio/video/image URLs referenced from xrComponents). Fire-and-
-    // forget — network errors are logged, never rethrown.
+    // Clean up any GitHub-hosted media URLs owned by this object
+    // (audio/video/image in xrComponents). Fire-and-forget.
+    //
+    // IMPORTANT: do NOT delete the object's GLB. GLBs live in the
+    // prefab library now — removing an instance from the scene must
+    // not delete the shared prefab file. The prefab is only deleted
+    // when the user explicitly removes it from the library.
     if (Studio.GitHub?.deleteByUrl) {
       const urls = [];
-      if (obj.glbUrl) urls.push(obj.glbUrl);
       const xr = obj.xrComponents || {};
       Object.values(xr).forEach(cfg => {
         if (cfg && typeof cfg === 'object') {
           const u = cfg.src || cfg.video || cfg.image;
-          // Skip A-Frame asset-selectors ('#vid-0-0' etc.) and
-          // anything referenced by OTHER objects still in the scene
           if (u && typeof u === 'string' && !u.startsWith('#')) urls.push(u);
         }
       });
       const stillReferenced = new Set();
       this.state.objects.forEach(o => {
-        if (o.glbUrl) stillReferenced.add(o.glbUrl);
         const x = o.xrComponents || {};
         Object.values(x).forEach(c => {
           if (c && typeof c === 'object') {
@@ -146,13 +185,33 @@ Studio.Project = {
           }
         });
       });
-      // Also keep anything still in the Media Library
       (this.state.media || []).forEach(m => { if (m.url) stillReferenced.add(m.url); });
       urls.filter(u => !stillReferenced.has(u)).forEach(u => {
         Studio.GitHub.deleteByUrl(u).catch(() => {});
       });
     }
     return obj;
+  },
+
+  // Remove a prefab from the library AND all its instances from the scene.
+  // Also deletes the shared GLB from GitHub. This is the explicit
+  // "remove from library" action — different from scene-instance delete.
+  removePrefab(id) {
+    const idx = this.state.prefabs.findIndex(p => p.id === id);
+    if (idx < 0) return null;
+    const prefab = this.state.prefabs.splice(idx, 1)[0];
+
+    // Drop any scene instances that reference this prefab
+    const toRemove = this.state.objects.filter(o => o.prefabId === id).map(o => o.id);
+    toRemove.forEach(oid => this.removeObject(oid));
+
+    // Delete the shared GLB from GitHub
+    if (Studio.GitHub?.deleteByUrl && prefab.glbUrl) {
+      Studio.GitHub.deleteByUrl(prefab.glbUrl).catch(() => {});
+    }
+    this.markDirty();
+    Studio.EventBus.emit('prefab:removed', { id, prefab });
+    return prefab;
   },
 
   getObject(id) {
@@ -174,9 +233,14 @@ Studio.Project = {
         originalUrl: t.originalUrl, luminanceUrl: t.luminanceUrl,
         thumbnailUrl: t.thumbnailUrl, objectIds: [...(t.objectIds || [])],
       })),
+      prefabs: (s.prefabs || []).map(p => ({
+        id: p.id, name: p.name, glbUrl: p.glbUrl,
+        clips: [...(p.clips || [])], sortOrder: p.sortOrder || 0
+      })),
       objects: s.objects.map(o => ({
         id: o.id, name: o.name, type: o.type,
         primitiveType: o.primitiveType || null, primitiveColor: o.primitiveColor || null,
+        prefabId: o.prefabId || null,
         glbUrl: o.glbUrl,
         visible: o.visible, targetId: o.targetId, imageToSlam: !!o.imageToSlam,
         parentId: o.parentId, sortOrder: o.sortOrder,
@@ -238,6 +302,15 @@ Studio.Project = {
     s.createdAt = data.createdAt;
     s.updatedAt = data.updatedAt;
 
+    // Prefabs — restore saved library first
+    s.prefabs = (data.prefabs || []).map(p => ({
+      id: p.id, name: p.name || 'Model',
+      glbUrl: p.glbUrl || '',
+      clips: [...(p.clips || [])],
+      sortOrder: p.sortOrder || 0,
+      file: null,
+    }));
+
     // Parse objects (handle legacy single-model format)
     s.objects = [];
     if (data.objects?.length) {
@@ -245,6 +318,7 @@ Studio.Project = {
         s.objects.push(this.createObject({
           id: od.id, name: od.name, type: od.type || 'model',
           primitiveType: od.primitiveType || null, primitiveColor: od.primitiveColor || null,
+          prefabId: od.prefabId || null,
           glbUrl: od.glbUrl, visible: od.visible !== false,
           targetId: od.targetId || null, imageToSlam: !!od.imageToSlam,
           parentId: od.parentId, sortOrder: od.sortOrder || 0,
@@ -270,6 +344,32 @@ Studio.Project = {
       }));
     }
 
+    // Migration: if any model object has glbUrl but no prefabId, auto-
+    // promote it into a prefab and backfill the objects' prefabId. This
+    // lets pre-prefab projects inherit the library without the user
+    // having to do anything — they just open the project and save.
+    s.objects.forEach(o => {
+      if (o.type === 'model' && o.glbUrl && !o.prefabId) {
+        let pf = this.getPrefabByUrl(o.glbUrl);
+        if (!pf) {
+          pf = this.createPrefab({
+            name: o.name || 'Model',
+            glbUrl: o.glbUrl,
+            clips: [...(o.clips || [])],
+          });
+          s.prefabs.push(pf);
+        }
+        o.prefabId = pf.id;
+      }
+      // Denormalise: ensure instance.glbUrl matches prefab.glbUrl so the
+      // viewport/player can always use obj.glbUrl directly even if only
+      // prefabId was persisted.
+      if (o.prefabId) {
+        const pf = this.getPrefab(o.prefabId);
+        if (pf && pf.glbUrl && o.glbUrl !== pf.glbUrl) o.glbUrl = pf.glbUrl;
+      }
+    });
+
     s.dirty = false;
     Studio.EventBus.emit('project:loaded', { id: s.id, name: s.name });
   },
@@ -285,6 +385,7 @@ Studio.Project = {
     s.scene = { shadowCatcher: true, ambientIntensity: 0.5, directIntensity: 0.8, spawnMode: 'showOnStart' };
     s.splash = { title:'', subtitle:'', bgColor:'#060a18', textColor:'#e2e8f0', accentColor:'#8b5cf6', logoUrl:'', logoFile:null, showSpinner:true, showBranding:true, showLogo:true, showTitle:true, showSubtitle:true, gradient:'', duration:3 };
     s.media = [];
+    s.prefabs = [];
     s.pwa = { icon192Url: '', icon512Url: '', appleIconUrl: '' };
     s.dirty = false;
     Studio.EventBus.emit('project:reset');

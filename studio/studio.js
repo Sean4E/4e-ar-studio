@@ -245,10 +245,25 @@ Studio.publishProject = async function() {
       await Studio.Targets.uploadTargets(base);
     }
 
-    // Upload any models that don't have URLs yet
+    // Upload any PREFAB GLBs that haven't been uploaded yet (user added
+    // a model without a GitHub token set, or the inline upload failed)
+    const pendingPrefabs = (state.prefabs || []).filter(p => p.file && !p.glbUrl);
+    if (pendingPrefabs.length) {
+      Studio.log('Uploading ' + pendingPrefabs.length + ' prefab(s)…');
+      await Promise.all(pendingPrefabs.map(async p => {
+        const path = base + '/prefabs/' + p.id + '.glb';
+        p.glbUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(p.file));
+        p.file = null;
+        // Backfill glbUrl on existing instances of this prefab
+        state.objects.forEach(o => { if (o.prefabId === p.id) o.glbUrl = p.glbUrl; });
+        Studio.log('Uploaded prefab: ' + p.name);
+      }));
+    }
+
+    // Legacy path: objects with inline file/glbUrl but no prefab
     const pending = state.objects.filter(o => o.file && !o.glbUrl);
     if (pending.length) {
-      Studio.log('Uploading ' + pending.length + ' model(s)…');
+      Studio.log('Uploading ' + pending.length + ' legacy model(s)…');
       await Promise.all(pending.map(async o => {
         const path = base + '/' + o.id + '.glb';
         o.glbUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(o.file));
@@ -410,7 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.PWA.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.8.3';
+  Studio.VERSION = '3.9.0';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;

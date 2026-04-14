@@ -170,40 +170,88 @@ Studio.Viewport = {
     document.getElementById('fi-target').click();
   },
 
+  // Upload a GLB from the user → prefab library (not a scene instance).
+  // The user clicks the prefab card afterwards to add instances to the scene.
   async handleModelFile(file) {
     if (!file) return;
-    const obj = Studio.Project.createObject({
+
+    const prefab = Studio.Project.createPrefab({
       name: file.name.replace(/\.\w+$/, ''),
       file: file,
+    });
+
+    // Peek at the GLB to detect animation clips (for UI affordances).
+    // Use a detached loader — we DON'T add the mesh to the scene here;
+    // the scene only gets an instance when the user clicks the prefab.
+    try {
+      const blobUrl = URL.createObjectURL(file);
+      await new Promise((resolve) => {
+        const loader = new THREE.GLTFLoader();
+        loader.load(blobUrl, gltf => {
+          prefab.clips = (gltf.animations || []).map(a => a.name).filter(n => n);
+          URL.revokeObjectURL(blobUrl);
+          resolve();
+        }, null, () => resolve());
+      });
+    } catch (e) { /* non-fatal — clips just stay empty */ }
+
+    Studio.Project.addPrefab(prefab);
+    Studio.Assets.render();
+    Studio.toast(prefab.name + ' added to library', 'ok');
+
+    // Upload immediately so the glbUrl is set before the user publishes
+    const gh = Studio.GitHub.getConfig();
+    if (!gh.token) {
+      Studio.toast(prefab.name + ' in library — needs Publish to upload', 'warn');
+      return;
+    }
+    try {
+      if (!Studio.Project.state.id) Studio.Project.state.id = Studio.Project._genId();
+      const path = 'assets/' + Studio.Project.state.id + '/prefabs/' + prefab.id + '.glb';
+      Studio.toast('Uploading ' + prefab.name + '…', 'ok');
+      prefab.glbUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(file));
+      prefab.file = null;
+      Studio.Project.markDirty();
+      Studio.Assets.render();
+      Studio.toast(prefab.name + ' uploaded ✓', 'ok');
+    } catch(e) {
+      Studio.toast('Upload failed: ' + e.message, 'err');
+      Studio.log('Prefab upload failed: ' + e.message);
+    }
+  },
+
+  // Instantiate a prefab as a new scene object. Multiple calls with the
+  // same prefabId produce independent instances — each with its own
+  // transform, targetId, xrComponents. That's the mechanism for
+  // assigning the same model to multiple image targets.
+  async instantiatePrefab(prefabId) {
+    const prefab = Studio.Project.getPrefab(prefabId);
+    if (!prefab) return;
+
+    const obj = Studio.Project.createObject({
+      name: prefab.name,
+      type: 'model',
+      prefabId: prefab.id,
+      glbUrl: prefab.glbUrl || '',
+      clips: [...(prefab.clips || [])],
       visible: true,
     });
 
-    // Load into 3D scene immediately (from local blob)
-    const blobUrl = URL.createObjectURL(file);
-    await this._loadModelIntoScene(obj, blobUrl);
-    Studio.Project.addObject(obj);
-    this.selectObject(obj.id);
-
-    // Upload to GitHub immediately (blocking — ensures glbUrl is set before save)
-    const gh = Studio.GitHub.getConfig();
-    if (!gh.token) {
-      Studio.toast(obj.name + ' added — needs Publish to upload', 'warn');
-      Studio.log('No GitHub token — model in scene but not uploaded');
+    // Prefer the uploaded URL; fall back to a fresh blob if we're still
+    // mid-upload (covers the window between addPrefab and upload done).
+    let loadUrl = prefab.glbUrl;
+    if (!loadUrl && prefab.file) loadUrl = URL.createObjectURL(prefab.file);
+    if (!loadUrl) {
+      Studio.toast('Prefab has no GLB yet — wait for upload', 'warn');
       return;
     }
 
-    Studio.toast('Uploading ' + obj.name + '…', 'ok');
     try {
-      if (!Studio.Project.state.id) Studio.Project.state.id = Studio.Project._genId();
-      const path = 'assets/' + Studio.Project.state.id + '/' + obj.id + '.glb';
-      const b64 = await Studio.GitHub.file2b64(file);
-      obj.glbUrl = await Studio.GitHub.upload(path, b64);
-      Studio.Project.markDirty();
-      Studio.toast(obj.name + ' uploaded ✓', 'ok');
-      Studio.log('Uploaded: ' + obj.glbUrl);
-    } catch(e) {
-      Studio.toast('Upload failed: ' + e.message, 'err');
-      Studio.log('Upload failed for ' + obj.name + ': ' + e.message);
+      await this._loadModelIntoScene(obj, loadUrl);
+      Studio.Project.addObject(obj);
+      this.selectObject(obj.id);
+    } catch (e) {
+      Studio.toast('Load failed: ' + e.message, 'err');
     }
   },
 
@@ -778,18 +826,20 @@ Studio.Viewport = {
   },
 
   // ─── Load Sample Model ─────────────────────────────────
+  // Load a built-in sample model. Adds it to the prefab library (or
+  // finds an existing prefab for the same URL), then instantiates it.
   async loadSample(url, name) {
     Studio.toast('Loading ' + name + '…', 'ok');
     try {
-      // Resolve to absolute URL for the player to load
       const base = (window.AR_BASE_URL || window.location.origin);
       const absUrl = url.startsWith('http') ? url : base + '/' + url.replace(/^\.\.\//, '');
-      const obj = Studio.Project.createObject({ name: name });
-      // Set glbUrl immediately — samples are already hosted
-      obj.glbUrl = absUrl;
-      await this._loadModelIntoScene(obj, url);
-      Studio.Project.addObject(obj);
-      this.selectObject(obj.id);
+
+      let pf = Studio.Project.getPrefabByUrl(absUrl) || Studio.Project.getPrefabByUrl(url);
+      if (!pf) {
+        pf = Studio.Project.createPrefab({ name, glbUrl: absUrl });
+        Studio.Project.addPrefab(pf);
+      }
+      await this.instantiatePrefab(pf.id);
       Studio.toast(name + ' added ✓', 'ok');
     } catch(e) {
       Studio.toast('Failed: ' + e.message, 'err');

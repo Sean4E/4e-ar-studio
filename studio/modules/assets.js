@@ -11,6 +11,8 @@ Studio.Assets = {
     Studio.EventBus.on('project:reset', () => this.render());
     Studio.EventBus.on('tracking:modeChanged', () => this.render());
     Studio.EventBus.on('target:changed', () => this.render());
+    Studio.EventBus.on('prefab:added', () => this.render());
+    Studio.EventBus.on('prefab:removed', () => this.render());
 
     this.render();
   },
@@ -69,7 +71,7 @@ Studio.Assets = {
     html += `<div class="ast-section">
       <div class="ast-section-title">Upload</div>
       <div class="ast-row">
-        <div class="ast-card ast-upload" onclick="document.getElementById('fi-model').click()" title="Upload GLB/GLTF model">
+        <div class="ast-card ast-upload" onclick="document.getElementById('fi-model').click()" title="Upload GLB/GLTF model to library">
           <div class="ast-card-icon">+</div>
           <div class="ast-card-label">3D Model</div>
           <div class="ast-card-sub">.glb .gltf</div>
@@ -81,6 +83,34 @@ Studio.Assets = {
         </div>
       </div>
     </div>`;
+
+    // ─── Section: 3D Models (prefab library) ────────────
+    // Uploaded GLBs live here as reusable prefabs. Click a card to
+    // instantiate into the scene — one prefab can be instantiated
+    // many times, each instance with its own transform, target, and
+    // components. Removing a scene instance leaves the prefab here.
+    const prefabs = state.prefabs || [];
+    if (prefabs.length > 0) {
+      html += `<div class="ast-section">
+        <div class="ast-section-title">3D Models (${prefabs.length})</div>
+        <div class="ast-row">`;
+      prefabs.forEach(p => {
+        const instanceCount = state.objects.filter(o => o.prefabId === p.id).length;
+        const statusDot = p.glbUrl
+          ? '<span class="ast-dot ast-dot-ok" title="Uploaded"></span>'
+          : '<span class="ast-dot ast-dot-pending" title="Pending upload"></span>';
+        const usage = instanceCount > 0 ? `${instanceCount}×` : 'unused';
+        html += `
+          <div class="ast-card ast-prefab" onclick="Studio.Viewport.instantiatePrefab('${p.id}')" title="${this._esc(p.name)} — click to add instance to scene">
+            <div class="ast-card-icon">📦</div>
+            <div class="ast-card-label">${this._truncate(p.name, 14)}</div>
+            <div class="ast-card-sub">${usage}${statusDot}
+              <button class="ast-copy-btn" onclick="event.stopPropagation(); Studio.Assets.removePrefab('${p.id}')" title="Remove prefab (and all instances)">✕</button>
+            </div>
+          </div>`;
+      });
+      html += `</div></div>`;
+    }
 
     // ─── Section: Media Library ──────────────────────────
     const media = state.media || [];
@@ -148,6 +178,24 @@ Studio.Assets = {
   _primIcon(type) {
     const icons = { cube: '⬜', sphere: '⚪', cylinder: '🔷', plane: '▬', cone: '🔺', torus: '⭕', empty: '◇' };
     return icons[type] || '🔲';
+  },
+
+  removePrefab(id) {
+    const prefab = Studio.Project.getPrefab(id);
+    if (!prefab) return;
+    const instanceCount = Studio.Project.state.objects.filter(o => o.prefabId === id).length;
+    const msg = instanceCount > 0
+      ? `Remove "${prefab.name}" and its ${instanceCount} instance${instanceCount > 1 ? 's' : ''} from the scene? This also deletes the GLB file from GitHub.`
+      : `Remove "${prefab.name}" from the library? This deletes the GLB file from GitHub.`;
+    if (!confirm(msg)) return;
+    Studio.Project.removePrefab(id);
+    this.render();
+    Studio.Hierarchy.render();
+    Studio.toast(prefab.name + ' removed', 'ok');
+  },
+
+  _esc(s) {
+    return String(s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   },
 
   removeMedia(idx) {

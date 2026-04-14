@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.8.3">
+<meta name="version" content="3.9.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -156,7 +156,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.8.3';
+const PLAYER_VERSION = '3.9.0';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -819,17 +819,25 @@ async function init() {
       });
     }
 
-    // GLBs + audio = blocking; videos = background prefetch
+    // GLBs + audio = blocking; videos = background prefetch.
+    // Dedupe URLs so the same prefab GLB isn't fetched multiple times
+    // when instantiated more than once (e.g. one model across multiple
+    // image targets).
     const isVideoUrl = u => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
+    const seen = new Set();
+    const addBlocking = u => { if (u && !seen.has(u)) { seen.add(u); blocking.push(fetch(u, { mode: 'cors' }).catch(() => {})); } };
+    const addBgVideo = u => { if (u && !seen.has(u)) { seen.add(u); bgPrefetch.push(u); } };
+    // Also preload prefab GLBs that might not yet be instantiated
+    (APP.prefabs || []).forEach(p => addBlocking(p.glbUrl));
     (APP.objects || []).forEach(o => {
-      if (o.glbUrl) blocking.push(fetch(o.glbUrl, { mode: 'cors' }).catch(() => {}));
+      addBlocking(o.glbUrl);
       const xr = o.xrComponents || {};
       Object.values(xr).forEach(cfg => {
         if (cfg && typeof cfg === 'object') {
           const url = cfg.src || cfg.video;
           if (url && typeof url === 'string' && !url.startsWith('#')) {
-            if (isVideoUrl(url)) bgPrefetch.push(url);
-            else blocking.push(fetch(url, { mode: 'cors' }).catch(() => {}));
+            if (isVideoUrl(url)) addBgVideo(url);
+            else addBlocking(url);
           }
         }
       });
@@ -1027,8 +1035,31 @@ function _esc(s) { return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'
 // ═══════════════════════════════════════════════════════════
 // OBJECT BUILDER (shared across all modes)
 // ═══════════════════════════════════════════════════════════
+
+// Resolve a model instance's GLB URL. Instances reference prefabs via
+// prefabId; legacy projects embedded glbUrl on the object directly.
+// Try prefab lookup first, fall back to the object's own glbUrl.
+function resolveGlbUrl(obj) {
+  if (obj.prefabId && APP.prefabs) {
+    const pf = APP.prefabs.find(p => p.id === obj.prefabId);
+    if (pf && pf.glbUrl) return pf.glbUrl;
+  }
+  return obj.glbUrl || '';
+}
+
 function getObjects() {
-  if (APP.objects?.length) return APP.objects.filter(o => (o.glbUrl || o.type === 'primitive') && o.visible !== false);
+  if (APP.objects?.length) {
+    // Decorate each model instance with its resolved glbUrl so the
+    // rest of the pipeline (buildAssets, buildEntity, preload) keeps
+    // working against o.glbUrl without caring about the prefab layer.
+    APP.objects.forEach(o => {
+      if (o.type !== 'primitive') {
+        const url = resolveGlbUrl(o);
+        if (url) o.glbUrl = url;
+      }
+    });
+    return APP.objects.filter(o => (o.glbUrl || o.type === 'primitive') && o.visible !== false);
+  }
   if (APP.glbUrl) return [{
     id:'legacy', glbUrl:APP.glbUrl,
     transform:{ position:{x:APP.posX||0,y:APP.posY||0,z:APP.posZ||0}, rotation:{x:APP.rotX||0,y:APP.rotY||0,z:APP.rotZ||0}, scale:{x:APP.scale||1,y:APP.scale||1,z:APP.scale||1} },
