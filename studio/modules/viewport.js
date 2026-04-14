@@ -62,6 +62,26 @@ Studio.Viewport = {
     dir.position.set(3, 5, 4);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
+    // Tighten the shadow camera's orthographic frustum around the
+    // authoring scene. DirectionalLight defaults to left/right/top/
+    // bottom = ±5 and near/far = 0.5/500 — perfect for a 10m scene,
+    // awful for ours where primitives are 0.3m. Each shadow texel
+    // ends up covering a huge area, giving pixelated / jittery
+    // shadows. A 4m cube of coverage (±2) with near 0.1 / far 20
+    // matches what the studio actually renders; combined with the
+    // existing 2048² map that's ~0.002m per texel — clean edges.
+    dir.shadow.camera.left = -2;
+    dir.shadow.camera.right = 2;
+    dir.shadow.camera.top = 2;
+    dir.shadow.camera.bottom = -2;
+    dir.shadow.camera.near = 0.1;
+    dir.shadow.camera.far = 20;
+    // Bias nudges the shadow comparison slightly to avoid "shadow
+    // acne" (self-shadowing stripes). normalBias moves sample along
+    // surface normals to cover curvature mismatches on thin geometry.
+    dir.shadow.bias = -0.0005;
+    dir.shadow.normalBias = 0.02;
+    dir.shadow.camera.updateProjectionMatrix();
     this.scene.add(dir);
 
     // Grid + axes. Grid gets an explicit LOW renderOrder so it draws
@@ -1008,14 +1028,23 @@ Studio.Viewport = {
     obj.mesh.traverse(c => {
       if (!c.isMesh) return;
       if (!c.userData._origMat) c.userData._origMat = c.material;
+      // Cache original castShadow too, for restoration when hider off.
+      if (c.userData._origCastShadow === undefined) {
+        c.userData._origCastShadow = c.castShadow;
+      }
 
       const isFlipped = !!c.userData._hiderFlipped;
       if (wantFlip !== isFlipped) this._flipMeshWinding(c);
 
       if (overrideMat) {
         c.material = overrideMat;
+        // Hider also applies to GLBs: invisible mesh, no shadow cast.
+        c.renderOrder = hider ? -5 : 0;
+        c.castShadow = hider ? false : c.userData._origCastShadow;
       } else if (c.userData._origMat) {
         c.material = c.userData._origMat;
+        c.renderOrder = 0;
+        c.castShadow = c.userData._origCastShadow;
       }
 
       meshInfo.push({
@@ -1023,6 +1052,7 @@ Studio.Viewport = {
         materialType: c.material?.type,
         colorWrite: c.material?.colorWrite,
         side: c.material?.side,
+        castShadow: c.castShadow,
       });
     });
 
@@ -1058,6 +1088,7 @@ Studio.Viewport = {
     ];
     const header = [
       'index','name','type','objId','visible','renderOrder','frustumCulled',
+      'castShadow','receiveShadow',
       'posX','posY','posZ','scaleX','scaleY','scaleZ',
       'matType','colorWrite','depthWrite','depthTest','transparent','opacity','side'
     ];
@@ -1075,6 +1106,8 @@ Studio.Viewport = {
         o.visible,
         o.renderOrder,
         o.frustumCulled,
+        o.castShadow,
+        o.receiveShadow,
         p.x.toFixed(3), p.y.toFixed(3), p.z.toFixed(3),
         s.x.toFixed(3), s.y.toFixed(3), s.z.toFixed(3),
         m.type || '',

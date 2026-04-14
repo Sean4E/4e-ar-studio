@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.27">
+<meta name="version" content="3.10.28">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -605,7 +605,9 @@ if (typeof AFRAME !== 'undefined') {
       };
       const mat = new THREE.MeshStandardMaterial();
       mat.colorWrite = false;
-      mat.side = sideMap[this.data.side] != null ? sideMap[this.data.side] : THREE.BackSide;
+      // Default side is FrontSide (classic occluder). Matches the schema
+      // default and the studio's applyMaterial path.
+      mat.side = sideMap[this.data.side] != null ? sideMap[this.data.side] : THREE.FrontSide;
       root.traverse(node => {
         if (!node.isMesh) return;
         if (this.data.invertNormals && !this._flipped.has(node) && node.geometry && node.geometry.index) {
@@ -618,6 +620,25 @@ if (typeof AFRAME !== 'undefined') {
           this._flipped.add(node);
         }
         node.material = mat;
+        // Render order: the hider must draw BEFORE other user content
+        // so its depth is in the buffer when they try to draw and can
+        // be culled where behind it. Three.js's default opaque sort
+        // uses material.id as a tiebreaker, and since we build this
+        // material fresh it always has the highest id — meaning it
+        // would otherwise render LAST in the opaque pass, by which
+        // point surrounding user meshes have already painted colour.
+        // Explicit negative renderOrder forces it before content that
+        // hasn't set its own renderOrder.
+        node.renderOrder = -5;
+        // An invisible hider still casts a shadow by default because
+        // the shadow pass uses depth, not colour. Disable it so we
+        // don't get a dark cube-silhouette on surfaces below.
+        node.castShadow = false;
+        // Don't receive shadows either — a hider with colorWrite:false
+        // would darken itself based on shadow depth even though it's
+        // not drawing colour, but it can affect neighbouring meshes if
+        // misused. Safe default off.
+        node.receiveShadow = false;
       });
     },
     remove() {
