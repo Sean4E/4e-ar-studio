@@ -6,8 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
+<!-- Baseline favicon shown before applyPWA() runs and as a fallback for
+     projects that haven't generated PWA icons yet. applyPWA() upserts
+     these to the project's logo once Firestore data resolves. -->
+<link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
+<link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.8.1">
+<meta name="version" content="3.8.2">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +156,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.8.1';
+const PLAYER_VERSION = '3.8.2';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -871,44 +876,62 @@ function applyPWA(app) {
   const sp = app.splash || {};
   const pwa = app.pwa || {};
   const name = sp.title || app.name || '4E AR';
-  const shortName = (name || '4E AR').slice(0, 12);
+  // For Chromium install prompt + iOS home-screen label. iOS truncates
+  // visually anyway; passing the full name lets it pick the best fit
+  // rather than getting a hard-cut "TeachCeoil_0".
+  const shortName = name;
   const bg = sp.bgColor || '#060a18';
   const theme = sp.accentColor || '#8b5cf6';
 
-  // Update document title and theme color
+  // Fall back to the default 4E logo when a project hasn't uploaded
+  // PWA icons yet (e.g. saved before PWA generation, or upload failed).
+  // Using the same logo on every slot keeps the icon consistent across
+  // browser tab, iOS home screen, and Chromium install.
+  const FALLBACK = 'samples/logo_WHT.png';
+  const icon192 = pwa.icon192Url || FALLBACK;
+  const icon512 = pwa.icon512Url || FALLBACK;
+  const iconApple = pwa.appleIconUrl || FALLBACK;
+
+  // Document title (browser tab + history)
   document.title = name;
-  let themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (!themeMeta) {
-    themeMeta = document.createElement('meta');
-    themeMeta.name = 'theme-color';
-    document.head.appendChild(themeMeta);
-  }
-  themeMeta.content = bg;
 
-  // apple-mobile-web-app-title for iOS home screen
-  let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-  if (!appleTitle) {
-    appleTitle = document.createElement('meta');
-    appleTitle.name = 'apple-mobile-web-app-title';
-    document.head.appendChild(appleTitle);
-  }
-  appleTitle.content = shortName;
+  // Helper to upsert a meta or link tag by selector
+  const upsertMeta = (name, content) => {
+    let m = document.querySelector(`meta[name="${name}"]`);
+    if (!m) { m = document.createElement('meta'); m.name = name; document.head.appendChild(m); }
+    m.content = content;
+  };
+  const upsertLink = (selector, attrs) => {
+    let l = document.querySelector(selector);
+    if (!l) { l = document.createElement('link'); document.head.appendChild(l); }
+    Object.entries(attrs).forEach(([k, v]) => l.setAttribute(k, v));
+    return l;
+  };
 
-  // apple-touch-icon
-  if (pwa.appleIconUrl) {
-    let touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
-    if (!touchIcon) {
-      touchIcon = document.createElement('link');
-      touchIcon.rel = 'apple-touch-icon';
-      document.head.appendChild(touchIcon);
-    }
-    touchIcon.href = pwa.appleIconUrl;
-  }
+  // Theme color (browser chrome on mobile, status bar on PWA)
+  upsertMeta('theme-color', bg);
+  // iOS home-screen label
+  upsertMeta('apple-mobile-web-app-title', name);
 
-  // Build manifest
+  // Browser tab favicon — covers desktop browsers and mobile tabs.
+  // Use the 192px PNG; modern browsers handle scaling.
+  upsertLink('link[rel="icon"]', { rel: 'icon', type: 'image/png', sizes: '192x192', href: icon192 });
+  upsertLink('link[rel="shortcut icon"]', { rel: 'shortcut icon', type: 'image/png', href: icon192 });
+  // iOS home screen icon (shown on Add to Home Screen)
+  upsertLink('link[rel="apple-touch-icon"]', { rel: 'apple-touch-icon', sizes: '180x180', href: iconApple });
+  // High-res variant (Chromium picks this for install prompt previews)
+  upsertLink('link[rel="apple-touch-icon"][sizes="192x192"]', { rel: 'apple-touch-icon', sizes: '192x192', href: icon192 });
+
+  // Build PWA manifest. Always emits at least one icon (fallback) so
+  // Chromium's install prompt always has something to show.
   const icons = [];
   if (pwa.icon192Url) icons.push({ src: pwa.icon192Url, sizes: '192x192', type: 'image/png', purpose: 'any' });
   if (pwa.icon512Url) icons.push({ src: pwa.icon512Url, sizes: '512x512', type: 'image/png', purpose: 'any' });
+  if (!icons.length) {
+    // Resolve fallback to absolute URL so manifest icons work cross-origin
+    const abs = new URL(FALLBACK, location.href).href;
+    icons.push({ src: abs, sizes: '192x192', type: 'image/png', purpose: 'any' });
+  }
 
   const manifest = {
     name,
@@ -922,18 +945,11 @@ function applyPWA(app) {
     icons,
   };
 
-  // Inject manifest via data URL so there's no separate file to host
+  // Inject manifest via data URL — avoids a separate hosted JSON file
   const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-  const manifestUrl = URL.createObjectURL(manifestBlob);
-  let linkManifest = document.querySelector('link[rel="manifest"]');
-  if (!linkManifest) {
-    linkManifest = document.createElement('link');
-    linkManifest.rel = 'manifest';
-    document.head.appendChild(linkManifest);
-  }
-  linkManifest.href = manifestUrl;
+  upsertLink('link[rel="manifest"]', { rel: 'manifest', href: URL.createObjectURL(manifestBlob) });
 
-  // Register service worker (required for install prompt on Chromium)
+  // Service worker satisfies Chrome's install prompt criteria
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
   }
