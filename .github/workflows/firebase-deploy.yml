@@ -22,6 +22,11 @@ on:
       - 'sw.js'
       - 'samples/**'
       - 'studio/**'
+      # CSV dumps written by the 🔍 diagnose button are artefacts, not
+      # code. Negative pattern excludes them — otherwise every debug
+      # click would publish a new studio version and waste Firebase
+      # hosting's daily deploy budget.
+      - '!studio/diagnose/**'
       - 'projects.html'
       - 'firebase.json'
       - 'firestore.rules'

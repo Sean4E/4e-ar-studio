@@ -1088,7 +1088,7 @@ Studio.Viewport = {
     rows.forEach(row => lines.push(row.map(csvEscape).join(',')));
     const csv = lines.join('\n');
 
-    // Download as file.
+    // 1. Save locally as a download, so you always have a copy.
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1099,8 +1099,31 @@ Studio.Viewport = {
     a.remove();
     URL.revokeObjectURL(url);
 
-    Studio.toast('Diagnose CSV downloaded (' + rows.length + ' meshes)', 'ok');
-    Studio.log('[diagnose] ' + rows.length + ' meshes dumped to CSV');
+    // 2. Also upload to the GitHub repo at studio/diagnose/latest.csv
+    //    so whoever is debugging (including Claude) can read it via a
+    //    stable URL without needing the user to upload manually.
+    //    Overwrites the previous latest on each click — if you want
+    //    to preserve history, save the downloaded file somewhere.
+    //    This path is excluded from the Firebase deploy workflow so
+    //    the upload doesn't trigger a studio deploy.
+    const ghPath = 'studio/diagnose/latest.csv';
+    const b64 = btoa(unescape(encodeURIComponent(csv)));  // utf8-safe btoa
+    (async () => {
+      try {
+        if (!Studio.GitHub?.getConfig().token) {
+          Studio.toast('CSV downloaded ' + rows.length + ' meshes · GitHub token not set so not uploaded', 'warn');
+          return;
+        }
+        await Studio.GitHub.upload(ghPath, b64);
+        const cfg = Studio.GitHub.getConfig();
+        const rawUrl = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${cfg.branch}/${ghPath}`;
+        Studio.toast('Diagnose saved: ' + rows.length + ' meshes (file + GitHub)', 'ok');
+        Studio.log('[diagnose] uploaded to ' + rawUrl);
+      } catch (e) {
+        Studio.toast('Diagnose CSV downloaded but upload failed: ' + e.message, 'warn');
+        Studio.log('[diagnose] upload error: ' + e.message);
+      }
+    })();
     return { meta, header, rows };
   },
 

@@ -18,6 +18,7 @@
       "_BACKUPS/**",
       "_XREXTRAS/**",
       "assets/**",
+      "studio/diagnose/**",
       "builder.html",
       "devstudio.html",
       ".git/**",
