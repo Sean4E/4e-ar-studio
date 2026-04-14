@@ -15,7 +15,15 @@
       "GLB_Files/**",
       "Images/**",
       "_LOGOS/**",
+      "_BACKUPS/**",
+      "_XREXTRAS/**",
+      "assets/**",
+      "studio/**",
+      "projects.html",
+      "builder.html",
+      "devstudio.html",
       ".git/**",
+      ".github/**",
       "node_modules/**"
     ],
     "headers": [

@@ -2,6 +2,23 @@ name: Deploy Player to Firebase Hosting
 on:
   push:
     branches: [main]
+    # Firebase only serves the player shell. Studio asset uploads via
+    # the GitHub Contents API produce commits that ONLY touch assets/,
+    # splash-logo.png, etc. — those are served by GitHub Pages and
+    # should not trigger a Firebase deploy (or we burn through
+    # Hosting storage quota turning every asset upload into a new
+    # hosted version of the whole repo).
+    paths:
+      - 'player-v2.html'
+      - 'player.html'
+      - 'config.js'
+      - 'sw.js'
+      - 'samples/**'
+      - 'firebase.json'
+      - 'firestore.rules'
+      - '.github/workflows/firebase-deploy.yml'
+  # Manual re-run in case a deploy is ever needed without a file change
+  workflow_dispatch:
 
 jobs:
   deploy:
