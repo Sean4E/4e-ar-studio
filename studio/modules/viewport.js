@@ -175,6 +175,7 @@ Studio.Viewport = {
     const obj = Studio.Project.createObject({
       name: file.name.replace(/\.\w+$/, ''),
       file: file,
+      visible: true,
     });
 
     // Load into 3D scene immediately (from local blob)
@@ -732,6 +733,7 @@ Studio.Viewport = {
       type: 'primitive',
       primitiveType: type,
       primitiveColor: '#' + def.color.toString(16).padStart(6, '0'),
+      visible: true,   // explicit so a stale createObject default can never make new primitives invisible
     });
 
     mesh.userData._objId = obj.id;

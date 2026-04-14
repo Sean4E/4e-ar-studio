@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.7.0">
+<meta name="version" content="3.7.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.7.0';
+const PLAYER_VERSION = '3.7.1';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -1105,7 +1105,12 @@ function buildSLAM() {
         ${buildAssets(objects)}
       </a-assets>
 
-      <a-camera id="camera" position="0 8 0"
+      <!-- Camera starts at average eye height; SLAM tracking takes over
+           the pose as soon as it's available. Previously this was set
+           to (0, 8, 0) which placed the camera 8m above the ground —
+           any object near the world origin would be far below the
+           initial frame and appear "missing" until SLAM activates. -->
+      <a-camera id="camera" position="0 1.6 0"
         raycaster="objects: .cantap"
         cursor="fuse: false; rayOrigin: mouse;">
       </a-camera>
@@ -1268,7 +1273,8 @@ function buildImageNative(objects) {
         ${buildAssets(objects)}
       </a-assets>
 
-      <a-camera id="camera" position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-camera id="camera" position="0 0 0" look-controls="enabled: false"
+        ${needsWorld ? 'raycaster="objects: .cantap" cursor="fuse: false; rayOrigin: mouse;"' : ''}></a-camera>
       <a-light type="ambient" intensity="${ambInt}"></a-light>
       <a-light type="directional" intensity="${dirInt}" position="2 4 3"></a-light>
       ${groundEl}
