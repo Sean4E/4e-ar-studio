@@ -11,27 +11,6 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 
-<!-- Self-healing version check (see studio/index.html for safety notes). -->
-<script>
-(function() {
-  if (/[?&]_v=/.test(location.search)) return;
-  try { if (sessionStorage.getItem('_4e_vcheck') === '1') return; } catch(e) {}
-  const meta = document.querySelector('meta[name="version"]');
-  const current = meta && meta.content || '';
-  if (!current) return;
-  fetch(location.pathname + '?_c=' + Date.now(), { cache: 'no-store' })
-    .then(r => r.ok ? r.text() : '')
-    .then(html => {
-      const m = html.match(/<meta name="version" content="([^"]+)">/);
-      if (!m || m[1] === current) return;
-      console.warn('[4E] Projects v' + current + ' is stale (live: v' + m[1] + '). Reloading...');
-      try { sessionStorage.setItem('_4e_vcheck', '1'); } catch(e) {}
-      location.replace(location.pathname + '?_v=' + Date.now());
-    })
-    .catch(() => {});
-})();
-</script>
-
 <link rel="icon" type="image/png" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" href="samples/logo_WHT.png">
 <meta name="theme-color" content="#0a0e1a">

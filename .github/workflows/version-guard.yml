@@ -1,0 +1,88 @@
+name: Version Guard
+
+# Purpose: make the v3.10.6 bug physically impossible to ship again.
+# That bug came from a hardcoded `Studio.VERSION = '3.10.6'` constant
+# that drifted behind the <meta name="version"> tag. This workflow
+# scans every push for:
+#   1. any hardcoded semver-looking version in our code files, and
+#   2. any drift between the studio and player meta version tags.
+# If either check fails, the build is red and deploys are blocked.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check — no hardcoded version strings in code
+        shell: bash
+        run: |
+          set -eo pipefail
+          # Files we police. The ONLY legal home for a semver string is
+          # the <meta name="version"> tag in studio/index.html and
+          # player-v2.html. Anywhere else, it's a time bomb.
+          FILES=(
+            "studio/studio.js"
+            "studio/modules/"
+            "sw.js"
+          )
+          # Pattern: the word "version" (any case), anything not an
+          # equals/quote, then = followed by a quoted semver. Catches:
+          #   Studio.VERSION = '3.10.6'
+          #   const PLAYER_VERSION = '3.10.7'
+          #   APP_VERSION='1.2.3'
+          #   const VERSION_STRING = "2.3.4"
+          # Doesn't fire on the legal meta tag, doesn't fire on code
+          # that reads version from the DOM (no quoted semver literal).
+          PATTERN="version[^=\"']*=[[:space:]]*[\"'][0-9]+\.[0-9]+\.[0-9]+[\"']"
+
+          HITS=0
+          for f in "${FILES[@]}"; do
+            if [ -d "$f" ]; then
+              if grep -inrE "$PATTERN" "$f" 2>/dev/null; then HITS=1; fi
+            elif [ -f "$f" ]; then
+              if grep -inE "$PATTERN" "$f" 2>/dev/null; then HITS=1; fi
+            fi
+          done
+
+          if [ $HITS -ne 0 ]; then
+            echo ""
+            echo "::error::Hardcoded version string found in code."
+            echo "The ONLY place a version number belongs is the"
+            echo "<meta name=\"version\" content=\"...\"> tag in"
+            echo "studio/index.html and player-v2.html."
+            echo ""
+            echo "Read the version at runtime instead:"
+            echo "  const V = document.querySelector('meta[name=\"version\"]').content;"
+            exit 1
+          fi
+          echo "✓ No hardcoded version strings in code."
+
+      - name: Check — studio and player versions match
+        shell: bash
+        run: |
+          set -eo pipefail
+          # Portable extractor (no `grep -P` — fails on locales without UTF-8).
+          STUDIO=$(sed -nE 's|.*<meta name="version" content="([^"]+)">.*|\1|p' studio/index.html | head -1)
+          PLAYER=$(sed -nE 's|.*<meta name="version" content="([^"]+)">.*|\1|p' player-v2.html | head -1)
+
+          if [ -z "$STUDIO" ]; then
+            echo "::error::studio/index.html has no <meta name=\"version\">"
+            exit 1
+          fi
+          if [ -z "$PLAYER" ]; then
+            echo "::error::player-v2.html has no <meta name=\"version\">"
+            exit 1
+          fi
+          if [ "$STUDIO" != "$PLAYER" ]; then
+            echo "::error::Version drift — studio=$STUDIO  player=$PLAYER"
+            echo "Studio and player must bump together. Run ./bump-version.sh"
+            exit 1
+          fi
+          echo "✓ Studio and player both at v$STUDIO"
