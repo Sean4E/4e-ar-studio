@@ -9,7 +9,7 @@
 // no-cache headers on sw.js (firebase.json) ensure this file itself
 // is re-fetched promptly instead of living for hours in the browser
 // HTTP cache.
-const CACHE = '4e-ar-shell-v2';
+const CACHE = '4e-ar-shell-v3';
 const SHELL = ['/player-v2.html', '/config.js'];
 
 self.addEventListener('install', e => {
@@ -30,6 +30,13 @@ self.addEventListener('fetch', e => {
   // Only handle our own origin's shell; let the browser handle everything else
   if (url.origin !== self.location.origin) return;
   if (e.request.method !== 'GET') return;
+  // Never intercept studio, projects dashboard, or anything outside the
+  // player shell. The studio is no-cache by design and must hit origin
+  // every time. Earlier versions of this SW didn't opt these paths out,
+  // which meant we became a candidate cause for any "stuck on an old
+  // version" report even though the fetch handler was network-first.
+  if (url.pathname.startsWith('/studio/')) return;
+  if (url.pathname === '/projects.html')  return;
 
   e.respondWith(
     fetch(e.request)

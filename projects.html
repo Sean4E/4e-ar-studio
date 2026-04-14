@@ -4,6 +4,37 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio — Projects</title>
+<meta name="version" content="1.0.1">
+
+<!-- No-cache everywhere: covers Live Server, offline, proxies. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<!-- Self-healing version check (see studio/index.html for rationale). -->
+<script>
+(function() {
+  if (/[?&]_v=/.test(location.search)) return;
+  const current = document.querySelector('meta[name="version"]')?.content || '';
+  if (!current) return;
+  fetch(location.pathname + '?_c=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.text() : '')
+    .then(html => {
+      const m = html.match(/<meta name="version" content="([^"]+)">/);
+      if (!m || m[1] === current) return;
+      Promise.all([
+        'serviceWorker' in navigator
+          ? navigator.serviceWorker.getRegistrations().then(regs => Promise.all(regs.map(r => r.unregister())))
+          : Promise.resolve(),
+        'caches' in window
+          ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+          : Promise.resolve(),
+      ]).then(() => location.replace(location.pathname + '?_v=' + Date.now()));
+    })
+    .catch(() => {});
+})();
+</script>
+
 <link rel="icon" type="image/png" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" href="samples/logo_WHT.png">
 <meta name="theme-color" content="#0a0e1a">
