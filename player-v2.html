@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.6.0">
+<meta name="version" content="3.6.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,8 +151,14 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.6.0';
+const PLAYER_VERSION = '3.6.1';
 const el = id => document.getElementById(id);
+// Stamp version on the splash branding line as soon as JS runs, so we
+// never ship the splash with a stale or missing version string.
+(function() {
+  const b = document.getElementById('sp-branding');
+  if (b) b.textContent = 'Powered by 4E AR Studio v' + PLAYER_VERSION;
+})();
 let APP = null, arScene = null;
 
 // Direct audio control — simple <audio> elements, controlled by image targets
@@ -636,14 +642,26 @@ async function init() {
     // Custom splash
     applySplash(APP);
 
-    // Preload ALL assets in parallel during splash — targets, audio, GLB, video
+    // Preload assets in parallel during splash. CRITICAL: we split
+    // assets into two categories:
+    //   - BLOCKING: small files the scene build can't really proceed
+    //     without (image target luminance PNGs — 8th Wall needs these
+    //     for tracker init; GLB models; audio). Typically KBs each.
+    //   - BACKGROUND: video files. These can be tens of MB. We DO
+    //     kick off their download so the browser HTTP cache warms up
+    //     while the user watches the splash, but we DON'T await them.
+    //     When an image target is found and the <video> element loads,
+    //     it reads from cache (often-fully-buffered or streaming).
+    //     This keeps splash duration predictable regardless of video
+    //     size, while still benefiting from early prefetch.
     setSplashStatus('Preloading assets…');
-    const preloads = [];
+    const blocking = [];
+    const bgPrefetch = [];
 
-    // Image target luminance images
+    // Image target luminance images — blocking (needed by tracker)
     if (APP.targets && APP.targets.length > 0) {
       APP.targets.forEach(t => {
-        if (t.luminanceUrl) preloads.push(new Promise(res => {
+        if (t.luminanceUrl) blocking.push(new Promise(res => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = img.onerror = () => res();
@@ -652,23 +670,29 @@ async function init() {
       });
     }
 
-    // GLB models, audio files, video files from xrComponents
+    // GLBs + audio = blocking; videos = background prefetch
+    const isVideoUrl = u => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
     (APP.objects || []).forEach(o => {
-      if (o.glbUrl) preloads.push(fetch(o.glbUrl, { mode: 'cors' }).catch(() => {}));
+      if (o.glbUrl) blocking.push(fetch(o.glbUrl, { mode: 'cors' }).catch(() => {}));
       const xr = o.xrComponents || {};
       Object.values(xr).forEach(cfg => {
         if (cfg && typeof cfg === 'object') {
           const url = cfg.src || cfg.video;
           if (url && typeof url === 'string' && !url.startsWith('#')) {
-            preloads.push(fetch(url, { mode: 'cors' }).catch(() => {}));
+            if (isVideoUrl(url)) bgPrefetch.push(url);
+            else blocking.push(fetch(url, { mode: 'cors' }).catch(() => {}));
           }
         }
       });
     });
 
-    if (preloads.length > 0) {
-      setSplashStatus(`Preloading ${preloads.length} asset${preloads.length > 1 ? 's' : ''}…`);
-      await Promise.all(preloads);
+    // Fire background video prefetches (non-awaited) — they warm the
+    // HTTP cache in parallel with XR8 init without holding up splash.
+    bgPrefetch.forEach(u => { fetch(u, { mode: 'cors' }).catch(() => {}); });
+
+    if (blocking.length > 0) {
+      setSplashStatus(`Preloading ${blocking.length} asset${blocking.length > 1 ? 's' : ''}…`);
+      await Promise.all(blocking);
     }
 
     setSplashStatus('Waiting for AR engine…');
