@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio</title>
-<meta name="version" content="3.10.24">
+<meta name="version" content="3.10.25">
 
 <!-- Tell every cache layer (browser, VSCode Live Server, any proxy) that
      this document must be revalidated on every load. Firebase Hosting
@@ -100,7 +100,7 @@
     <div class="tb-spacer"></div>
 
     <span class="tb-status" id="tb-status"></span>
-    <button class="tb-btn" onclick="Studio.Viewport.diagnoseScene()" title="Dump scene state to DevTools console — click while DevTools is open, then open Console tab to see the output">🔍 Diagnose</button>
+    <button class="tb-btn" onclick="Studio.Viewport.diagnoseScene()" title="Download scene diagnostic CSV — for debugging render / material / hider issues">🔍</button>
     <button class="tb-btn" id="tb-token" onclick="Studio.openTokenModal()" title="Enter / update your GitHub Personal Access Token">🔑 Token</button>
     <a href="../projects.html" class="tb-btn" title="Project dashboard">📁</a>
     <button class="tb-btn" onclick="Studio.previewProject()" title="Preview QR code">▶ Preview</button>

@@ -929,6 +929,18 @@ Studio.Viewport = {
         // by not having a shadow map at all. For primitives with no
         // hider, cast shadows as usual.
         newMesh.castShadow = !(hider) && obj.primitiveType !== 'empty';
+        // CRITICAL for occluder / boolean-cutter behaviour: the hider
+        // must render BEFORE other opaque objects so its depth is in
+        // the buffer when they try to draw. Three.js's opaque sort
+        // (r147 WebGLRenderLists painterSortStable) uses material.id
+        // as a tie-break, and since we rebuild the hider material on
+        // every toggle, its material.id creeps above everything else
+        // in the scene — the hider ends up drawn LAST, by which point
+        // surrounding meshes have already painted color into the
+        // framebuffer and the hider's depth-write is too late to hide
+        // them. Explicit negative renderOrder forces "first in opaque
+        // pass" regardless of when the material was created.
+        newMesh.renderOrder = hider ? -1 : 0;
         newMesh.userData._objId = obj.id;
         newMesh.userData._primitiveType = obj.primitiveType;
 
@@ -1014,57 +1026,82 @@ Studio.Viewport = {
     }
   },
 
-  // Dump everything we can about the scene's render state so we can
-  // pinpoint why a hider cube isn't occluding. Outputs TWO tables:
-  //   1. Your primitives/GLBs (objects with an objId) — the things
-  //      you actually placed in the scene.
-  //   2. Any mesh that writes depth AND color (potentially paints over
-  //      the hider's pixels): suspects for "cube invisible but doesn't
-  //      occlude" bugs.
-  // Uses console.table() so every property is visible in one line,
-  // no expanding required.
+  // Dumps every mesh's render-critical properties to a CSV file and
+  // triggers a browser download. Drag the file into chat or open it
+  // in a spreadsheet to inspect. Covers the scene's renderer state
+  // as a header, then one row per mesh: position, scale, material
+  // flags (colorWrite, depthWrite, depthTest, transparent, opacity,
+  // side), renderOrder, visibility. Enough to diagnose any occlusion
+  // / depth-sort issue without needing to paste into the console.
   diagnoseScene() {
     const r = this.renderer;
-    const rendererState = {
-      autoClear:       r.autoClear,
-      autoClearColor:  r.autoClearColor,
-      autoClearDepth:  r.autoClearDepth,
-      sortObjects:     r.sortObjects,
-      shadowMap:       r.shadowMap.enabled,
-    };
-    console.log('[4E renderer]', rendererState);
-
-    const userMeshes = [];
-    const paintSuspects = [];  // anything that writes both depth and color
+    const meta = [
+      ['# 4E Studio Scene Diagnose', ''],
+      ['# Generated',          new Date().toISOString()],
+      ['# Studio version',     Studio.VERSION || '?'],
+      ['# Renderer autoClear', r.autoClear],
+      ['# Renderer sortObjects', r.sortObjects],
+      ['# Renderer shadowMap', r.shadowMap.enabled],
+      ['# Renderer outputColorSpace', r.outputColorSpace],
+      ['# Camera position',    this.camera.position.toArray().join(' ')],
+      ['', ''],
+    ];
+    const header = [
+      'index','name','type','objId','visible','renderOrder','frustumCulled',
+      'posX','posY','posZ','scaleX','scaleY','scaleZ',
+      'matType','colorWrite','depthWrite','depthTest','transparent','opacity','side'
+    ];
+    const rows = [];
+    let i = 0;
     this.scene.traverse(o => {
       if (!o.isMesh) return;
-      const m = o.material;
-      const row = {
-        name:        o.name || '(unnamed)',
-        objId:       o.userData._objId || '',
-        type:        o.type,
-        visible:     o.visible,
-        pos:         '[' + o.position.toArray().map(n => n.toFixed(2)).join(', ') + ']',
-        scale:       '[' + o.scale.toArray().map(n => n.toFixed(2)).join(', ') + ']',
-        matType:     m ? m.type : '',
-        colorWrite:  m ? m.colorWrite : '',
-        depthWrite:  m ? m.depthWrite : '',
-        depthTest:   m ? m.depthTest : '',
-        transparent: m ? m.transparent : '',
-        opacity:     m ? m.opacity : '',
-        side:        m ? ['Front','Back','Double'][m.side] : '',
-      };
-      if (o.userData._objId) userMeshes.push(row);
-      if (m && m.colorWrite && m.depthWrite && o.visible) paintSuspects.push(row);
+      const m = o.material || {};
+      const p = o.position, s = o.scale;
+      rows.push([
+        i++,
+        o.name || '(unnamed)',
+        o.type,
+        o.userData._objId || '',
+        o.visible,
+        o.renderOrder,
+        o.frustumCulled,
+        p.x.toFixed(3), p.y.toFixed(3), p.z.toFixed(3),
+        s.x.toFixed(3), s.y.toFixed(3), s.z.toFixed(3),
+        m.type || '',
+        m.colorWrite,
+        m.depthWrite,
+        m.depthTest,
+        m.transparent,
+        m.opacity != null ? m.opacity : '',
+        m.side != null ? (['Front','Back','Double'][m.side] || m.side) : '',
+      ]);
     });
 
-    console.log('[4E your primitives / GLBs] (objects you placed):');
-    console.table(userMeshes);
+    // Build CSV. Quote any value containing comma or newline.
+    const csvEscape = v => {
+      const s = String(v == null ? '' : v);
+      return /[,"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+    };
+    const lines = [];
+    meta.forEach(row => lines.push(row.map(csvEscape).join(',')));
+    lines.push(header.map(csvEscape).join(','));
+    rows.forEach(row => lines.push(row.map(csvEscape).join(',')));
+    const csv = lines.join('\n');
 
-    console.log('[4E paint suspects] (visible meshes writing both color AND depth — any of these at/near the cube position could be covering the hider):');
-    console.table(paintSuspects);
+    // Download as file.
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '4e-diagnose-' + Date.now() + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
 
-    return { rendererState, userMeshes, paintSuspects };
+    Studio.toast('Diagnose CSV downloaded (' + rows.length + ' meshes)', 'ok');
+    Studio.log('[diagnose] ' + rows.length + ' meshes dumped to CSV');
+    return { meta, header, rows };
   },
 
   // Adds a cyan wireframe outline as a child of every sub-mesh. Because
