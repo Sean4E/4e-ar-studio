@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.4.0">
+<meta name="version" content="3.4.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.4.0';
+const PLAYER_VERSION = '3.4.1';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -330,21 +330,36 @@ if (typeof AFRAME !== 'undefined') {
       // Register for global mute-button control (same list as audio)
       if (window._4E_AUDIO && !this.data.muted) window._4E_AUDIO.onTarget.push(video);
 
-      // Build the plane that displays the video. Aspect = 16:9 by default,
-      // refined once loadedmetadata fires with real video dimensions.
+      // Determine where the video texture should render. If the host
+      // entity is already a plane (<a-plane>), apply the video material
+      // to it directly and resize it. Otherwise (Empty, GLB, etc.)
+      // create a child plane so the video has something to render on.
       const width = this.data.width || 1;
       const initialHeight = width * 9 / 16;
-      this._plane = document.createElement('a-plane');
-      this._plane.setAttribute('width', width);
-      this._plane.setAttribute('height', initialHeight);
-      this._plane.setAttribute('material',
-        'shader: flat; src: ' + (src.charAt(0) === '#' ? src : '#' + video.id) +
-        '; side: double; transparent: true; opacity: 0');
-      // Plane face-forward on the target (image targets treat Y as up,
-      // so a plane at rotation 0,0,0 is already coplanar with the image).
-      this.el.appendChild(this._plane);
+      const isHostPlane = this.el.tagName.toLowerCase() === 'a-plane';
 
-      // Auto-resize the plane to match video's true aspect ratio
+      const materialAttr =
+        'shader: flat; src: ' + (src.charAt(0) === '#' ? src : '#' + video.id) +
+        '; side: double; transparent: true; opacity: 0';
+
+      if (isHostPlane) {
+        // Host IS the display surface
+        this._plane = this.el;
+        this._ownsPlane = false;
+        this._plane.setAttribute('width', width);
+        this._plane.setAttribute('height', initialHeight);
+        this._plane.setAttribute('material', materialAttr);
+      } else {
+        // Create a child plane for Empty/GLB/other hosts
+        this._plane = document.createElement('a-plane');
+        this._ownsPlane = true;
+        this._plane.setAttribute('width', width);
+        this._plane.setAttribute('height', initialHeight);
+        this._plane.setAttribute('material', materialAttr);
+        this.el.appendChild(this._plane);
+      }
+
+      // Auto-resize to match video's true aspect ratio
       const syncAspect = () => {
         const vw = video.videoWidth, vh = video.videoHeight;
         if (vw > 0 && vh > 0) {
@@ -443,7 +458,11 @@ if (typeof AFRAME !== 'undefined') {
       if (this._fadeId) clearInterval(this._fadeId);
       if (this._opacityFadeId) clearInterval(this._opacityFadeId);
       if (this._video) { try { this._video.pause(); } catch(e){} }
-      if (this._plane && this._plane.parentNode) this._plane.parentNode.removeChild(this._plane);
+      // Only remove the plane if we created it ourselves (child of Empty/GLB).
+      // If the host entity IS the plane, leave it alone — it belongs to the scene.
+      if (this._ownsPlane && this._plane && this._plane.parentNode) {
+        this._plane.parentNode.removeChild(this._plane);
+      }
     }
   });
 }
@@ -823,8 +842,14 @@ function buildPrimitive(obj, i) {
 }
 
 function buildEntity(obj, i) {
-  // Primitive objects (except empty) use A-Frame built-in elements
-  if (obj.type === 'primitive' && obj.primitiveType && obj.primitiveType !== 'empty') {
+  // Plane primitives with a video component should flow through the
+  // full buildEntity logic so the video-on-target attribute is included
+  // — the component then applies the video texture to the plane itself.
+  const hasVideoComp = obj.xrComponents && obj.xrComponents['video-on-target'];
+  const isPlaneWithVideo = obj.primitiveType === 'plane' && hasVideoComp;
+
+  // Primitive objects (except empty and plane-with-video) use A-Frame built-ins
+  if (obj.type === 'primitive' && obj.primitiveType && obj.primitiveType !== 'empty' && !isPlaneWithVideo) {
     return buildPrimitive(obj, i);
   }
 
@@ -912,6 +937,12 @@ function buildEntity(obj, i) {
       }
     }
   });
+
+  // Plane primitive + video-on-target: render as <a-plane> so the video
+  // component can apply its texture directly to the host mesh.
+  if (isPlaneWithVideo) {
+    return `<a-plane id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}" width="1" height="1"${attrs}></a-plane>`;
+  }
 
   // Empty objects or objects with no GLB → <a-entity> (invisible container for components)
   if (!obj.glbUrl && (obj.primitiveType === 'empty' || obj.type === 'primitive')) {

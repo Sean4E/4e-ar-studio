@@ -58,7 +58,8 @@ Studio.Inspector = {
     const cats = Studio.Components.categories;
     Object.keys(cats).sort((a, b) => cats[a].order - cats[b].order).forEach(catKey => {
       const comps = Studio.Components.getByCategory(catKey)
-        .filter(c => c.trackingModes.includes(mode) && (c.appliesTo === 'entity' || c.appliesTo === 'both'));
+        .filter(c => c.trackingModes.includes(mode) && (c.appliesTo === 'entity' || c.appliesTo === 'both'))
+        .filter(c => !c.hidden);  // registry-flagged hidden components stay configurable via data but don't clutter the UI
       if (!comps.length) return;
       content.appendChild(this._buildComponentCategory(catKey, comps, obj));
     });
@@ -366,6 +367,10 @@ Studio.Inspector = {
       delete obj.xrComponents[compKey];
     }
     Studio.Project.markDirty();
+    // Keep the 3D viewport's video preview in sync with component toggles
+    if (compKey === 'video-on-target' && Studio.Viewport?.syncVideoPreview) {
+      Studio.Viewport.syncVideoPreview(obj);
+    }
     this.render(this.currentId);
   },
 
@@ -375,6 +380,10 @@ Studio.Inspector = {
     if (typeof obj.xrComponents[compKey] !== 'object') obj.xrComponents[compKey] = {};
     obj.xrComponents[compKey][propKey] = val;
     Studio.Project.markDirty();
+    // Re-sync video preview when its src or width change
+    if (compKey === 'video-on-target' && (propKey === 'src' || propKey === 'width') && Studio.Viewport?.syncVideoPreview) {
+      Studio.Viewport.syncVideoPreview(obj);
+    }
   },
 
   _deleteSelected() {

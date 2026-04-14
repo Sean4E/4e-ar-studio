@@ -441,6 +441,7 @@ Studio.Viewport = {
           const mesh = new THREE.Mesh(geoFn(), mat);
           mesh.castShadow = !isEmpty;
           mesh.userData._objId = obj.id;
+          mesh.userData._primitiveType = obj.primitiveType;
           mesh.traverse(c => { c.userData._objId = obj.id; });
           this.scene.add(mesh);
           obj.mesh = mesh;
@@ -449,6 +450,8 @@ Studio.Viewport = {
           mesh.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
           mesh.scale.set(t.scale.x, t.scale.y, t.scale.z);
           mesh.visible = obj.visible;
+          // Apply video-on-target preview (if configured)
+          this.syncVideoPreview(obj);
         }
         continue;
       }
@@ -560,6 +563,109 @@ Studio.Viewport = {
       this.scene.remove(this._trackingHelper);
       this._trackingHelper = null;
     }
+  },
+
+  // ─── Video-on-target preview ────────────────────────────
+  // Renders a plane textured with the actual video (muted, looping) at
+  // the object's transform, so users can position/rotate/scale it in
+  // the viewport. Auto-sizes to the video's natural aspect ratio.
+  //
+  // Behaviour by host primitive:
+  //   - Plane primitive: the host plane itself gets the video texture
+  //     and its geometry resizes to match the video aspect (width kept
+  //     from the component's `width` prop)
+  //   - Empty / anything else: a child plane is added as a preview
+  //     helper (child inherits parent's transform)
+  syncVideoPreview(obj) {
+    if (!obj || !obj.mesh) return;
+    const cfg = obj.xrComponents?.['video-on-target'];
+    const src = cfg?.src || '';
+    const width = cfg?.width || 1.0;
+
+    const isPlaneHost = obj.primitiveType === 'plane';
+
+    // Dispose any previous preview child (for Empty/other hosts)
+    const prev = obj.mesh.children.find(c => c.userData._videoPreview);
+    if (prev) {
+      this._disposeVideoMesh(prev);
+      obj.mesh.remove(prev);
+    }
+
+    // If removing video: revert Plane host to its solid material
+    if (!src) {
+      if (isPlaneHost && obj.mesh.userData._savedMaterial) {
+        const vidTex = obj.mesh.material.map;
+        if (vidTex && vidTex.image) { try { vidTex.image.pause(); } catch(e){} vidTex.dispose(); }
+        obj.mesh.material.dispose();
+        obj.mesh.material = obj.mesh.userData._savedMaterial;
+        obj.mesh.userData._savedMaterial = null;
+        // Restore default plane geometry
+        obj.mesh.geometry.dispose();
+        obj.mesh.geometry = new THREE.PlaneGeometry(0.5, 0.5);
+      }
+      return;
+    }
+
+    // Build the video element + texture (shared between host-plane and child-plane paths)
+    const vid = document.createElement('video');
+    vid.src = src;
+    vid.crossOrigin = 'anonymous';
+    vid.loop = true;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.setAttribute('webkit-playsinline', '');
+    vid.preload = 'auto';
+    vid.play().catch(() => {});   // studio preview — muted autoplay is allowed
+
+    const tex = new THREE.VideoTexture(vid);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+
+    const resize = (targetMesh) => {
+      if (vid.videoWidth && vid.videoHeight) {
+        const h = width * (vid.videoHeight / vid.videoWidth);
+        if (targetMesh.geometry) targetMesh.geometry.dispose();
+        targetMesh.geometry = new THREE.PlaneGeometry(width, h);
+      }
+    };
+
+    if (isPlaneHost) {
+      // Store original material so we can revert if video is removed later
+      if (!obj.mesh.userData._savedMaterial) {
+        obj.mesh.userData._savedMaterial = obj.mesh.material;
+      } else {
+        obj.mesh.material.dispose();  // dispose the intermediate video material we'll replace
+      }
+      obj.mesh.material = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+      // Resize host plane to match video aspect
+      if (vid.readyState >= 1) resize(obj.mesh);
+      else vid.addEventListener('loadedmetadata', () => resize(obj.mesh), { once: true });
+    } else {
+      // Child plane preview for Empty/other hosts
+      const geo = new THREE.PlaneGeometry(width, width * 9/16);
+      const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+      const plane = new THREE.Mesh(geo, mat);
+      plane.userData._videoPreview = true;
+      plane.userData._objId = obj.id;
+      // Make child not raycastable (so user still selects the host Empty)
+      plane.userData._ignoreRaycast = true;
+      obj.mesh.add(plane);
+      if (vid.readyState >= 1) resize(plane);
+      else vid.addEventListener('loadedmetadata', () => resize(plane), { once: true });
+    }
+  },
+
+  _disposeVideoMesh(mesh) {
+    if (!mesh) return;
+    if (mesh.material) {
+      if (mesh.material.map && mesh.material.map.image) {
+        try { mesh.material.map.image.pause(); } catch(e){}
+        mesh.material.map.dispose();
+      }
+      mesh.material.dispose();
+    }
+    if (mesh.geometry) mesh.geometry.dispose();
   },
 
   // ─── Preset Animation Preview ───────────────────────────

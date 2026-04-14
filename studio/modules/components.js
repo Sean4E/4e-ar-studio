@@ -141,21 +141,20 @@ Studio.Components = {
       description: 'Render mesh overlay on detected image target',
       trackingModes: ['image'], appliesTo: 'entity', type: 'boolean',
     },
+    // Hidden — superseded by 'video-on-target' which has full controls.
+    // Kept in the registry so pre-existing projects that used them don't
+    // break; `hidden:true` keeps them out of the inspector UI.
     'xrextras-target-video-fade': {
       name: 'Target Video Fade (native)', category: 'image', icon: '🎬',
-      description: '8th Wall native — video fades on target. No custom fade controls.',
-      trackingModes: ['image'], appliesTo: 'entity', type: 'config',
-      properties: {
-        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
-      }
+      description: '8th Wall native — superseded by Video on Target.',
+      trackingModes: ['image'], appliesTo: 'entity', type: 'config', hidden: true,
+      properties: { video: { type: 'text', label: 'Video URL (.mp4)', default: '' } }
     },
     'xrextras-target-video-sound': {
       name: 'Target Video + Sound (native)', category: 'image', icon: '🔊',
-      description: '8th Wall native — video + audio on target. No custom fade controls.',
-      trackingModes: ['image'], appliesTo: 'entity', type: 'config',
-      properties: {
-        video: { type: 'text', label: 'Video URL (.mp4)', default: '' }
-      }
+      description: '8th Wall native — superseded by Video on Target.',
+      trackingModes: ['image'], appliesTo: 'entity', type: 'config', hidden: true,
+      properties: { video: { type: 'text', label: 'Video URL (.mp4)', default: '' } }
     },
     'video-on-target': {
       name: 'Video on Target', category: 'image', icon: '📹',
