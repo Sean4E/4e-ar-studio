@@ -865,16 +865,14 @@ Studio.Viewport = {
     const wantFlip = !!(hider && hider !== true && hider.invertNormals);
 
     // ── PRIMITIVES: full rebuild, byte-for-byte like the test harness ──
-    // docs/hider-test.html's buildBoxA() disposes the existing geometry
-    // and material, creates a fresh BoxGeometry, flips winding if
-    // invertNormals is on, creates a fresh MeshStandardMaterial with
-    // colorWrite:false, and builds a new Mesh. Changing a setting →
-    // full rebuild. That avoids the incremental-mutation path where
-    // assigning material.side to an already-rendered Three.js mesh
-    // doesn't always visually update until the mesh is rebuilt.
-    // We keep the SAME mesh reference (so userData._objId, transform
-    // gizmo attachment, selection state all stay intact) but replace
-    // its geometry and material wholesale.
+    // docs/hider-test.html's buildBoxA() disposes the existing mesh,
+    // creates fresh geometry + material, builds a fresh Mesh, and
+    // adds it to the scene. We do the same — including replacing the
+    // mesh instance (removing the old one from the scene and adding a
+    // new one), so every mechanical step matches the test exactly.
+    // The previous v3.10.20 approach kept the same mesh instance and
+    // only replaced its .geometry/.material, which visually worked in
+    // isolation but diverged from the test harness's exact steps.
     if (obj.type === 'primitive' && obj.primitiveType) {
       const defs = {
         cube:     () => new THREE.BoxGeometry(0.3, 0.3, 0.3),
@@ -887,17 +885,13 @@ Studio.Viewport = {
       };
       const geoFn = defs[obj.primitiveType];
       if (geoFn) {
-        const mesh = obj.mesh;
-        // Dispose old resources so we don't leak on every toggle.
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material && typeof mesh.material.dispose === 'function') {
-          mesh.material.dispose();
-        }
+        const oldMesh = obj.mesh;
+        const wasSelected = (this._selectedId === obj.id);
 
-        // Fresh geometry.
+        // Fresh geometry, with winding flip applied BEFORE mesh creation
+        // (same order as buildBoxA: geom → flip → new Mesh(geom, mat)).
         const geo = geoFn();
         if (wantFlip && geo.index) {
-          // EXACT replica of docs/hider-test.html winding flip.
           const arr = geo.index.array;
           for (let i = 0; i < arr.length; i += 3) {
             const tmp = arr[i + 1]; arr[i + 1] = arr[i + 2]; arr[i + 2] = tmp;
@@ -905,19 +899,46 @@ Studio.Viewport = {
           geo.index.needsUpdate = true;
           geo.computeVertexNormals();
         }
-        mesh.geometry = geo;
 
-        // Material.
+        // Fresh material — either the hider/basic/pbr override, or the
+        // default primitive material when no material component is on.
+        let mat;
         if (overrideMat) {
-          mesh.material = overrideMat;
+          mat = overrideMat;
         } else {
-          // Restore the primitive's default material.
           const isEmpty = obj.primitiveType === 'empty';
           const color = obj.primitiveColor || (isEmpty ? '#666666' : '#8b5cf6');
-          mesh.material = new THREE.MeshStandardMaterial({
+          mat = new THREE.MeshStandardMaterial({
             color, roughness: 0.5, metalness: 0.1,
             wireframe: isEmpty, opacity: isEmpty ? 0.4 : 1, transparent: isEmpty,
           });
+        }
+
+        // New mesh, preserving everything that matters on the old one.
+        const newMesh = new THREE.Mesh(geo, mat);
+        newMesh.position.copy(oldMesh.position);
+        newMesh.rotation.copy(oldMesh.rotation);
+        newMesh.scale.copy(oldMesh.scale);
+        newMesh.visible = oldMesh.visible;
+        // Hiders shouldn't cast a shadow — an invisible cube that still
+        // throws a dark silhouette onto the floor is exactly the kind of
+        // "why is there something there?" bug the test harness avoids
+        // by not having a shadow map at all. For primitives with no
+        // hider, cast shadows as usual.
+        newMesh.castShadow = !(hider) && obj.primitiveType !== 'empty';
+        newMesh.userData._objId = obj.id;
+        newMesh.userData._primitiveType = obj.primitiveType;
+
+        // Swap in the scene, update gizmo attachment + selection.
+        this.scene.remove(oldMesh);
+        if (oldMesh.geometry) oldMesh.geometry.dispose();
+        if (oldMesh.material && typeof oldMesh.material.dispose === 'function') {
+          oldMesh.material.dispose();
+        }
+        this.scene.add(newMesh);
+        obj.mesh = newMesh;
+        if (wasSelected) {
+          this.gizmo.attach(newMesh);
         }
 
         // Diagnostic log.
@@ -928,10 +949,11 @@ Studio.Viewport = {
         Studio.log(`[material] ${obj.name||obj.id}: ${active}${cfg} (rebuilt)`);
         if (hider && window.console) {
           console.log('[4E hider]', obj.name || obj.id, {
-            materialType: mesh.material.type,
-            colorWrite: mesh.material.colorWrite,
-            side: mesh.material.side,
-            geometryIndexed: !!mesh.geometry.index,
+            materialType: newMesh.material.type,
+            colorWrite: newMesh.material.colorWrite,
+            side: newMesh.material.side,
+            castShadow: newMesh.castShadow,
+            geometryIndexed: !!newMesh.geometry.index,
             flippedWinding: !!wantFlip,
           });
         }
