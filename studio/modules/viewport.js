@@ -862,21 +862,92 @@ Studio.Viewport = {
     };
 
     const overrideMat = makeMaterial();
-
-    // Whether the hider wants geometry normals reversed. Flipping
-    // triangle winding is a one-time mutation — we track state per
-    // mesh so toggling OFF restores the original winding.
     const wantFlip = !!(hider && hider !== true && hider.invertNormals);
 
-    const meshInfo = [];  // captured for the diagnostic log below
+    // ── PRIMITIVES: full rebuild, byte-for-byte like the test harness ──
+    // docs/hider-test.html's buildBoxA() disposes the existing geometry
+    // and material, creates a fresh BoxGeometry, flips winding if
+    // invertNormals is on, creates a fresh MeshStandardMaterial with
+    // colorWrite:false, and builds a new Mesh. Changing a setting →
+    // full rebuild. That avoids the incremental-mutation path where
+    // assigning material.side to an already-rendered Three.js mesh
+    // doesn't always visually update until the mesh is rebuilt.
+    // We keep the SAME mesh reference (so userData._objId, transform
+    // gizmo attachment, selection state all stay intact) but replace
+    // its geometry and material wholesale.
+    if (obj.type === 'primitive' && obj.primitiveType) {
+      const defs = {
+        cube:     () => new THREE.BoxGeometry(0.3, 0.3, 0.3),
+        sphere:   () => new THREE.SphereGeometry(0.18, 24, 16),
+        cylinder: () => new THREE.CylinderGeometry(0.15, 0.15, 0.35, 24),
+        plane:    () => new THREE.PlaneGeometry(0.5, 0.5),
+        cone:     () => new THREE.ConeGeometry(0.18, 0.35, 24),
+        torus:    () => new THREE.TorusGeometry(0.15, 0.05, 12, 32),
+        empty:    () => new THREE.SphereGeometry(0.04, 8, 6),
+      };
+      const geoFn = defs[obj.primitiveType];
+      if (geoFn) {
+        const mesh = obj.mesh;
+        // Dispose old resources so we don't leak on every toggle.
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material && typeof mesh.material.dispose === 'function') {
+          mesh.material.dispose();
+        }
 
+        // Fresh geometry.
+        const geo = geoFn();
+        if (wantFlip && geo.index) {
+          // EXACT replica of docs/hider-test.html winding flip.
+          const arr = geo.index.array;
+          for (let i = 0; i < arr.length; i += 3) {
+            const tmp = arr[i + 1]; arr[i + 1] = arr[i + 2]; arr[i + 2] = tmp;
+          }
+          geo.index.needsUpdate = true;
+          geo.computeVertexNormals();
+        }
+        mesh.geometry = geo;
+
+        // Material.
+        if (overrideMat) {
+          mesh.material = overrideMat;
+        } else {
+          // Restore the primitive's default material.
+          const isEmpty = obj.primitiveType === 'empty';
+          const color = obj.primitiveColor || (isEmpty ? '#666666' : '#8b5cf6');
+          mesh.material = new THREE.MeshStandardMaterial({
+            color, roughness: 0.5, metalness: 0.1,
+            wireframe: isEmpty, opacity: isEmpty ? 0.4 : 1, transparent: isEmpty,
+          });
+        }
+
+        // Diagnostic log.
+        const active = basic ? 'basic' : pbr ? 'pbr' : hider ? 'hider' : 'none';
+        const cfg = (active === 'hider' && typeof hider === 'object')
+          ? ` side=${hider.side||'front'} invertNormals=${!!hider.invertNormals}`
+          : '';
+        Studio.log(`[material] ${obj.name||obj.id}: ${active}${cfg} (rebuilt)`);
+        if (hider && window.console) {
+          console.log('[4E hider]', obj.name || obj.id, {
+            materialType: mesh.material.type,
+            colorWrite: mesh.material.colorWrite,
+            side: mesh.material.side,
+            geometryIndexed: !!mesh.geometry.index,
+            flippedWinding: !!wantFlip,
+          });
+        }
+        return;  // primitive path done
+      }
+    }
+
+    // ── GLBs (and anything else with sub-meshes): traverse-and-swap ──
+    // We don't rebuild GLB geometry — too expensive and we'd lose any
+    // state the loader set up. Swap materials on each sub-mesh, caching
+    // the original the first time so toggling off restores.
+    const meshInfo = [];
     obj.mesh.traverse(c => {
       if (!c.isMesh) return;
-      // Cache the original material the first time we override, so
-      // toggling the switch off can put it back exactly as it was.
       if (!c.userData._origMat) c.userData._origMat = c.material;
 
-      // Toggle triangle winding to match hider.invertNormals state.
       const isFlipped = !!c.userData._hiderFlipped;
       if (wantFlip !== isFlipped) this._flipMeshWinding(c);
 
@@ -891,20 +962,12 @@ Studio.Viewport = {
         materialType: c.material?.type,
         colorWrite: c.material?.colorWrite,
         side: c.material?.side,
-        visible: c.visible,
-        childCount: c.children.length,
       });
     });
 
-    // TEMPORARY diagnostic: log whenever a material is applied. Makes
-    // it possible to see exactly what happened when the user toggles
-    // a switch, without enabling anything. Logs: which material is
-    // active, the hider config, and each mesh that was touched with
-    // its resulting material state. Remove once the studio-vs-test
-    // hider discrepancy is resolved.
     const active = basic ? 'basic' : pbr ? 'pbr' : hider ? 'hider' : 'none';
     const cfg = (active === 'hider' && typeof hider === 'object')
-      ? ` side=${hider.side||'back'} invertNormals=${!!hider.invertNormals}`
+      ? ` side=${hider.side||'front'} invertNormals=${!!hider.invertNormals}`
       : '';
     Studio.log(`[material] ${obj.name||obj.id}: ${active}${cfg} meshes=${meshInfo.length}`);
     if (hider && window.console) {
