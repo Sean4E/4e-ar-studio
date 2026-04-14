@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.0">
+<meta name="version" content="3.10.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -156,7 +156,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.10.0';
+const PLAYER_VERSION = '3.10.1';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -819,16 +819,19 @@ async function init() {
       });
     }
 
-    // GLBs + audio = blocking; videos = background prefetch.
-    // Dedupe URLs so the same prefab GLB isn't fetched multiple times
-    // when instantiated more than once (e.g. one model across multiple
-    // image targets).
+    // GLBs + audio = blocking; videos = background prefetch. Only
+    // preload what's IN THIS SCENE. Prefabs that live in the
+    // project's library but aren't instantiated shouldn't be
+    // downloaded — that was a regression that slowed down every
+    // cold launch by the size of every library prefab.
+    //
+    // Dedupe URLs so the same GLB isn't fetched multiple times when a
+    // prefab is instantiated more than once (e.g. same model across
+    // multiple image targets).
     const isVideoUrl = u => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
     const seen = new Set();
     const addBlocking = u => { if (u && !seen.has(u)) { seen.add(u); blocking.push(fetch(u, { mode: 'cors' }).catch(() => {})); } };
     const addBgVideo = u => { if (u && !seen.has(u)) { seen.add(u); bgPrefetch.push(u); } };
-    // Also preload prefab GLBs that might not yet be instantiated
-    (APP.prefabs || []).forEach(p => addBlocking(p.glbUrl));
     (APP.objects || []).forEach(o => {
       addBlocking(o.glbUrl);
       const xr = o.xrComponents || {};
