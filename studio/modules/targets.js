@@ -179,6 +179,12 @@ Studio.Targets = {
     this.render();
     Studio.EventBus.emit('target:changed');
     Studio.toast('Target removed', 'ok');
+    // Clean up the three target files on GitHub (original, luminance, thumbnail)
+    if (Studio.GitHub?.deleteByUrl) {
+      [target.originalUrl, target.luminanceUrl, target.thumbnailUrl]
+        .filter(Boolean)
+        .forEach(u => Studio.GitHub.deleteByUrl(u).catch(() => {}));
+    }
   },
 
   // ─── Rename Target ─────────────────────────────────────

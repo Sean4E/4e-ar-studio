@@ -114,6 +114,38 @@ Studio.Project = {
     const obj = this.state.objects.splice(idx, 1)[0];
     this.markDirty();
     Studio.EventBus.emit('object:removed', { id, object: obj });
+    // Clean up any GitHub-hosted files owned by this object (GLB, plus
+    // audio/video/image URLs referenced from xrComponents). Fire-and-
+    // forget — network errors are logged, never rethrown.
+    if (Studio.GitHub?.deleteByUrl) {
+      const urls = [];
+      if (obj.glbUrl) urls.push(obj.glbUrl);
+      const xr = obj.xrComponents || {};
+      Object.values(xr).forEach(cfg => {
+        if (cfg && typeof cfg === 'object') {
+          const u = cfg.src || cfg.video || cfg.image;
+          // Skip A-Frame asset-selectors ('#vid-0-0' etc.) and
+          // anything referenced by OTHER objects still in the scene
+          if (u && typeof u === 'string' && !u.startsWith('#')) urls.push(u);
+        }
+      });
+      const stillReferenced = new Set();
+      this.state.objects.forEach(o => {
+        if (o.glbUrl) stillReferenced.add(o.glbUrl);
+        const x = o.xrComponents || {};
+        Object.values(x).forEach(c => {
+          if (c && typeof c === 'object') {
+            const u = c.src || c.video || c.image;
+            if (u && typeof u === 'string' && !u.startsWith('#')) stillReferenced.add(u);
+          }
+        });
+      });
+      // Also keep anything still in the Media Library
+      (this.state.media || []).forEach(m => { if (m.url) stillReferenced.add(m.url); });
+      urls.filter(u => !stillReferenced.has(u)).forEach(u => {
+        Studio.GitHub.deleteByUrl(u).catch(() => {});
+      });
+    }
     return obj;
   },
 

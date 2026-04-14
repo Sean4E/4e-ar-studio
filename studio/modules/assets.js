@@ -153,11 +153,21 @@ Studio.Assets = {
   removeMedia(idx) {
     const media = Studio.Project.state.media;
     if (!media || idx < 0 || idx >= media.length) return;
-    const name = media[idx].name;
+    const item = media[idx];
     media.splice(idx, 1);
     Studio.Project.markDirty();
     this.render();
-    Studio.toast(name + ' removed from library', 'ok');
+    Studio.toast(item.name + ' removed from library', 'ok');
+    // Delete the file from GitHub, unless another object still references it
+    if (Studio.GitHub?.deleteByUrl && item.url) {
+      const stillUsed = (Studio.Project.state.objects || []).some(o => {
+        if (o.glbUrl === item.url) return true;
+        const x = o.xrComponents || {};
+        return Object.values(x).some(c => c && typeof c === 'object' &&
+          (c.src === item.url || c.video === item.url || c.image === item.url));
+      });
+      if (!stillUsed) Studio.GitHub.deleteByUrl(item.url).catch(() => {});
+    }
   },
 
   // ─── Load sample target via new Targets system ────────
