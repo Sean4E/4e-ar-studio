@@ -181,8 +181,10 @@ Studio.Viewport = {
     // propagating the freshly-uploaded GLB (~10-60s delay).
     const blobUrl = URL.createObjectURL(file);
 
+    // Keep the original filename (including extension) so the user can
+    // always recognise their uploads — don't strip ".glb" etc.
     const prefab = Studio.Project.createPrefab({
-      name: file.name.replace(/\.\w+$/, ''),
+      name: file.name,
       file: file,
       _blobUrl: blobUrl,   // transient, per session; revoked on removePrefab
     });
@@ -731,6 +733,61 @@ Studio.Viewport = {
     }
   },
 
+  // Swap the object's rendered material in the studio viewport to
+  // match whichever xrextras-*-material component is currently
+  // enabled on it. Called by the inspector on toggle / property edit.
+  // Restores the original material when no material component is
+  // active. Handles both primitives (single mesh) and GLBs (traverses
+  // submeshes, caches each submesh's original material on first swap).
+  applyMaterial(obj) {
+    if (!obj?.mesh) return;
+    const xr = obj.xrComponents || {};
+    const basic = xr['xrextras-basic-material'];
+    const pbr = xr['xrextras-pbr-material'];
+    const hider = xr['xrextras-hider-material'];
+
+    const makeMaterial = () => {
+      if (basic) {
+        return new THREE.MeshBasicMaterial({
+          color: basic.color || '#ffffff',
+          transparent: (basic.opacity != null && basic.opacity < 1),
+          opacity: basic.opacity != null ? basic.opacity : 1,
+        });
+      }
+      if (pbr) {
+        return new THREE.MeshStandardMaterial({
+          color: pbr.color || '#ffffff',
+          metalness: pbr.metalness != null ? pbr.metalness : 0,
+          roughness: pbr.roughness != null ? pbr.roughness : 0.5,
+          transparent: (pbr.opacity != null && pbr.opacity < 1),
+          opacity: pbr.opacity != null ? pbr.opacity : 1,
+        });
+      }
+      if (hider) {
+        // Hider: writes depth but renders nothing visible
+        return new THREE.MeshBasicMaterial({
+          colorWrite: false,
+          depthWrite: true,
+        });
+      }
+      return null;  // no override → restore
+    };
+
+    const overrideMat = makeMaterial();
+
+    obj.mesh.traverse(c => {
+      if (!c.isMesh) return;
+      // Cache the original material the first time we override, so
+      // toggling the switch off can put it back exactly as it was.
+      if (!c.userData._origMat) c.userData._origMat = c.material;
+      if (overrideMat) {
+        c.material = overrideMat;
+      } else if (c.userData._origMat) {
+        c.material = c.userData._origMat;
+      }
+    });
+  },
+
   _disposeVideoMesh(mesh) {
     if (!mesh) return;
     if (mesh.material) {
@@ -824,6 +881,90 @@ Studio.Viewport = {
     Studio.Project.addObject(obj);
     this.selectObject(obj.id);
     Studio.toast(def.name + ' added', 'ok');
+  },
+
+  // Duplicate the currently-selected object. Especially useful for
+  // prefab instances (spawn another copy for a different image target)
+  // and for copying a pre-configured primitive (same components,
+  // transform slightly offset so the duplicate is visible).
+  async duplicateSelected() {
+    const id = this._selectedId;
+    if (!id) return;
+    const src = Studio.Project.getObject(id);
+    if (!src) return;
+
+    // Deep clone the data portion (skip transient fields)
+    const clone = Studio.Project.createObject({
+      name: src.name + ' (copy)',
+      type: src.type,
+      primitiveType: src.primitiveType,
+      primitiveColor: src.primitiveColor,
+      prefabId: src.prefabId,
+      glbUrl: src.glbUrl,
+      visible: true,
+      targetId: src.targetId,
+      imageToSlam: !!src.imageToSlam,
+      transform: {
+        position: { x: src.transform.position.x + 0.1, y: src.transform.position.y, z: src.transform.position.z + 0.1 },
+        rotation: { ...src.transform.rotation },
+        scale:    { ...src.transform.scale },
+      },
+      clips: [...(src.clips || [])],
+      defaultAnim: src.defaultAnim,
+      loop: src.loop,
+      presets: JSON.parse(JSON.stringify(src.presets || {})),
+      interactions: JSON.parse(JSON.stringify(src.interactions || {})),
+      xrComponents: JSON.parse(JSON.stringify(src.xrComponents || {})),
+    });
+
+    // Build its viewport mesh. Prefabs + primitives both route here.
+    if (clone.type === 'model' && clone.prefabId) {
+      const pf = Studio.Project.getPrefab(clone.prefabId);
+      const loadUrl = (pf && (pf._blobUrl || pf.glbUrl)) || clone.glbUrl;
+      if (loadUrl) {
+        try { await this._loadModelIntoScene(clone, loadUrl); } catch(e) {}
+      }
+    } else if (clone.type === 'primitive') {
+      this._buildPrimitiveMesh(clone);
+    }
+    Studio.Project.addObject(clone);
+    this.selectObject(clone.id);
+    Studio.toast(clone.name + ' duplicated', 'ok');
+  },
+
+  // Extracted primitive-mesh builder so duplicate() can use it too
+  _buildPrimitiveMesh(obj) {
+    const defs = {
+      cube:     () => new THREE.BoxGeometry(0.3, 0.3, 0.3),
+      sphere:   () => new THREE.SphereGeometry(0.18, 24, 16),
+      cylinder: () => new THREE.CylinderGeometry(0.15, 0.15, 0.35, 24),
+      plane:    () => new THREE.PlaneGeometry(0.5, 0.5),
+      cone:     () => new THREE.ConeGeometry(0.18, 0.35, 24),
+      torus:    () => new THREE.TorusGeometry(0.15, 0.05, 12, 32),
+      empty:    () => new THREE.SphereGeometry(0.04, 8, 6),
+    };
+    const geoFn = defs[obj.primitiveType];
+    if (!geoFn) return;
+    const isEmpty = obj.primitiveType === 'empty';
+    const color = obj.primitiveColor || (isEmpty ? '#666666' : '#8b5cf6');
+    const mat = new THREE.MeshStandardMaterial({
+      color, roughness: 0.5, metalness: 0.1,
+      wireframe: isEmpty, opacity: isEmpty ? 0.4 : 1, transparent: isEmpty,
+    });
+    const mesh = new THREE.Mesh(geoFn(), mat);
+    mesh.castShadow = !isEmpty;
+    mesh.userData._objId = obj.id;
+    mesh.traverse(c => { c.userData._objId = obj.id; });
+    this.scene.add(mesh);
+    obj.mesh = mesh;
+    const t = obj.transform;
+    mesh.position.set(t.position.x, t.position.y, t.position.z);
+    mesh.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
+    mesh.scale.set(t.scale.x, t.scale.y, t.scale.z);
+    mesh.visible = obj.visible;
+    // Carry over any active material override + video preview
+    this.applyMaterial(obj);
+    this.syncVideoPreview(obj);
   },
 
   // Add a plane pre-configured for video-on-target. One-click workflow:

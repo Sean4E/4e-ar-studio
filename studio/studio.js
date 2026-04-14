@@ -392,6 +392,10 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); Studio.Undo.redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); Studio.saveProject(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); Studio.newProject(); return; }
+  // Duplicate the selected object (e.g. to spawn another prefab
+  // instance for a different image target without re-clicking the
+  // library card).
+  if ((e.ctrlKey || e.metaKey) && e.key === 'd') { e.preventDefault(); Studio.Viewport.duplicateSelected(); return; }
   const k = e.key.toLowerCase();
   if (k === 'w') Studio.Viewport.setGizmo('translate');
   if (k === 'e') Studio.Viewport.setGizmo('rotate');
@@ -425,7 +429,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.PWA.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.9.1';
+  Studio.VERSION = '3.9.2';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;

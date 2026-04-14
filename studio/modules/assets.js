@@ -45,8 +45,12 @@ Studio.Assets = {
 
     // Tabs — sticky on the left
     html += `<div class="ast-tabs">
-      <button class="ast-tab${this._tab === 'project' ? ' active' : ''}" onclick="Studio.Assets.setTab('project')">Project</button>
-      <button class="ast-tab${this._tab === 'library' ? ' active' : ''}" onclick="Studio.Assets.setTab('library')">Library</button>
+      <button class="ast-tab${this._tab === 'project' ? ' active' : ''}" onclick="Studio.Assets.setTab('project')" title="Current project's assets">
+        <span class="ast-tab-icon">📁</span><span class="ast-tab-label">Project</span>
+      </button>
+      <button class="ast-tab${this._tab === 'library' ? ' active' : ''}" onclick="Studio.Assets.setTab('library')" title="All assets across all projects on GitHub">
+        <span class="ast-tab-icon">📦</span><span class="ast-tab-label">Assets</span>
+      </button>
     </div>`;
 
     if (this._tab === 'library') {

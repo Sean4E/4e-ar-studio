@@ -372,6 +372,11 @@ Studio.Inspector = {
     if (obj?.presets?.[type]) { obj.presets[type][key] = val; Studio.Project.markDirty(); }
   },
 
+  // Material components are mutually exclusive — enabling one must
+  // turn off any other. The list is the set of all-meshes-override
+  // material replacements (not texturing/shaders).
+  _materialComponents: ['xrextras-basic-material', 'xrextras-pbr-material', 'xrextras-hider-material'],
+
   _toggleComponent(compKey, enabled) {
     const obj = Studio.Project.getObject(this.currentId);
     if (!obj) return;
@@ -386,6 +391,15 @@ Studio.Inspector = {
     if (ixMap[compKey]) {
       if (!obj.interactions) obj.interactions = {};
       obj.interactions[ixMap[compKey]] = enabled;
+    }
+
+    // Mutual exclusion for material toggles — only one can be active
+    if (enabled && this._materialComponents.includes(compKey)) {
+      this._materialComponents.forEach(other => {
+        if (other !== compKey && obj.xrComponents[other]) {
+          delete obj.xrComponents[other];
+        }
+      });
     }
 
     const compDef = Studio.Components.registry[compKey];
@@ -405,6 +419,12 @@ Studio.Inspector = {
     if (compKey === 'video-on-target' && Studio.Viewport?.syncVideoPreview) {
       Studio.Viewport.syncVideoPreview(obj);
     }
+    // Apply / restore mesh material in the studio viewport so the user
+    // sees the result in real time (matches what the published player
+    // will render via the xrextras material components).
+    if (this._materialComponents.includes(compKey) && Studio.Viewport?.applyMaterial) {
+      Studio.Viewport.applyMaterial(obj);
+    }
     this.render(this.currentId);
   },
 
@@ -417,6 +437,10 @@ Studio.Inspector = {
     // Re-sync video preview when its src or width change
     if (compKey === 'video-on-target' && (propKey === 'src' || propKey === 'width') && Studio.Viewport?.syncVideoPreview) {
       Studio.Viewport.syncVideoPreview(obj);
+    }
+    // Re-apply material when a material property is tweaked
+    if (this._materialComponents.includes(compKey) && Studio.Viewport?.applyMaterial) {
+      Studio.Viewport.applyMaterial(obj);
     }
   },
 
@@ -490,6 +514,10 @@ Studio.Inspector = {
     Studio.Project.markDirty();
     // Refresh targets workspace if open
     if (Studio.Targets._selectedId) Studio.Targets._renderDetails();
+    // Tell the hierarchy (and anything else) that target/object
+    // membership changed so the tree re-renders immediately without
+    // waiting for a reload.
+    Studio.EventBus.emit('target:changed');
   },
 
   // ─── Helpers ───────────────────────────────────────────

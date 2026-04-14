@@ -91,9 +91,9 @@ Studio.Splash = {
           <div class="sp-prop-group">
             <div class="sp-prop-label">Colours</div>
             <div class="sp-colors-row">
-              <label><input type="color" id="sp-bg" value="#060a18" onchange="Studio.Splash._update()"><span>BG</span></label>
-              <label><input type="color" id="sp-text" value="#e2e8f0" onchange="Studio.Splash._update()"><span>Text</span></label>
-              <label><input type="color" id="sp-accent" value="#8b5cf6" onchange="Studio.Splash._update()"><span>Accent</span></label>
+              <label><input type="color" id="sp-bg" value="#060a18" oninput="Studio.Splash._update()"><span>BG</span></label>
+              <label><input type="color" id="sp-text" value="#e2e8f0" oninput="Studio.Splash._update()"><span>Text</span></label>
+              <label><input type="color" id="sp-accent" value="#8b5cf6" oninput="Studio.Splash._update()"><span>Accent</span></label>
             </div>
           </div>
 
