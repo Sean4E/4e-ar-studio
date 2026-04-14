@@ -341,6 +341,11 @@ a { color: var(--cyan); }
 .ast-card.ast-prefab:hover { border-color: var(--purple); background: var(--purple3); }
 .ast-card.ast-library { cursor: pointer; background: var(--bg3); }
 .ast-card.ast-library:hover { border-color: var(--purple); background: var(--purple3); }
+.ast-card-thumb {
+  width: 40px; height: 40px; border-radius: 4px;
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  background-color: var(--bg);
+}
 .ast-section {
   flex-shrink: 0; padding: 6px 10px; border-right: 1px solid var(--border);
   display: flex; flex-direction: column;

@@ -200,6 +200,15 @@ Studio.Viewport = {
       });
     } catch (e) { /* non-fatal — clips just stay empty */ }
 
+    // Render a thumbnail into a data URL — shown on the prefab card
+    // immediately (no wait for GitHub upload) and persisted once the
+    // .thumb.png is uploaded below.
+    try {
+      if (Studio.Thumbnails) {
+        prefab._thumbDataUrl = await Studio.Thumbnails.renderGlb(blobUrl);
+      }
+    } catch(e) { Studio.log('Thumbnail render failed: ' + e.message); }
+
     Studio.Project.addPrefab(prefab);
     Studio.Assets.render();
     Studio.toast(prefab.name + ' added to library', 'ok');
@@ -213,9 +222,20 @@ Studio.Viewport = {
     }
     try {
       if (!Studio.Project.state.id) Studio.Project.state.id = Studio.Project._genId();
-      const path = 'assets/' + Studio.Project.state.id + '/prefabs/' + prefab.id + '.glb';
+      const base = 'assets/' + Studio.Project.state.id + '/prefabs/';
       Studio.toast('Uploading ' + prefab.name + '…', 'ok');
-      prefab.glbUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(file));
+      prefab.glbUrl = await Studio.GitHub.upload(base + prefab.id + '.glb', await Studio.GitHub.file2b64(file));
+
+      // Upload the thumbnail sibling so it shows up for repeat visitors
+      // and in the cross-project Library tab. Filename convention:
+      // <prefabId>.thumb.png — Library detects this by suffix.
+      if (prefab._thumbDataUrl && Studio.Thumbnails) {
+        try {
+          const thumbB64 = Studio.Thumbnails.dataUrlToB64(prefab._thumbDataUrl);
+          prefab.thumbUrl = await Studio.GitHub.upload(base + prefab.id + '.thumb.png', thumbB64);
+        } catch(e) { Studio.log('Thumbnail upload failed: ' + e.message); }
+      }
+
       // Keep prefab._blobUrl for the rest of the session — the viewport
       // uses it for fast local loads regardless of GH Pages propagation.
       // Clear .file so the transient File object can be GC'd.
@@ -764,10 +784,19 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // Hider: writes depth but renders nothing visible
+        // Studio preview of an xrextras-hider-material. The published
+        // player uses the real 8th Wall component which writes depth
+        // without colour — making real-world geometry occlude virtual
+        // objects behind it. In the studio viewport there's no camera
+        // feed to occlude, so we render a ghostly translucent blue
+        // tint as a visual marker: the user can SEE where the hider
+        // sits and mentally model it as "invisible-but-solid" in AR.
         return new THREE.MeshBasicMaterial({
-          colorWrite: false,
+          color: 0x22d3ee,
+          transparent: true,
+          opacity: 0.22,
           depthWrite: true,
+          side: THREE.DoubleSide,
         });
       }
       return null;  // no override → restore
@@ -927,6 +956,15 @@ Studio.Viewport = {
     } else if (clone.type === 'primitive') {
       this._buildPrimitiveMesh(clone);
     }
+
+    // Re-apply any material override and video preview the source had
+    // — the cloned xrComponents were deep-copied (independent from
+    // this point on) but the freshly-loaded mesh is wearing the
+    // prefab's default materials. Running these against the clone
+    // brings the visual state in line with the cloned data.
+    this.applyMaterial(clone);
+    this.syncVideoPreview(clone);
+
     Studio.Project.addObject(clone);
     this.selectObject(clone.id);
     Studio.toast(clone.name + ' duplicated', 'ok');

@@ -211,7 +211,9 @@ Studio.Inspector = {
       return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px" title="${def.label}: ${def.min} to ${def.max}">${def.label}</label><input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${val}" oninput="Studio.Inspector._setCompProp('${compKey}','${propKey}',+this.value);this.nextElementSibling.textContent=this.value" style="flex:1"><span style="font-size:9px;width:28px">${val}</span></div>`;
     }
     if (def.type === 'color') {
-      return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label><input type="color" value="${val}" onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)" style="width:32px;height:20px;border:none;background:none"></div>`;
+      // oninput so the viewport material updates live while the user
+      // drags through the picker (not only when the picker closes)
+      return `<div class="insp-row"><label style="font-size:9px;color:var(--muted);width:60px">${def.label}</label><input type="color" value="${val}" oninput="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.value)" style="width:32px;height:20px;border:none;background:none"></div>`;
     }
     if (def.type === 'boolean') {
       return `<label class="insp-check" style="margin-left:4px"><input type="checkbox" ${val?'checked':''} onchange="Studio.Inspector._setCompProp('${compKey}','${propKey}',this.checked)"> ${def.label}</label>`;

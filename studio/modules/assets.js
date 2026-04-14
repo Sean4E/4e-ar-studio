@@ -136,9 +136,15 @@ Studio.Assets = {
           ? '<span class="ast-dot ast-dot-ok" title="Uploaded"></span>'
           : '<span class="ast-dot ast-dot-pending" title="Pending upload"></span>';
         const usage = instanceCount > 0 ? `${instanceCount}×` : 'unused';
+        // Prefer session data URL (instant, always fresh after upload),
+        // fall back to the persisted thumbUrl from Firestore.
+        const thumb = p._thumbDataUrl || p.thumbUrl || '';
+        const iconContent = thumb
+          ? `<div class="ast-card-thumb" style="background-image:url('${this._esc(thumb)}')"></div>`
+          : '📦';
         html += `
           <div class="ast-card ast-prefab" onclick="Studio.Viewport.instantiatePrefab('${p.id}')" title="${this._esc(p.name)} — click to add instance to scene">
-            <div class="ast-card-icon">📦</div>
+            <div class="ast-card-icon">${iconContent}</div>
             <div class="ast-card-label">${this._truncate(p.name, 14)}</div>
             <div class="ast-card-sub">${usage}${statusDot}
               <button class="ast-copy-btn" onclick="event.stopPropagation(); Studio.Assets.removePrefab('${p.id}')" title="Remove prefab (and all instances)">✕</button>
@@ -241,19 +247,35 @@ Studio.Assets = {
       // Classify + dedupe. Filter out PWA/splash/target auxiliary files
       // that users don't want to re-add as generic library items.
       const lib = { models: [], audio: [], video: [], images: [] };
+      // First pass — index *.thumb.png files by their bare prefix so we
+      // can pair them with the matching .glb when we encounter it.
+      const thumbMap = {};
+      const cfg = Studio.GitHub.getConfig();
+      const toUrl = path => `https://${cfg.owner}.github.io/${cfg.repo}/${path}`;
+      files.forEach(f => {
+        if (/\.thumb\.png$/i.test(f.name)) {
+          // key = directory + basename without ".thumb.png"
+          const key = f.path.replace(/\.thumb\.png$/i, '');
+          thumbMap[key] = toUrl(f.path);
+        }
+      });
       files.forEach(f => {
         const path = f.path;
         const name = f.name;
         const size = f.size || 0;
         const ext = (name.split('.').pop() || '').toLowerCase();
-        // Skip auto-generated per-project files
+        // Skip auto-generated per-project files + the thumbnails
+        // themselves (they're referenced via models)
         if (/\/pwa\//.test(path)) return;
         if (/splash-logo\.png$/.test(path)) return;
+        if (/\.thumb\.png$/i.test(name)) return;
         if (/_luminance\./.test(name) || /_thumb(nail)?\./.test(name) || /_original\./.test(name)) return;
-        const cfg = Studio.GitHub.getConfig();
-        const url = `https://${cfg.owner}.github.io/${cfg.repo}/${path}`;
+        const url = toUrl(path);
         const projectId = (path.match(/^assets\/([^\/]+)\//) || [])[1] || '';
-        const item = { name, path, size, url, projectId, ext };
+        // Pair model with its sibling thumbnail if one exists
+        const bareKey = path.replace(/\.(glb|gltf)$/i, '');
+        const thumb = thumbMap[bareKey] || '';
+        const item = { name, path, size, url, projectId, ext, thumb };
         if (ext === 'glb' || ext === 'gltf') lib.models.push(item);
         else if (['mp3','wav','ogg','m4a'].includes(ext)) lib.audio.push(item);
         else if (['mp4','webm','mov','m4v'].includes(ext)) lib.video.push(item);
@@ -301,9 +323,13 @@ Studio.Assets = {
       items.forEach(it => {
         const shortProj = it.projectId ? it.projectId.slice(-6) : '—';
         const sizeKb = it.size ? (it.size >= 1024*1024 ? (it.size/1024/1024).toFixed(1)+'M' : (it.size/1024).toFixed(0)+'K') : '';
+        // Pass thumb URL so addLibraryAsset can carry it onto the prefab
+        const iconContent = (it.ext === 'glb' || it.ext === 'gltf') && it.thumb
+          ? `<div class="ast-card-thumb" style="background-image:url('${this._esc(it.thumb)}')"></div>`
+          : iconFor(it.ext);
         rows += `
-          <div class="ast-card ast-library" onclick="Studio.Assets.addLibraryAsset('${kind}', '${this._esc(it.url)}', '${this._esc(it.name)}')" title="${this._esc(it.name)} · project ${it.projectId}">
-            <div class="ast-card-icon">${iconFor(it.ext)}</div>
+          <div class="ast-card ast-library" onclick="Studio.Assets.addLibraryAsset('${kind}', '${this._esc(it.url)}', '${this._esc(it.name)}', '${this._esc(it.thumb || '')}')" title="${this._esc(it.name)} · project ${it.projectId}">
+            <div class="ast-card-icon">${iconContent}</div>
             <div class="ast-card-label">${this._truncate(it.name, 14)}</div>
             <div class="ast-card-sub">${sizeKb} · ${shortProj}</div>
           </div>`;
@@ -323,15 +349,19 @@ Studio.Assets = {
 
   // Click-to-add from the library → current project. Doesn't copy the
   // file; references the existing GitHub URL, so no extra storage.
-  addLibraryAsset(kind, url, name) {
+  addLibraryAsset(kind, url, name, thumb) {
     if (kind === 'model') {
       // Avoid duplicates
       let pf = Studio.Project.getPrefabByUrl(url);
       if (!pf) {
-        pf = Studio.Project.createPrefab({ name: name.replace(/\.\w+$/, ''), glbUrl: url });
+        // Keep the original filename (with extension) — matches the
+        // upload-time convention so library names match project names.
+        pf = Studio.Project.createPrefab({ name, glbUrl: url, thumbUrl: thumb || '' });
         Studio.Project.addPrefab(pf);
         Studio.toast(name + ' added to project', 'ok');
       } else {
+        // If we picked up a thumb this time and it was missing before, fill it in
+        if (thumb && !pf.thumbUrl) { pf.thumbUrl = thumb; Studio.Project.markDirty(); }
         Studio.toast(name + ' is already in the project', 'ok');
       }
       this.setTab('project');

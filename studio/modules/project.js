@@ -72,6 +72,7 @@ Studio.Project = {
       id: 'pf_' + this._genId(),
       name: 'Model',
       glbUrl: '',
+      thumbUrl: '',   // PNG rendered from the GLB, shown on the prefab card
       file: null,     // transient, cleared after upload
       clips: [],      // animation clip names, detected on first load
       sortOrder: this.state.prefabs.length,
@@ -210,9 +211,10 @@ Studio.Project = {
       try { URL.revokeObjectURL(prefab._blobUrl); } catch(e) {}
     }
 
-    // Delete the shared GLB from GitHub
-    if (Studio.GitHub?.deleteByUrl && prefab.glbUrl) {
-      Studio.GitHub.deleteByUrl(prefab.glbUrl).catch(() => {});
+    // Delete the shared GLB + thumbnail from GitHub
+    if (Studio.GitHub?.deleteByUrl) {
+      if (prefab.glbUrl)   Studio.GitHub.deleteByUrl(prefab.glbUrl).catch(() => {});
+      if (prefab.thumbUrl) Studio.GitHub.deleteByUrl(prefab.thumbUrl).catch(() => {});
     }
     this.markDirty();
     Studio.EventBus.emit('prefab:removed', { id, prefab });
@@ -239,7 +241,7 @@ Studio.Project = {
         thumbnailUrl: t.thumbnailUrl, objectIds: [...(t.objectIds || [])],
       })),
       prefabs: (s.prefabs || []).map(p => ({
-        id: p.id, name: p.name, glbUrl: p.glbUrl,
+        id: p.id, name: p.name, glbUrl: p.glbUrl, thumbUrl: p.thumbUrl || '',
         clips: [...(p.clips || [])], sortOrder: p.sortOrder || 0
       })),
       objects: s.objects.map(o => ({
@@ -311,6 +313,7 @@ Studio.Project = {
     s.prefabs = (data.prefabs || []).map(p => ({
       id: p.id, name: p.name || 'Model',
       glbUrl: p.glbUrl || '',
+      thumbUrl: p.thumbUrl || '',
       clips: [...(p.clips || [])],
       sortOrder: p.sortOrder || 0,
       file: null,
