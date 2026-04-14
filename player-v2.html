@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.6">
+<meta name="version" content="3.10.7">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -159,7 +159,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.10.6';
+const PLAYER_VERSION = '3.10.7';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 
@@ -561,20 +561,48 @@ if (typeof AFRAME !== 'undefined') {
   // Inner content (fairies, foliage, etc.) goes as CHILDREN of the
   // hider entity so the hider's depth clips them to its bounds.
   AFRAME.registerComponent('ar-hider-material', {
+    schema: {
+      // 'back' (default) gives the portal effect on a normally-oriented
+      // mesh — only back-facing triangles are rendered invisibly, so
+      // content inside the volume passes the depth test. 'front' is
+      // the classic hider behaviour that relies on the GLB being
+      // authored with inverted normals (matches 8th Wall's dunnasifairy
+      // BoxHider.glb). 'double' renders both sides.
+      side:          { type: 'string',  default: 'back' },  // 'front' | 'back' | 'double'
+      // If true, reverses triangle winding on every mesh under this
+      // entity — equivalent to modelling with inverted normals. Use
+      // for GLBs not authored that way when `side` is 'front'.
+      invertNormals: { type: 'boolean', default: false },
+    },
     init() {
-      const mat = new THREE.MeshStandardMaterial();
-      mat.colorWrite = false;
-      this._mat = mat;
       this._apply = this._apply.bind(this);
+      this._flipped = new WeakSet();  // meshes already flipped to avoid double-flip on re-apply
       this._apply();
       this.el.addEventListener('model-loaded', this._apply);
       this.el.addEventListener('object3dset', this._apply);
     },
+    update() { this._apply(); },
     _apply() {
       const root = this.el.object3D;
       if (!root) return;
+      const sideMap = {
+        front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide,
+      };
+      const mat = new THREE.MeshStandardMaterial();
+      mat.colorWrite = false;
+      mat.side = sideMap[this.data.side] != null ? sideMap[this.data.side] : THREE.BackSide;
       root.traverse(node => {
-        if (node.isMesh) node.material = this._mat;
+        if (!node.isMesh) return;
+        if (this.data.invertNormals && !this._flipped.has(node) && node.geometry && node.geometry.index) {
+          const idx = node.geometry.index.array;
+          for (let i = 0; i < idx.length; i += 3) {
+            const tmp = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = tmp;
+          }
+          node.geometry.index.needsUpdate = true;
+          node.geometry.computeVertexNormals();
+          this._flipped.add(node);
+        }
+        node.material = mat;
       });
     },
     remove() {
@@ -1367,7 +1395,17 @@ function buildEntity(obj, i) {
     // control the full lifecycle so no external dependency can
     // regress behaviour.
     if (key === 'xrextras-hider-material') {
-      attrs += ` ar-hider-material`;
+      // Only forward the player-relevant props. `showWireframe` and
+      // `solidFill` are studio preview options and meaningless here.
+      const cfg = (config && typeof config === 'object') ? config : {};
+      const side = cfg.side || 'back';
+      const invert = !!cfg.invertNormals;
+      const parts = [];
+      if (side && side !== 'back')        parts.push('side: ' + side);
+      if (invert)                          parts.push('invertNormals: true');
+      attrs += parts.length
+        ? ` ar-hider-material="${parts.join('; ')}"`
+        : ` ar-hider-material`;
       return;
     }
 

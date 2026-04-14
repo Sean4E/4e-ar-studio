@@ -827,14 +827,19 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // Occluder. Two studio-only toggles control how we PREVIEW
-        // the hider — the published player always uses the real
-        // xrextras-hider-material (camera feed shows through).
+        // Occluder. Studio-only toggles control how we PREVIEW the
+        // hider — the published player always uses the real
+        // ar-hider-material (camera feed shows through).
         //   solidFill = true  → paint with viewport clear colour so
         //                       it reads as a "hole in the scene"
         //   solidFill = false → colorWrite:false (truly invisible,
         //                       only depth), matches AR behaviour
+        // `side` controls which face renders. BackSide = portal
+        // effect (interior visible because front faces cull away).
         const useSolidFill = hider === true || hider.solidFill !== false;
+        const sideStr = (hider && hider.side) || 'back';
+        const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
+        const side = sideMap[sideStr] != null ? sideMap[sideStr] : THREE.BackSide;
         if (useSolidFill) {
           const clear = new THREE.Color();
           this.renderer.getClearColor(clear);
@@ -842,14 +847,14 @@ Studio.Viewport = {
             color: clear,
             depthWrite: true,
             depthTest: true,
-            side: THREE.DoubleSide,
+            side,
           });
         }
         return new THREE.MeshBasicMaterial({
           colorWrite: false,
           depthWrite: true,
           depthTest: true,
-          side: THREE.DoubleSide,
+          side,
         });
       }
       return null;  // no override → restore
@@ -861,12 +866,22 @@ Studio.Viewport = {
     // doesn't leak when we switch to basic/pbr or back to default.
     this._removeOccluderHelper(obj);
 
+    // Whether the hider wants geometry normals reversed. Flipping
+    // triangle winding is a one-time mutation — we track state per
+    // mesh so toggling OFF restores the original winding.
+    const wantFlip = !!(hider && hider !== true && hider.invertNormals);
+
     obj.mesh.traverse(c => {
       if (!c.isMesh) return;
       // Cache the original material the first time we override, so
       // toggling the switch off can put it back exactly as it was.
       if (!c.userData._origMat) c.userData._origMat = c.material;
       if (!c.userData._origRenderOrder) c.userData._origRenderOrder = c.renderOrder || 0;
+
+      // Toggle triangle winding to match hider.invertNormals state.
+      const isFlipped = !!c.userData._hiderFlipped;
+      if (wantFlip !== isFlipped) this._flipMeshWinding(c);
+
       if (overrideMat) {
         c.material = overrideMat;
         // Render the occluder EARLY so the depth buffer is populated
@@ -903,6 +918,39 @@ Studio.Viewport = {
       added.push(wire);
     });
     obj._occluderHelpers = added;
+  },
+
+  // Reverses triangle winding on a mesh. Indexed geometries swap the
+  // last two indices of every triangle; non-indexed geometries swap
+  // the second and third vertex of every triangle in every buffer
+  // attribute. Normals are re-computed. Idempotent toggle — tracks
+  // the state via userData._hiderFlipped.
+  _flipMeshWinding(mesh) {
+    const geo = mesh.geometry;
+    if (!geo) return;
+    if (geo.index) {
+      const arr = geo.index.array;
+      for (let i = 0; i < arr.length; i += 3) {
+        const tmp = arr[i + 1]; arr[i + 1] = arr[i + 2]; arr[i + 2] = tmp;
+      }
+      geo.index.needsUpdate = true;
+    } else {
+      // Non-indexed: swap vertex 1 ↔ vertex 2 for every triangle in every attribute.
+      for (const name in geo.attributes) {
+        const attr = geo.attributes[name];
+        const itemSize = attr.itemSize;
+        const arr = attr.array;
+        for (let i = 0; i < arr.length; i += itemSize * 3) {
+          for (let k = 0; k < itemSize; k++) {
+            const a = i + itemSize + k, b = i + itemSize * 2 + k;
+            const tmp = arr[a]; arr[a] = arr[b]; arr[b] = tmp;
+          }
+        }
+        attr.needsUpdate = true;
+      }
+    }
+    geo.computeVertexNormals();
+    mesh.userData._hiderFlipped = !mesh.userData._hiderFlipped;
   },
 
   _removeOccluderHelper(obj) {

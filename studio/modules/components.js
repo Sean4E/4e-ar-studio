@@ -196,12 +196,17 @@ Studio.Components = {
     },
     'xrextras-hider-material': {
       name: 'Hider Material', category: 'materials', icon: '🚫',
-      description: 'Occludes objects behind it. In AR the surface is invisible (camera feed shows through). Studio-only toggles below control the editor preview.',
+      description: 'Occludes objects behind it. In AR the surface is invisible (camera feed shows through). For portal/interior effects, use BackSide or flip normals so the front faces cull away and the interior is revealed.',
       trackingModes: ['slam','image','face','hand'], appliesTo: 'entity', type: 'config',
       properties: {
-        // Studio preview options — NOT forwarded to the published player
-        // (the xrextras native hider has no config; buildEntity strips
-        // these before emitting the attribute).
+        // Which side of the geometry writes to the depth buffer.
+        // BackSide = portal effect (content inside box is visible because
+        // front faces are culled). FrontSide = classic occluder.
+        side: { type: 'select', label: 'Side', default: 'back', options: ['front','back','double'] },
+        // Reverse triangle winding on the mesh — same end result as
+        // BackSide when the GLB was authored with outward normals.
+        invertNormals: { type: 'boolean', label: 'Invert normals', default: false },
+        // Studio preview options (editor only — not forwarded to player).
         showWireframe: { type: 'boolean', label: 'Show wireframe (studio)', default: true },
         solidFill:     { type: 'boolean', label: 'Solid fill (studio)', default: true },
       }
