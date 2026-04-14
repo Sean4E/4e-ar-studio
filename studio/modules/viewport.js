@@ -64,10 +64,19 @@ Studio.Viewport = {
     dir.shadow.mapSize.set(2048, 2048);
     this.scene.add(dir);
 
-    // Grid + axes
-    this.scene.add(new THREE.GridHelper(6, 30, 0x222244, 0x1a1a3a));
+    // Grid + axes. Grid gets an explicit LOW renderOrder so it draws
+    // before anything else in the opaque pass — lets a hider mesh
+    // (renderOrder = -5 when active, see applyMaterial) write its
+    // depth on top of the grid's pre-drawn colour. Result: grid
+    // stays visible through an invisible hider, matching the test
+    // harness look, while content behind the hider still gets
+    // depth-occluded.
+    const grid = new THREE.GridHelper(6, 30, 0x222244, 0x1a1a3a);
+    grid.renderOrder = -10;
+    this.scene.add(grid);
     const axes = new THREE.AxesHelper(0.4);
     axes.position.set(-3, 0, -3);
+    axes.renderOrder = -10;
     this.scene.add(axes);
 
     // Raycaster
@@ -929,18 +938,19 @@ Studio.Viewport = {
         // by not having a shadow map at all. For primitives with no
         // hider, cast shadows as usual.
         newMesh.castShadow = !(hider) && obj.primitiveType !== 'empty';
-        // CRITICAL for occluder / boolean-cutter behaviour: the hider
-        // must render BEFORE other opaque objects so its depth is in
-        // the buffer when they try to draw. Three.js's opaque sort
-        // (r147 WebGLRenderLists painterSortStable) uses material.id
-        // as a tie-break, and since we rebuild the hider material on
-        // every toggle, its material.id creeps above everything else
-        // in the scene — the hider ends up drawn LAST, by which point
-        // surrounding meshes have already painted color into the
-        // framebuffer and the hider's depth-write is too late to hide
-        // them. Explicit negative renderOrder forces "first in opaque
-        // pass" regardless of when the material was created.
-        newMesh.renderOrder = hider ? -1 : 0;
+        // Render order: hider must draw BEFORE user content so its
+        // depth is in the buffer when other objects depth-test — but
+        // AFTER the grid helper, so the grid's colour stays visible
+        // through the invisible hider (matches the test harness look).
+        //   Grid helper: renderOrder = -10 (set at init)
+        //   Hider mesh:  renderOrder = -5  (this line, when hider on)
+        //   Content:     renderOrder = 0   (default)
+        // Without this, Three.js's opaque sort uses material.id as a
+        // tie-break — the freshly-rebuilt hider material always has
+        // the highest id and ends up drawn LAST, meaning surrounding
+        // meshes paint colour before the hider's depth lands and
+        // occlusion breaks entirely.
+        newMesh.renderOrder = hider ? -5 : 0;
         newMesh.userData._objId = obj.id;
         newMesh.userData._primitiveType = obj.primitiveType;
 
