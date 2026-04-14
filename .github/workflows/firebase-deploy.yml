@@ -22,6 +22,7 @@ on:
       - 'sw.js'
       - 'samples/**'
       - 'studio/**'
+      - 'projects.html'
       - 'firebase.json'
       - 'firestore.rules'
       - '.github/workflows/firebase-deploy.yml'
