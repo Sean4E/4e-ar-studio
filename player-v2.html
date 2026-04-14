@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.9">
+<meta name="version" content="3.3.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -21,15 +23,15 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--navy:#060a18;--purple:#8b5cf6;--text:#e2e8f0;--muted:#8899b0}
 body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;overflow:hidden;height:100vh;width:100vw}
-#splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .5s}
+#splash{position:fixed;inset:0;z-index:200;transition:opacity .5s ease,background .6s ease;background:#060a18}
 #splash.hidden{opacity:0;pointer-events:none}
-.splash-logo{font-size:48px;margin-bottom:12px;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-.splash-name{font-size:20px;font-weight:700;margin-bottom:6px}
-.splash-sub{font-size:13px;opacity:.6;margin-bottom:12px}
-.splash-status{font-size:12px;color:var(--muted)}
+.splash-layer{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;transition:opacity .55s ease}
+#splash-default{opacity:1}
+#splash-custom{opacity:0}
+#splash.custom-ready #splash-default{opacity:0}
+#splash.custom-ready #splash-custom{opacity:1}
 @keyframes spin{to{transform:rotate(360deg)}}
-#splash-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;position:relative;padding:20px}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.85}}
 #error-screen{position:fixed;inset:0;background:var(--navy);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:40px;text-align:center}
 #error-screen.show{display:flex}
 .err-title{font-size:20px;font-weight:700;color:#f87171;margin-bottom:8px}
@@ -48,25 +50,31 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 </head>
 <body>
 
-<div id="splash" style="background:#060a18">
-  <div id="splash-inner">
-    <!-- Default 4E splash — shown on first paint before Firestore resolves.
-         Replaced by applySplash() once project config loads, or by the
-         synchronous script below if a cached splash exists for this id. -->
+<div id="splash">
+  <!-- Layer 1: default 4E splash. Always rendered on first paint. Its
+       DOM is NEVER replaced — it just fades out when the custom splash
+       is ready, so the logo image is decoded once and never reflows. -->
+  <div id="splash-default" class="splash-layer">
     <img src="samples/logo_WHT.png" style="max-height:36px;margin-bottom:14px;opacity:.8" onerror="this.outerHTML='<div style=font-size:42px;margin-bottom:14px;opacity:.8>&#9670;</div>'">
     <div style="color:#e2e8f0;font-size:20px;font-weight:700;font-family:Syne,sans-serif">4E AR</div>
     <div style="margin-top:20px;display:flex;align-items:center;gap:6px">
       <div style="width:16px;height:16px;border:2px solid #8b5cf644;border-top-color:#8b5cf6;border-radius:50%;animation:spin .8s linear infinite"></div>
-      <span id="splash-status" style="color:#e2e8f0;opacity:.3;font-size:11px">Loading…</span>
+      <span class="splash-status-text" style="color:#e2e8f0;opacity:.3;font-size:11px">Loading…</span>
     </div>
     <div style="position:absolute;bottom:14px;font-size:10px;color:#e2e8f0;opacity:.35">Powered by 4E AR Studio</div>
   </div>
+  <!-- Layer 2: custom project splash. Populated by applySplash(), fades
+       in via the #splash.custom-ready class once the logo image is
+       fully decoded — so there's never a flash of unloaded content. -->
+  <div id="splash-custom" class="splash-layer"></div>
 </div>
 <script>
-// ─── Instant splash from localStorage cache ───────────────
-// Runs synchronously before any async work. If the user has visited this
-// project before (QR scan, PWA launch), we have the splash config cached
-// and can render the branded splash before Firestore even opens.
+// ─── Prime (no DOM swap) ─────────────────────────────────
+// Synchronously prime the splash background color and preload the
+// project's logo image from localStorage cache. We deliberately do NOT
+// swap the splash DOM here — that's what was causing the jitter. The
+// default 4E layer stays put; applySplash() will cross-fade the
+// branded layer in once it's fully ready.
 (function() {
   try {
     var id = new URLSearchParams(location.search).get('id');
@@ -75,38 +83,13 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
     if (!cached) return;
     var sp = JSON.parse(cached);
     var bg = sp.bgColor || '#060a18';
-    var text = sp.textColor || '#e2e8f0';
     var accent = sp.accentColor || '#8b5cf6';
-    var title = sp.title || sp.name || '4E AR';
-    var logo = sp.logoUrl || '';
     var splash = document.getElementById('splash');
-    var inner = document.getElementById('splash-inner');
-    if (!splash || !inner) return;
-    splash.style.background = sp.gradient
+    if (splash) splash.style.background = sp.gradient
       ? 'linear-gradient(145deg,' + bg + ',' + accent + '18)'
       : bg;
-    var esc = function(s){return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
-    var html = '';
-    if (sp.showLogo !== false) {
-      html += logo
-        ? '<img src="' + logo + '" style="max-height:56px;max-width:140px;margin-bottom:14px;object-fit:contain">'
-        : '<img src="samples/logo_WHT.png" style="max-height:36px;margin-bottom:14px;opacity:.8">';
-    }
-    if (sp.showTitle !== false) {
-      html += '<div style="color:' + text + ';font-size:20px;font-weight:700;font-family:Syne,sans-serif;text-align:center;padding:0 20px;line-height:1.3">' + esc(title) + '</div>';
-    }
-    if (sp.showSubtitle !== false && sp.subtitle) {
-      html += '<div style="color:' + text + ';opacity:.4;font-size:12px;margin-top:6px;text-align:center">' + esc(sp.subtitle) + '</div>';
-    }
-    if (sp.showSpinner !== false) {
-      html += '<div style="margin-top:20px;display:flex;align-items:center;gap:6px"><div style="width:16px;height:16px;border:2px solid ' + accent + '44;border-top-color:' + accent + ';border-radius:50%;animation:spin .8s linear infinite"></div><span id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px">Loading…</span></div>';
-    } else {
-      html += '<div id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
-    }
-    if (sp.showBranding !== false) {
-      html += '<div style="position:absolute;bottom:14px;font-size:10px;color:' + text + ';opacity:.55">Powered by 4E AR Studio</div>';
-    }
-    inner.innerHTML = html;
+    // Prime the browser image cache so the cross-fade is instant later
+    if (sp.logoUrl) { var i = new Image(); i.src = sp.logoUrl; }
   } catch(e) {}
 })();
 </script>
@@ -130,7 +113,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.9';
+const PLAYER_VERSION = '3.3.0';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -261,7 +244,9 @@ if (typeof AFRAME !== 'undefined') {
   });
 }
 
-function setSplashStatus(msg) { const s = el('splash-status'); if (s) s.textContent = msg; }
+function setSplashStatus(msg) {
+  document.querySelectorAll('.splash-status-text').forEach(e => e.textContent = msg);
+}
 
 // Check if any object in the project uses audio or video components
 function projectHasMedia() {
@@ -502,24 +487,25 @@ function applyPWA(app) {
 function applySplash(app) {
   const sp = app.splash || {};
   const splash = el('splash');
-  const inner = el('splash-inner');
+  const custom = el('splash-custom');
   const bg = sp.bgColor || '#060a18';
   const text = sp.textColor || '#e2e8f0';
   const accent = sp.accentColor || '#8b5cf6';
   const title = sp.title || app.name || 'AR Experience';
   const logo = sp.logoUrl || '';
 
-  // Background (with optional gradient)
+  // Update splash background (CSS transition makes this smooth)
   splash.style.background = sp.gradient
     ? 'linear-gradient(145deg, ' + bg + ', ' + accent + '18)'
     : bg;
 
-  // Build splash HTML (mirrors studio designer — respects all element toggles)
+  // Build custom splash HTML into the hidden second layer.
+  // Status element uses a class so setSplashStatus can update both layers.
   let html = '';
   if (sp.showLogo !== false) {
     html += logo
-      ? '<img src="' + logo + '" style="max-height:56px;max-width:140px;margin-bottom:14px;object-fit:contain">'
-      : '<img src="samples/logo_WHT.png" style="max-height:36px;margin-bottom:14px;opacity:.7" onerror="this.outerHTML=\'<div style=font-size:42px;margin-bottom:14px;opacity:.7>&#9670;</div>\'">';
+      ? '<img class="sp-logo" src="' + logo + '" style="max-height:56px;max-width:140px;margin-bottom:14px;object-fit:contain">'
+      : '<img class="sp-logo" src="samples/logo_WHT.png" style="max-height:36px;margin-bottom:14px;opacity:.7" onerror="this.outerHTML=\'<div style=font-size:42px;margin-bottom:14px;opacity:.7>&#9670;</div>\'">';
   }
   if (sp.showTitle !== false) {
     html += '<div style="color:' + text + ';font-size:20px;font-weight:700;font-family:Syne,sans-serif;text-align:center;padding:0 20px;line-height:1.3">' + _esc(title) + '</div>';
@@ -528,26 +514,41 @@ function applySplash(app) {
     html += '<div style="color:' + text + ';opacity:.4;font-size:12px;margin-top:6px;text-align:center">' + _esc(sp.subtitle) + '</div>';
   }
   if (sp.showSpinner !== false) {
-    html += '<div style="margin-top:20px;display:flex;align-items:center;gap:6px"><div style="width:16px;height:16px;border:2px solid ' + accent + '44;border-top-color:' + accent + ';border-radius:50%;animation:spin .8s linear infinite"></div><span id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px">Loading…</span></div>';
+    html += '<div style="margin-top:20px;display:flex;align-items:center;gap:6px"><div style="width:16px;height:16px;border:2px solid ' + accent + '44;border-top-color:' + accent + ';border-radius:50%;animation:spin .8s linear infinite"></div><span class="splash-status-text" style="color:' + text + ';opacity:.3;font-size:11px">Loading…</span></div>';
   } else {
-    html += '<div id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
+    html += '<div class="splash-status-text" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
   }
   if (sp.showBranding !== false) {
     html += '<div style="position:absolute;bottom:14px;font-size:10px;color:' + text + ';opacity:.55">Powered by 4E AR Studio v' + PLAYER_VERSION + '</div>';
   }
-  inner.innerHTML = html;
+  custom.innerHTML = html;
   el('ar-title').textContent = title;
 
-  // Cache splash config so future loads (QR re-scan, PWA launch) can render
-  // the branded splash synchronously on first paint — no Firestore wait.
+  // Reflect current status message so we don't blank it during the fade
+  const statusNow = document.querySelector('#splash-default .splash-status-text')?.textContent;
+  if (statusNow) {
+    custom.querySelectorAll('.splash-status-text').forEach(e => e.textContent = statusNow);
+  }
+
+  // Cross-fade only AFTER the logo image has fully decoded, so the
+  // branded layer never flashes half-loaded content. If there's no
+  // logo (or it already loaded from the preload primer), reveal now.
+  const reveal = () => splash.classList.add('custom-ready');
+  const img = custom.querySelector('img.sp-logo');
+  if (img && !img.complete) {
+    img.addEventListener('load', reveal, { once: true });
+    img.addEventListener('error', reveal, { once: true });
+    setTimeout(reveal, 800);  // safety fallback
+  } else {
+    // Let the current paint settle, then fade on the next frame
+    requestAnimationFrame(() => requestAnimationFrame(reveal));
+  }
+
+  // Cache for next visit (background prime + logo preload, no DOM swap)
   try {
     localStorage.setItem('4e-splash-' + app.id, JSON.stringify({
-      title: sp.title, subtitle: sp.subtitle,
-      bgColor: sp.bgColor, textColor: sp.textColor, accentColor: sp.accentColor,
+      bgColor: sp.bgColor, accentColor: sp.accentColor,
       logoUrl: sp.logoUrl, gradient: sp.gradient,
-      showLogo: sp.showLogo, showTitle: sp.showTitle, showSubtitle: sp.showSubtitle,
-      showSpinner: sp.showSpinner, showBranding: sp.showBranding,
-      name: app.name,
     }));
   } catch(e) {}
 }
