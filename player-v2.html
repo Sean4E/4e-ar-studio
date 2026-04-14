@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.8.0">
+<meta name="version" content="3.8.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.8.0';
+const PLAYER_VERSION = '3.8.1';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -235,8 +235,11 @@ if (typeof AFRAME !== 'undefined') {
       const onLost = (e) => {
         const n = e?.detail?.name || '';
         if (tName && n !== tName) return;
-        // If pauseOnLost is false, audio keeps playing even after target
-        // is no longer visible (useful with image→SLAM anchoring).
+        // Image→SLAM anchoring: once the entity is locked in world
+        // space, "image lost" no longer means "object isn't here" —
+        // the object IS here, just the marker isn't visible. Keep the
+        // audio playing regardless of the pauseOnLost toggle.
+        if (this.el.hasAttribute('image-to-slam')) return;
         if (this.data.pauseOnLost) this._stop();
       };
 
@@ -416,9 +419,10 @@ if (typeof AFRAME !== 'undefined') {
       const onLost = (e) => {
         const n = e && e.detail && e.detail.name || '';
         if (tName && n !== tName) return;
-        // If pauseOnLost is false, video keeps playing (useful with
-        // image→SLAM anchoring — the plane is world-locked so the
-        // video should continue even when target is out of view).
+        // Image→SLAM anchoring overrides pauseOnLost: once the entity
+        // is locked in world space, the marker leaving the frame
+        // doesn't mean the object's gone, so don't pause/fade.
+        if (this.el.hasAttribute('image-to-slam')) return;
         if (this.data.pauseOnLost) this._stop();
       };
 
@@ -596,6 +600,77 @@ if (typeof AFRAME !== 'undefined') {
       };
       if (sceneEl.hasLoaded) attach();
       else sceneEl.addEventListener('loaded', attach);
+    }
+  });
+
+  // ─── ground-clamp ──────────────────────────────────────
+  // Keeps an entity's bounding-box bottom at or above a ground plane.
+  // Auto-applied to image-to-slam entities so a plane (whose pivot is
+  // at its centre) doesn't sink halfway through the floor when the
+  // user drags it via xrextras-hold-drag — hold-drag positions the
+  // PIVOT at the ground intersection, so a vertical plane would have
+  // its bottom half below ground without this clamp.
+  //
+  // Strategy: compute the bbox once geometry is ready, store the
+  // pivot-to-bottom offset, then on every tick ensure
+  //   entity.position.y >= groundY + (pivot - bottom)
+  // This lets hold-drag move the entity freely on X/Z but constrains
+  // Y so the bottom always rests on the ground.
+  AFRAME.registerComponent('ground-clamp', {
+    schema: {
+      groundY: { type: 'number', default: 0 },
+      enabled: { type: 'boolean', default: true }
+    },
+    init() {
+      this._pivotToBottom = null;   // cached: distance from pivot to bbox bottom
+      this._wasVisible = false;
+      this._lastScaleY = null;
+      this._scratch = new THREE.Box3();
+
+      // Recompute when a child mesh is set/replaced (video-on-target's
+      // plane geometry resizes when video metadata arrives, so we
+      // can't snapshot once and forget).
+      const recompute = () => this._compute();
+      this.el.addEventListener('object3dset', recompute);
+      this.el.addEventListener('loaded', recompute);
+      setTimeout(recompute, 0);
+      setTimeout(recompute, 500);
+      setTimeout(recompute, 1500);
+    },
+    _compute() {
+      const obj = this.el.object3D;
+      // Only compute when the entity is actually visible — image-to-
+      // slam hides the entity until the marker is found and may also
+      // change scale during promotion. Computing on an invisible/
+      // unscaled entity gives a stale offset.
+      if (!obj.visible) return;
+      this._scratch.makeEmpty();
+      this._scratch.setFromObject(obj);
+      const bottom = this._scratch.min.y;
+      if (!isFinite(bottom)) return;
+      this._pivotToBottom = obj.position.y - bottom;
+      this._lastScaleY = obj.scale.y;
+    },
+    tick() {
+      if (!this.data.enabled) return;
+      const obj = this.el.object3D;
+
+      // First-time recompute: image-to-slam promotion makes the entity
+      // visible AND may change scale at the same moment. Catch that
+      // transition here so the clamp distance reflects the final size.
+      if (!this._wasVisible && obj.visible) {
+        this._wasVisible = true;
+        this._compute();
+      }
+      // Scale changed materially (video aspect resolved late, etc.) →
+      // recompute once so the offset tracks the new bbox.
+      else if (this._lastScaleY != null && Math.abs(obj.scale.y - this._lastScaleY) > 0.001) {
+        this._compute();
+      }
+
+      if (this._pivotToBottom == null) return;
+      const minY = this.data.groundY + this._pivotToBottom;
+      if (obj.position.y < minY) obj.position.y = minY;
     }
   });
 }
@@ -1039,11 +1114,14 @@ function buildEntity(obj, i) {
   // compose the image's world pose with the user's local offset and
   // lock the entity in world space. Entity must live at scene root
   // (not as a child of <xrextras-named-image-target>) for this to work
-  // — buildImageNative handles the placement.
+  // — buildImageNative handles the placement. Also pair with
+  // ground-clamp so hold-drag can't sink the entity below the floor
+  // (planes have center pivots; without the clamp, dragging a vertical
+  // plane puts its bottom half below the ground).
   if (obj.imageToSlam) {
     const tgt = (APP?.targets || []).find(t => t.id === obj.targetId);
     const tName = tgt ? tgt.name : '';
-    attrs += ` image-to-slam="targetName: ${tName}"`;
+    attrs += ` image-to-slam="targetName: ${tName}" ground-clamp`;
   }
 
   // 8th Wall native interactions from legacy interactions{} field
