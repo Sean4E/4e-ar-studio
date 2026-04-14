@@ -80,9 +80,9 @@ Studio.Splash = {
           </div>
 
           <div class="sp-prop-group">
-            <div class="sp-prop-label">Duration</div>
+            <div class="sp-prop-label" title="Minimum total splash time, measured from page load. If the experience loads faster, the splash dismisses as soon as this elapses; if it loads slower, the splash hides immediately when the scene is ready.">Min Duration</div>
             <div style="display:flex;gap:6px;align-items:center">
-              <input type="range" min="1" max="10" step="0.5" value="3" id="sp-duration" oninput="Studio.Splash._update();document.getElementById('sp-dur-val').textContent=this.value+'s'" style="flex:1">
+              <input type="range" min="0" max="10" step="0.5" value="3" id="sp-duration" oninput="Studio.Splash._update();document.getElementById('sp-dur-val').textContent=this.value+'s'" style="flex:1">
               <span id="sp-dur-val" style="font-size:10px;color:var(--muted);width:24px">3s</span>
             </div>
           </div>

@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.6.1">
+<meta name="version" content="3.6.2">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,8 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.6.1';
+const PLAYER_VERSION = '3.6.2';
+const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
 // never ship the splash with a stale or missing version string.
@@ -553,12 +554,18 @@ function projectHasMedia() {
 }
 
 function hideSplash() {
-  const dur = (APP?.splash?.duration || 3) * 1000;
+  // splash.duration is the MINIMUM total splash time measured from
+  // page load (not from scene-loaded). If the scene loads quickly, the
+  // splash dismisses as soon as the elapsed time has reached duration;
+  // if the scene loads slowly, the splash hides immediately because
+  // the user has already seen branding for plenty of time.
+  const minDur = (APP?.splash?.duration ?? 3) * 1000;
+  const elapsed = performance.now() - SPLASH_START;
+  const remaining = Math.max(0, minDur - elapsed);
   setTimeout(() => {
     el('splash').classList.add('hidden');
-    // Show audio button if project has media
     if (projectHasMedia()) showAudioButton();
-  }, dur);
+  }, remaining);
 }
 
 // Global audio state — used by all audio components
