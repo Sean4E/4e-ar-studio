@@ -67,6 +67,53 @@ Studio.setTrackingMode = function(mode) {
   Studio.log('Tracking: ' + mode);
 };
 
+// ─── QR Rendering ────────────────────────────────────────
+// Shared renderer used by publish & preview modals. Defaults to splash
+// accent (dark modules) + white (light modules). Customizable via the
+// color pickers in the publish modal.
+Studio._qrUrl = '';
+
+Studio.renderQR = function(url) {
+  const qrEl = document.getElementById('qr-code');
+  const darkInp = document.getElementById('qr-dark');
+  const lightInp = document.getElementById('qr-light');
+  const themeRow = document.getElementById('qr-theme');
+  if (!qrEl) return;
+
+  if (url) Studio._qrUrl = url;
+  const finalUrl = Studio._qrUrl;
+  if (!finalUrl) return;
+
+  const dark = (darkInp && darkInp.value) || '#7c3aed';
+  const light = (lightInp && lightInp.value) || '#ffffff';
+
+  qrEl.innerHTML = '';
+  new QRCode(qrEl, { text: finalUrl, width: 180, height: 180, colorDark: dark, colorLight: light });
+  if (themeRow) themeRow.style.display = 'flex';
+};
+
+Studio.resetQRColors = function() {
+  const sp = Studio.Project.state.splash || {};
+  const dark = sp.accentColor || '#7c3aed';
+  const light = '#ffffff';
+  const darkInp = document.getElementById('qr-dark');
+  const lightInp = document.getElementById('qr-light');
+  if (darkInp) darkInp.value = dark;
+  if (lightInp) lightInp.value = light;
+  Studio.renderQR();
+};
+
+Studio.downloadQR = function() {
+  const qrEl = document.getElementById('qr-code');
+  const canvas = qrEl?.querySelector('canvas');
+  if (!canvas) { Studio.toast('QR not ready', 'err'); return; }
+  const a = document.createElement('a');
+  const name = (Studio.Project.state.name || 'ar-app').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+  a.download = name + '-qr.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+};
+
 // ─── Project Operations ──────────────────────────────────
 Studio.newProject = function() {
   Studio.Project.reset();
@@ -88,10 +135,11 @@ Studio.saveProject = async function() {
   if (!state.id) state.id = Studio.Project._genId();
   state.name = document.getElementById('tb-name').value.trim() || 'Untitled';
 
-  // Upload splash logo if new file exists
+  // Upload splash logo if new file exists, then regenerate PWA icons
+  // (icons depend on logoUrl + splash colors, so we do them together)
+  const gh = Studio.GitHub.getConfig();
   if (state.splash.logoFile && !state.splash.logoUrl) {
     try {
-      const gh = Studio.GitHub.getConfig();
       if (gh.token) {
         const path = 'assets/' + state.id + '/splash-logo.png';
         state.splash.logoUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(state.splash.logoFile));
@@ -99,6 +147,12 @@ Studio.saveProject = async function() {
         Studio.log('Splash logo uploaded');
       }
     } catch(e) { Studio.log('Logo upload failed: ' + e.message); }
+  }
+  // PWA icons — upload if stale (cheap no-op when cached)
+  if (gh.token) {
+    try {
+      await Studio.PWA.uploadIcons('assets/' + state.id);
+    } catch(e) { Studio.log('PWA icons failed: ' + e.message); }
   }
 
   const data = Studio.Project.serialize();
@@ -213,6 +267,8 @@ Studio.publishProject = async function() {
     // Show modal in "deploying" state — QR hidden until ready
     qrEl.innerHTML = '';
     urlEl.value = '';
+    const themeRow = document.getElementById('qr-theme');
+    if (themeRow) themeRow.style.display = 'none';
     statusEl.innerHTML = '<div style="color:var(--orange);font-size:14px;text-align:center;padding:20px">⏳ Publishing…<br><span style="font-size:11px;color:var(--muted)">Uploading assets and waiting for deployment</span></div>';
     document.getElementById('modal-publish').classList.remove('hidden');
 
@@ -221,7 +277,8 @@ Studio.publishProject = async function() {
 
     const showReady = () => {
       urlEl.value = url;
-      new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+      Studio.resetQRColors();
+      Studio.renderQR(url);
       statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!<br><span style="font-size:10px;color:var(--muted)">Player v' + Studio.VERSION + '</span></div>';
       Studio.toast('Published & deployed ✓', 'ok');
     };
@@ -288,9 +345,8 @@ Studio.previewProject = async function() {
 
   const url = (window.AR_BASE_URL || location.origin) + '/player-v2.html?id=' + state.id;
   document.getElementById('pub-url').value = url;
-  const qrEl = document.getElementById('qr-code');
-  qrEl.innerHTML = '';
-  new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: '#7c3aed', colorLight: '#ffffff' });
+  Studio.resetQRColors();
+  Studio.renderQR(url);
   document.getElementById('deploy-status').innerHTML = `
     <div style="font-size:14px;font-weight:700;color:var(--cyan);margin-bottom:6px">📱 Dev Preview</div>
     ${statusHtml}
@@ -351,9 +407,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.Targets.init();
   Studio.CodeEditor.init();
   Studio.Splash.init();
+  Studio.PWA.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.2.7';
+  Studio.VERSION = '3.2.8';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;

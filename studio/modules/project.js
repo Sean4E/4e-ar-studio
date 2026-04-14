@@ -46,6 +46,9 @@ Studio.Project = {
 
     media: [],  // uploaded audio/video/image files { name, url, type }
 
+    // PWA: URLs of generated app icons (populated on publish)
+    pwa: { icon192Url: '', icon512Url: '', appleIconUrl: '' },
+
     dirty: false,
     createdAt: null,
     updatedAt: null
@@ -156,6 +159,12 @@ Studio.Project = {
         duration: s.splash.duration || 3
       },
       media: (s.media || []).map(m => ({ name: m.name, url: m.url, type: m.type })),
+      pwa: {
+        icon192Url: s.pwa?.icon192Url || '',
+        icon512Url: s.pwa?.icon512Url || '',
+        appleIconUrl: s.pwa?.appleIconUrl || '',
+        sourceKey: s.pwa?.sourceKey || '',
+      },
       updatedAt: null // set by Firebase
     };
   },
@@ -181,6 +190,12 @@ Studio.Project = {
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
     s.media = (data.media || []).map(m => ({ name: m.name, url: m.url, type: m.type }));
+    s.pwa = {
+      icon192Url: data.pwa?.icon192Url || '',
+      icon512Url: data.pwa?.icon512Url || '',
+      appleIconUrl: data.pwa?.appleIconUrl || '',
+      sourceKey: data.pwa?.sourceKey || '',
+    };
     s.createdAt = data.createdAt;
     s.updatedAt = data.updatedAt;
 
@@ -230,6 +245,7 @@ Studio.Project = {
     s.scene = { shadowCatcher: true, ambientIntensity: 0.5, directIntensity: 0.8 };
     s.splash = { title:'', subtitle:'', bgColor:'#060a18', textColor:'#e2e8f0', accentColor:'#8b5cf6', logoUrl:'', logoFile:null, showSpinner:true, showBranding:true, showLogo:true, showTitle:true, showSubtitle:true, gradient:'', duration:3 };
     s.media = [];
+    s.pwa = { icon192Url: '', icon512Url: '', appleIconUrl: '' };
     s.dirty = false;
     Studio.EventBus.emit('project:reset');
   },

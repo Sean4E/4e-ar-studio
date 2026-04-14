@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.7">
+<meta name="version" content="3.2.8">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -69,7 +69,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.7';
+const PLAYER_VERSION = '3.2.8';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -297,6 +297,9 @@ async function init() {
     APP = doc.data();
     APP.id = appId;
 
+    // PWA: inject per-project manifest + touch icon + theme color, register SW
+    applyPWA(APP);
+
     // Custom splash
     applySplash(APP);
 
@@ -358,6 +361,81 @@ function waitForXR8(timeout=10000) {
     };
     check();
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// PWA — per-project manifest, apple-touch-icon, theme color, SW
+// ═══════════════════════════════════════════════════════════
+function applyPWA(app) {
+  const sp = app.splash || {};
+  const pwa = app.pwa || {};
+  const name = sp.title || app.name || '4E AR';
+  const shortName = (name || '4E AR').slice(0, 12);
+  const bg = sp.bgColor || '#060a18';
+  const theme = sp.accentColor || '#8b5cf6';
+
+  // Update document title and theme color
+  document.title = name;
+  let themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (!themeMeta) {
+    themeMeta = document.createElement('meta');
+    themeMeta.name = 'theme-color';
+    document.head.appendChild(themeMeta);
+  }
+  themeMeta.content = bg;
+
+  // apple-mobile-web-app-title for iOS home screen
+  let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (!appleTitle) {
+    appleTitle = document.createElement('meta');
+    appleTitle.name = 'apple-mobile-web-app-title';
+    document.head.appendChild(appleTitle);
+  }
+  appleTitle.content = shortName;
+
+  // apple-touch-icon
+  if (pwa.appleIconUrl) {
+    let touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
+    if (!touchIcon) {
+      touchIcon = document.createElement('link');
+      touchIcon.rel = 'apple-touch-icon';
+      document.head.appendChild(touchIcon);
+    }
+    touchIcon.href = pwa.appleIconUrl;
+  }
+
+  // Build manifest
+  const icons = [];
+  if (pwa.icon192Url) icons.push({ src: pwa.icon192Url, sizes: '192x192', type: 'image/png', purpose: 'any' });
+  if (pwa.icon512Url) icons.push({ src: pwa.icon512Url, sizes: '512x512', type: 'image/png', purpose: 'any' });
+
+  const manifest = {
+    name,
+    short_name: shortName,
+    start_url: location.pathname + '?id=' + encodeURIComponent(app.id),
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: bg,
+    theme_color: theme,
+    icons,
+  };
+
+  // Inject manifest via data URL so there's no separate file to host
+  const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  const manifestUrl = URL.createObjectURL(manifestBlob);
+  let linkManifest = document.querySelector('link[rel="manifest"]');
+  if (!linkManifest) {
+    linkManifest = document.createElement('link');
+    linkManifest.rel = 'manifest';
+    document.head.appendChild(linkManifest);
+  }
+  linkManifest.href = manifestUrl;
+
+  // Register service worker (required for install prompt on Chromium)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  }
 }
 
 function applySplash(app) {

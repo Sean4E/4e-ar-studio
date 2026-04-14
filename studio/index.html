@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio</title>
-<meta name="version" content="3.2.7">
+<meta name="version" content="3.2.8">
 
 <!-- Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -174,9 +174,15 @@
     <div id="deploy-status" class="deploy-status"></div>
     <div id="qr-code" class="qr-container"></div>
     <input class="modal-url" id="pub-url" readonly>
+    <div id="qr-theme" class="qr-theme" style="display:none">
+      <label><input type="color" id="qr-dark" onchange="Studio.renderQR()"><span>Dark</span></label>
+      <label><input type="color" id="qr-light" onchange="Studio.renderQR()"><span>Light</span></label>
+      <button class="tb-btn" onclick="Studio.resetQRColors()" title="Reset to splash colors">Reset</button>
+    </div>
     <div class="modal-actions">
       <button class="tb-btn" onclick="navigator.clipboard.writeText(document.getElementById('pub-url').value);Studio.toast('Copied!','ok')">Copy URL</button>
       <button class="tb-btn" onclick="window.open(document.getElementById('pub-url').value,'_blank')">Open</button>
+      <button class="tb-btn tb-primary" onclick="Studio.downloadQR()">Download QR</button>
     </div>
     <button class="modal-close" onclick="Studio.closeModal('modal-publish')">Close</button>
   </div>
@@ -218,6 +224,7 @@
 <script src="modules/targets.js"></script>
 <script src="modules/codeeditor.js"></script>
 <script src="modules/splash.js"></script>
+<script src="modules/pwa.js"></script>
 <script src="modules/preview.js"></script>
 <script src="studio.js"></script>
 
