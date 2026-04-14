@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>4E AR Player</title>
-<meta name="version" content="3.2.8">
+<meta name="version" content="3.2.9">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -28,6 +28,8 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 .splash-name{font-size:20px;font-weight:700;margin-bottom:6px}
 .splash-sub{font-size:13px;opacity:.6;margin-bottom:12px}
 .splash-status{font-size:12px;color:var(--muted)}
+@keyframes spin{to{transform:rotate(360deg)}}
+#splash-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;position:relative;padding:20px}
 #error-screen{position:fixed;inset:0;background:var(--navy);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:200;padding:40px;text-align:center}
 #error-screen.show{display:flex}
 .err-title{font-size:20px;font-weight:700;color:#f87171;margin-bottom:8px}
@@ -47,8 +49,67 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 <body>
 
 <div id="splash" style="background:#060a18">
-  <div id="splash-inner" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;position:relative;padding:20px"></div>
+  <div id="splash-inner">
+    <!-- Default 4E splash — shown on first paint before Firestore resolves.
+         Replaced by applySplash() once project config loads, or by the
+         synchronous script below if a cached splash exists for this id. -->
+    <img src="samples/logo_WHT.png" style="max-height:36px;margin-bottom:14px;opacity:.8" onerror="this.outerHTML='<div style=font-size:42px;margin-bottom:14px;opacity:.8>&#9670;</div>'">
+    <div style="color:#e2e8f0;font-size:20px;font-weight:700;font-family:Syne,sans-serif">4E AR</div>
+    <div style="margin-top:20px;display:flex;align-items:center;gap:6px">
+      <div style="width:16px;height:16px;border:2px solid #8b5cf644;border-top-color:#8b5cf6;border-radius:50%;animation:spin .8s linear infinite"></div>
+      <span id="splash-status" style="color:#e2e8f0;opacity:.3;font-size:11px">Loading…</span>
+    </div>
+    <div style="position:absolute;bottom:14px;font-size:10px;color:#e2e8f0;opacity:.35">Powered by 4E AR Studio</div>
+  </div>
 </div>
+<script>
+// ─── Instant splash from localStorage cache ───────────────
+// Runs synchronously before any async work. If the user has visited this
+// project before (QR scan, PWA launch), we have the splash config cached
+// and can render the branded splash before Firestore even opens.
+(function() {
+  try {
+    var id = new URLSearchParams(location.search).get('id');
+    if (!id) return;
+    var cached = localStorage.getItem('4e-splash-' + id);
+    if (!cached) return;
+    var sp = JSON.parse(cached);
+    var bg = sp.bgColor || '#060a18';
+    var text = sp.textColor || '#e2e8f0';
+    var accent = sp.accentColor || '#8b5cf6';
+    var title = sp.title || sp.name || '4E AR';
+    var logo = sp.logoUrl || '';
+    var splash = document.getElementById('splash');
+    var inner = document.getElementById('splash-inner');
+    if (!splash || !inner) return;
+    splash.style.background = sp.gradient
+      ? 'linear-gradient(145deg,' + bg + ',' + accent + '18)'
+      : bg;
+    var esc = function(s){return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
+    var html = '';
+    if (sp.showLogo !== false) {
+      html += logo
+        ? '<img src="' + logo + '" style="max-height:56px;max-width:140px;margin-bottom:14px;object-fit:contain">'
+        : '<img src="samples/logo_WHT.png" style="max-height:36px;margin-bottom:14px;opacity:.8">';
+    }
+    if (sp.showTitle !== false) {
+      html += '<div style="color:' + text + ';font-size:20px;font-weight:700;font-family:Syne,sans-serif;text-align:center;padding:0 20px;line-height:1.3">' + esc(title) + '</div>';
+    }
+    if (sp.showSubtitle !== false && sp.subtitle) {
+      html += '<div style="color:' + text + ';opacity:.4;font-size:12px;margin-top:6px;text-align:center">' + esc(sp.subtitle) + '</div>';
+    }
+    if (sp.showSpinner !== false) {
+      html += '<div style="margin-top:20px;display:flex;align-items:center;gap:6px"><div style="width:16px;height:16px;border:2px solid ' + accent + '44;border-top-color:' + accent + ';border-radius:50%;animation:spin .8s linear infinite"></div><span id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px">Loading…</span></div>';
+    } else {
+      html += '<div id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
+    }
+    if (sp.showBranding !== false) {
+      html += '<div style="position:absolute;bottom:14px;font-size:10px;color:' + text + ';opacity:.55">Powered by 4E AR Studio</div>';
+    }
+    inner.innerHTML = html;
+  } catch(e) {}
+})();
+</script>
 
 <div id="error-screen">
   <div style="font-size:48px;margin-bottom:16px">⚠️</div>
@@ -69,7 +130,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.2.8';
+const PLAYER_VERSION = '3.2.9';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -467,7 +528,7 @@ function applySplash(app) {
     html += '<div style="color:' + text + ';opacity:.4;font-size:12px;margin-top:6px;text-align:center">' + _esc(sp.subtitle) + '</div>';
   }
   if (sp.showSpinner !== false) {
-    html += '<div style="margin-top:20px;display:flex;align-items:center;gap:6px"><div style="width:16px;height:16px;border:2px solid ' + accent + '44;border-top-color:' + accent + ';border-radius:50%;animation:pulse .8s linear infinite"></div><span id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px">Loading…</span></div>';
+    html += '<div style="margin-top:20px;display:flex;align-items:center;gap:6px"><div style="width:16px;height:16px;border:2px solid ' + accent + '44;border-top-color:' + accent + ';border-radius:50%;animation:spin .8s linear infinite"></div><span id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px">Loading…</span></div>';
   } else {
     html += '<div id="splash-status" style="color:' + text + ';opacity:.3;font-size:11px;margin-top:16px">Loading…</div>';
   }
@@ -476,6 +537,19 @@ function applySplash(app) {
   }
   inner.innerHTML = html;
   el('ar-title').textContent = title;
+
+  // Cache splash config so future loads (QR re-scan, PWA launch) can render
+  // the branded splash synchronously on first paint — no Firestore wait.
+  try {
+    localStorage.setItem('4e-splash-' + app.id, JSON.stringify({
+      title: sp.title, subtitle: sp.subtitle,
+      bgColor: sp.bgColor, textColor: sp.textColor, accentColor: sp.accentColor,
+      logoUrl: sp.logoUrl, gradient: sp.gradient,
+      showLogo: sp.showLogo, showTitle: sp.showTitle, showSubtitle: sp.showSubtitle,
+      showSpinner: sp.showSpinner, showBranding: sp.showBranding,
+      name: app.name,
+    }));
+  } catch(e) {}
 }
 function _esc(s) { return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
