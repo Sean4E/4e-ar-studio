@@ -588,6 +588,12 @@ Studio.Viewport = {
           mesh.visible = obj.visible;
           // Apply video-on-target preview (if configured)
           this.syncVideoPreview(obj);
+          // Re-apply any saved material override (hider/basic/pbr) so
+          // it survives project reload. Without this, opening a project
+          // with an existing hider toggle shows the object's original
+          // material in the viewport — out of sync with the published
+          // player.
+          this.applyMaterial(obj);
         }
         continue;
       }
@@ -605,6 +611,9 @@ Studio.Viewport = {
             );
             obj.mesh.scale.set(t.scale.x, t.scale.y, t.scale.z);
             obj.mesh.visible = obj.visible;
+            // Same as primitives — re-apply saved material override
+            // so hiders on GLBs look right immediately on load.
+            this.applyMaterial(obj);
           }
           // Play saved animation
           if (obj.defaultAnim) {
