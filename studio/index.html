@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio</title>
-<meta name="version" content="3.10.12">
+<meta name="version" content="3.10.13">
 
 <!-- Tell every cache layer (browser, VSCode Live Server, any proxy) that
      this document must be revalidated on every load. Firebase Hosting
@@ -15,33 +15,39 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 
-<!-- Self-healing version check. If the HTML we just parsed is older
-     than what the server is currently serving, clear all caches,
-     unregister any service workers, and hard-reload with a timestamp
-     query to bypass every cache layer. Auto-recovers within ~1s —
-     the user never has to diagnose "why is my studio stuck on an old
-     version" again. Guarded by a query flag to prevent reload loops. -->
+<!-- Self-healing version check.
+     Rationale and safety audit:
+     - ONLY action taken is location.replace(url + '?_v=timestamp').
+       The timestamp query defeats every HTTP cache layer (browser,
+       Live Server, proxy) without side effects.
+     - Does NOT unregister service workers — the player relies on its
+       SW for PWA install, and unregistering from the studio would
+       wipe that. (The SW already bypasses /studio/ paths so it can't
+       be the cause of a studio-version mismatch anyway.)
+     - Does NOT clear caches — same reason, and irrelevant because
+       no cache we control stores studio HTML.
+     - Two independent loop guards:
+       (a) `?_v=` in the URL → we already recovered, skip
+       (b) sessionStorage flag → one recovery per tab, ever
+     - Silent on success, single console.warn on recovery.
+     - `cache: 'no-store'` + `?_c=<ts>` defeats any cache layer for
+       the probe fetch. `.catch()` swallows network errors — worst
+       case we simply don't recover this load, next load retries. -->
 <script>
 (function() {
-  if (/[?&]_v=/.test(location.search)) return;  // already just recovered
-  const current = document.querySelector('meta[name="version"]')?.content || '';
+  if (/[?&]_v=/.test(location.search)) return;
+  try { if (sessionStorage.getItem('_4e_vcheck') === '1') return; } catch(e) {}
+  const meta = document.querySelector('meta[name="version"]');
+  const current = meta && meta.content || '';
   if (!current) return;
   fetch(location.pathname + '?_c=' + Date.now(), { cache: 'no-store' })
     .then(r => r.ok ? r.text() : '')
     .then(html => {
       const m = html.match(/<meta name="version" content="([^"]+)">/);
       if (!m || m[1] === current) return;
-      console.warn('[4E] Stale studio (' + current + ') vs live (' + m[1] + '). Recovering...');
-      Promise.all([
-        'serviceWorker' in navigator
-          ? navigator.serviceWorker.getRegistrations().then(regs => Promise.all(regs.map(r => r.unregister())))
-          : Promise.resolve(),
-        'caches' in window
-          ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-          : Promise.resolve(),
-      ]).then(() => {
-        location.replace(location.pathname + '?_v=' + Date.now());
-      });
+      console.warn('[4E] Studio v' + current + ' is stale (live: v' + m[1] + '). Reloading...');
+      try { sessionStorage.setItem('_4e_vcheck', '1'); } catch(e) {}
+      location.replace(location.pathname + '?_v=' + Date.now());
     })
     .catch(() => {});
 })();

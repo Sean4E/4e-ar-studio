@@ -485,7 +485,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.VERSION = (document.querySelector('meta[name="version"]')?.content) || 'dev';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
-  if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;
+  if (tbVersion) {
+    tbVersion.textContent = 'v' + Studio.VERSION;
+    tbVersion.title = 'Studio v' + Studio.VERSION + ' · click to verify live';
+    tbVersion.style.cursor = 'pointer';
+    // Click the version pill to re-verify against the live server on
+    // demand — useful for confirming "am I actually on latest?" with a
+    // visible status instead of digging through the console.
+    tbVersion.addEventListener('click', async () => {
+      tbVersion.textContent = 'checking…';
+      try {
+        const [studioRes, playerRes] = await Promise.all([
+          fetch(location.pathname + '?_c=' + Date.now(), { cache: 'no-store' }).then(r => r.text()),
+          fetch('../player-v2.html?_c=' + Date.now(), { cache: 'no-store' }).then(r => r.text()),
+        ]);
+        const studioLive = (studioRes.match(/<meta name="version" content="([^"]+)">/) || [])[1] || '?';
+        const playerLive = (playerRes.match(/<meta name="version" content="([^"]+)">/) || [])[1] || '?';
+        const studioOk = studioLive === Studio.VERSION;
+        const msg = (studioOk ? '✓' : '⚠') + ' Studio ' + Studio.VERSION +
+                    ' / Player ' + playerLive +
+                    (studioOk ? '' : ' (live studio: ' + studioLive + ' — reload to update)');
+        Studio.toast(msg, studioOk ? 'ok' : 'warn');
+        Studio.log(msg);
+      } catch (e) {
+        Studio.toast('Version check failed', 'err');
+      } finally {
+        tbVersion.textContent = 'v' + Studio.VERSION;
+      }
+    });
+  }
 
   // Load project from URL if ?edit=ID
   const editId = new URLSearchParams(location.search).get('edit');

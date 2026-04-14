@@ -11,25 +11,22 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 
-<!-- Self-healing version check (see studio/index.html for rationale). -->
+<!-- Self-healing version check (see studio/index.html for safety notes). -->
 <script>
 (function() {
   if (/[?&]_v=/.test(location.search)) return;
-  const current = document.querySelector('meta[name="version"]')?.content || '';
+  try { if (sessionStorage.getItem('_4e_vcheck') === '1') return; } catch(e) {}
+  const meta = document.querySelector('meta[name="version"]');
+  const current = meta && meta.content || '';
   if (!current) return;
   fetch(location.pathname + '?_c=' + Date.now(), { cache: 'no-store' })
     .then(r => r.ok ? r.text() : '')
     .then(html => {
       const m = html.match(/<meta name="version" content="([^"]+)">/);
       if (!m || m[1] === current) return;
-      Promise.all([
-        'serviceWorker' in navigator
-          ? navigator.serviceWorker.getRegistrations().then(regs => Promise.all(regs.map(r => r.unregister())))
-          : Promise.resolve(),
-        'caches' in window
-          ? caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-          : Promise.resolve(),
-      ]).then(() => location.replace(location.pathname + '?_v=' + Date.now()));
+      console.warn('[4E] Projects v' + current + ' is stale (live: v' + m[1] + '). Reloading...');
+      try { sessionStorage.setItem('_4e_vcheck', '1'); } catch(e) {}
+      location.replace(location.pathname + '?_v=' + Date.now());
     })
     .catch(() => {});
 })();
