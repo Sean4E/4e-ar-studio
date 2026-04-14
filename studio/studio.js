@@ -135,8 +135,11 @@ Studio.saveProject = async function() {
   if (!state.id) state.id = Studio.Project._genId();
   state.name = document.getElementById('tb-name').value.trim() || 'Untitled';
 
-  // Upload splash logo if new file exists, then regenerate PWA icons
-  // (icons depend on logoUrl + splash colors, so we do them together)
+  // Project DATA saves to Firestore without a token (assets require
+  // a token but are optional). The Save path stays unblocked so you
+  // can always persist project changes. If there are assets to upload
+  // and no token, individual upload blocks below log a hint — the
+  // toolbar "Token" button surfaces the modal any time you want.
   const gh = Studio.GitHub.getConfig();
   if (state.splash.logoFile && !state.splash.logoUrl) {
     try {
@@ -221,6 +224,8 @@ Studio.publishProject = async function() {
 
   const gh = Studio.GitHub.getConfig();
   if (!gh.token) {
+    // Opened from Publish — saveToken should continue the publish flow.
+    Studio._tokenModalFromPublish = true;
     document.getElementById('modal-token').classList.remove('hidden');
     return;
   }
@@ -421,13 +426,48 @@ Studio.previewProject = async function() {
   document.getElementById('modal-publish').classList.remove('hidden');
 };
 
+// Open the GitHub token modal on demand. Reachable from the toolbar
+// "🔑 Token" button so you can set or update the token any time —
+// not just when Save / Publish trips. Important after an origin move
+// (Firebase ↔ GH Pages) because localStorage is origin-scoped and
+// doesn't carry across.
+Studio.openTokenModal = function() {
+  // Pre-fill with the current value (if any) so "update" is obvious.
+  const current = Studio.GitHub.getConfig().token || '';
+  const input = document.getElementById('token-input');
+  if (input) input.value = current;
+  // Mark this as a standalone open (not part of a Publish flow) so
+  // saveToken doesn't auto-trigger a publish afterwards.
+  Studio._tokenModalFromPublish = false;
+  document.getElementById('modal-token').classList.remove('hidden');
+};
+
+// Keep the toolbar button's label in sync with whether a token is
+// set. Dim icon + "Token" when missing, subtle check when present.
+Studio.refreshTokenIndicator = function() {
+  const btn = document.getElementById('tb-token');
+  if (!btn) return;
+  const has = !!(Studio.GitHub.getConfig().token);
+  btn.textContent = has ? '🔑 Token ✓' : '🔑 Token';
+  btn.title = has
+    ? 'GitHub token set for this origin — click to update'
+    : 'No GitHub token for this origin — click to enter';
+  btn.style.opacity = has ? '1' : '0.9';
+};
+
 Studio.saveToken = function() {
   const token = document.getElementById('token-input').value.trim();
   if (!token) { Studio.toast('Paste a valid token', 'err'); return; }
   localStorage.setItem('4e-ar-gh-token', token);
   Studio.closeModal('modal-token');
   Studio.toast('Token saved', 'ok');
-  Studio.publishProject();
+  Studio.refreshTokenIndicator();
+  // Only continue into publish if the modal was opened from Publish.
+  // When opened manually from the toolbar button, just save and stop.
+  if (Studio._tokenModalFromPublish) {
+    Studio._tokenModalFromPublish = false;
+    Studio.publishProject();
+  }
 };
 
 // ─── Keyboard Shortcuts ──────────────────────────────────
@@ -484,6 +524,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // one line in index.html is all it takes.
   Studio.VERSION = (document.querySelector('meta[name="version"]')?.content) || 'dev';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
+
+  // Token indicator in the toolbar — reflects whether this origin has
+  // a saved token. After a hosting change (GH Pages → Firebase) this
+  // button will show unchecked so you know to paste the token in.
+  Studio.refreshTokenIndicator();
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) {
     tbVersion.textContent = 'v' + Studio.VERSION;
