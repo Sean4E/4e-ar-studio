@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.3">
+<meta name="version" content="3.10.4">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -159,9 +159,42 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.10.3';
+const PLAYER_VERSION = '3.10.4';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
+
+// When running in an iframe (e.g. the studio's Preview tab), forward
+// errors + console.error calls up to the parent window so they land
+// in the studio's console panel. Helps developers see what broke in
+// the published player without having to open browser DevTools.
+if (window.parent && window.parent !== window) {
+  const _postErr = (msg) => {
+    try { window.parent.postMessage({ type: '4e-player-error', message: String(msg) }, '*'); }
+    catch (e) {}
+  };
+  const _postLog = (msg) => {
+    try { window.parent.postMessage({ type: '4e-player-log', message: String(msg) }, '*'); }
+    catch (e) {}
+  };
+  window.addEventListener('error', (e) => {
+    _postErr((e.message || 'error') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    _postErr('Unhandled promise rejection: ' + (e.reason?.message || e.reason));
+  });
+  // Also intercept console.error so A-Frame's schema/component
+  // warnings (which are logged, not thrown) surface in the studio.
+  const _origErr = console.error.bind(console);
+  console.error = function(...args) {
+    _origErr(...args);
+    _postErr(args.map(a => (a && a.message) || String(a)).join(' '));
+  };
+  const _origWarn = console.warn.bind(console);
+  console.warn = function(...args) {
+    _origWarn(...args);
+    _postLog('[warn] ' + args.map(a => (a && a.message) || String(a)).join(' '));
+  };
+}
 // Stamp version on the splash branding line as soon as JS runs, so we
 // never ship the splash with a stale or missing version string.
 (function() {
@@ -507,6 +540,65 @@ if (typeof AFRAME !== 'undefined') {
         this._plane.parentNode.removeChild(this._plane);
       }
     }
+  });
+
+  // ─── ar-material ────────────────────────────────────────
+  // Studio-friendly material component that mirrors what the
+  // inspector exposes (color / metalness / roughness / opacity /
+  // shader) and APPLIES IT PROPERLY to every sub-mesh. A-Frame's
+  // built-in `material` component only sets on the entity's root
+  // Object3D, which is fine for primitives but useless for GLBs
+  // (where the root is an invisible group containing the rendered
+  // meshes as children). We traverse and set every mesh, matching
+  // how xrextras-hider-material handles the same problem.
+  AFRAME.registerComponent('ar-material', {
+    schema: {
+      shader:    { type: 'string',  default: 'standard' }, // 'standard' | 'flat'
+      color:     { type: 'color',   default: '#ffffff' },
+      opacity:   { type: 'number',  default: 1.0 },
+      metalness: { type: 'number',  default: 0.0 },
+      roughness: { type: 'number',  default: 0.5 },
+    },
+    init() {
+      this._apply = this._apply.bind(this);
+      this._apply();
+      // Re-apply on model-loaded (GLBs load async)
+      this.el.addEventListener('model-loaded', this._apply);
+      this.el.addEventListener('object3dset', this._apply);
+    },
+    update() { this._apply(); },
+    remove() {
+      this.el.removeEventListener('model-loaded', this._apply);
+      this.el.removeEventListener('object3dset', this._apply);
+      // Note: don't restore original material here — the entity is
+      // being torn down, the Three.js cleanup handles disposal.
+    },
+    _build() {
+      const d = this.data;
+      const transparent = d.opacity < 1;
+      if (d.shader === 'flat') {
+        return new THREE.MeshBasicMaterial({
+          color: new THREE.Color(d.color),
+          opacity: d.opacity,
+          transparent,
+        });
+      }
+      return new THREE.MeshStandardMaterial({
+        color: new THREE.Color(d.color),
+        metalness: d.metalness,
+        roughness: d.roughness,
+        opacity: d.opacity,
+        transparent,
+      });
+    },
+    _apply() {
+      const mat = this._build();
+      const root = this.el.object3D;
+      if (!root) return;
+      root.traverse(node => {
+        if (node.isMesh) node.material = mat;
+      });
+    },
   });
 
   // ─── image-to-slam ──────────────────────────────────────
@@ -1225,6 +1317,26 @@ function buildEntity(obj, i) {
     // Wall component doesn't understand them).
     if (key === 'xrextras-hider-material') {
       attrs += ` ${key}`;
+      return;
+    }
+
+    // xrextras-basic-material / xrextras-pbr-material names in the
+    // studio are a little misleading — the real xrextras components
+    // with those names expect TEXTURE URL selectors (tex, metalness
+    // map, roughness map, etc.), not scalar values. Passing our
+    // scalar colour/metalness/roughness crashes them with "invalid
+    // selector". Translate to our custom `ar-material` component
+    // which accepts scalars and traverses sub-meshes correctly
+    // (A-Frame's native `material` doesn't handle GLB sub-meshes).
+    if ((key === 'xrextras-basic-material' || key === 'xrextras-pbr-material') &&
+        config && typeof config === 'object') {
+      const shader = key === 'xrextras-basic-material' ? 'flat' : 'standard';
+      const parts = ['shader: ' + shader];
+      if (config.color != null)     parts.push('color: ' + config.color);
+      if (config.opacity != null)   parts.push('opacity: ' + config.opacity);
+      if (config.metalness != null) parts.push('metalness: ' + config.metalness);
+      if (config.roughness != null) parts.push('roughness: ' + config.roughness);
+      attrs += ` ar-material="${parts.join('; ')}"`;
       return;
     }
 

@@ -14,6 +14,17 @@ Studio.Preview = {
       if (tab === 'preview') this.refresh();
     });
 
+    // Receive error / warning messages posted from the player iframe
+    // — these land in the studio console so the developer can see
+    // what went wrong in the published player without having to
+    // open browser DevTools on a separate tab.
+    window.addEventListener('message', (e) => {
+      const d = e.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === '4e-player-error')  Studio.log('[Player ERROR] ' + d.message);
+      if (d.type === '4e-player-log')    Studio.log('[Player] ' + d.message);
+    });
+
     Studio.log('Preview module ready');
   },
 
