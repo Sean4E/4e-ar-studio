@@ -1,19 +1,27 @@
-name: Deploy Player to Firebase Hosting
+name: Deploy Player + Studio to Firebase Hosting
 on:
   push:
     branches: [main]
-    # Firebase only serves the player shell. Studio asset uploads via
-    # the GitHub Contents API produce commits that ONLY touch assets/,
-    # splash-logo.png, etc. — those are served by GitHub Pages and
-    # should not trigger a Firebase deploy (or we burn through
-    # Hosting storage quota turning every asset upload into a new
-    # hosted version of the whole repo).
+    # Firebase serves the player shell AND the studio. Previously the
+    # studio was on GitHub Pages, but GH Pages' Fastly CDN layer holds
+    # `Cache-Control: max-age=600` with no way to force revalidation —
+    # users can get stuck several versions behind with no recovery
+    # short of waiting out the TTL at every intermediate edge. Firebase
+    # Hosting sends `no-cache, no-store, must-revalidate` for all HTML
+    # and JS (firebase.json), so updates reach users on the next load.
+    #
+    # Asset uploads via the GitHub Contents API produce commits that
+    # ONLY touch assets/, splash-logo.png, etc. — those are still
+    # ignored (assets/** stays in firebase.json ignore) so asset
+    # commits don't trigger a deploy and don't count against the
+    # Hosting storage quota.
     paths:
       - 'player-v2.html'
       - 'player.html'
       - 'config.js'
       - 'sw.js'
       - 'samples/**'
+      - 'studio/**'
       - 'firebase.json'
       - 'firestore.rules'
       - '.github/workflows/firebase-deploy.yml'

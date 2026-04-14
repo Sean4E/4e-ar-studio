@@ -18,7 +18,6 @@
       "_BACKUPS/**",
       "_XREXTRAS/**",
       "assets/**",
-      "studio/**",
       "projects.html",
       "builder.html",
       "devstudio.html",
