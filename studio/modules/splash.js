@@ -77,6 +77,7 @@ Studio.Splash = {
               <span id="sp-logo-name" style="font-size:9px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px"></span>
             </div>
             <input type="file" id="sp-logo-fi" accept="image/*" style="display:none" onchange="Studio.Splash._handleLogo(this.files[0]);this.value=''">
+            <button class="sp-prop-btn" style="margin-top:4px;font-size:9px;width:100%" title="Re-render the PWA / favicon / home-screen icons from the splash logo. Useful if the initial generation caught GitHub Pages before the logo had propagated." onclick="Studio.Splash._regenIcons()">↻ Regenerate app icons</button>
           </div>
 
           <div class="sp-prop-group">
@@ -182,6 +183,28 @@ Studio.Splash = {
     document.getElementById('sp-logo-name').textContent = '';
     Studio.Project.markDirty();
     this._render();
+  },
+
+  // Force a fresh render + upload of PWA/favicon/home-screen icons.
+  // Useful when the first save hit the GitHub Pages propagation window
+  // and baked the procedural "4E" fallback into the project's icons.
+  async _regenIcons() {
+    const state = Studio.Project.state;
+    if (!state.id) { Studio.toast('Save the project once first', 'warn'); return; }
+    const gh = Studio.GitHub.getConfig();
+    if (!gh.token) { Studio.toast('GitHub token not set', 'err'); return; }
+    // Drop both caches (in-memory and persisted) so uploadIcons regenerates
+    if (state.pwa) state.pwa.sourceKey = '';
+    if (Studio.PWA) Studio.PWA._sourceKey = '';
+    Studio.toast('Regenerating icons…', 'ok');
+    try {
+      await Studio.PWA.uploadIcons('assets/' + state.id);
+      Studio.Project.markDirty();
+      await Studio.saveProject();
+      Studio.toast('App icons regenerated ✓', 'ok');
+    } catch(e) {
+      Studio.toast('Regenerate failed: ' + e.message, 'err');
+    }
   },
 
   _update() {
