@@ -848,9 +848,12 @@ Studio.Viewport = {
         //   m.colorWrite = false;
         // Three lines, nothing else. If the studio diverges from the
         // test visually, the material itself is not the cause.
-        const sideStr = (hider && hider.side) || 'back';
+        // Default side is `front` — front face writes depth at its own
+        // Z, occluding everything behind the cube. That's the classic
+        // "boolean cutter" behaviour most users expect from a hider.
+        const sideStr = (hider && hider.side) || 'front';
         const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
-        const side = sideMap[sideStr] != null ? sideMap[sideStr] : THREE.BackSide;
+        const side = sideMap[sideStr] != null ? sideMap[sideStr] : THREE.FrontSide;
         const m = new THREE.MeshStandardMaterial({ side });
         m.colorWrite = false;
         return m;

@@ -196,13 +196,22 @@ Studio.Components = {
     },
     'xrextras-hider-material': {
       name: 'Hider Material', category: 'materials', icon: '🚫',
-      description: 'Occludes objects behind it. In AR the surface is invisible (camera feed shows through). For portal/interior effects, use BackSide or flip normals so the front faces cull away and the interior is revealed.',
+      description: 'Occludes objects behind it. In AR the surface is invisible (camera feed shows through). Front (default) acts as a boolean cutter — anything behind the front face is hidden. Back is for portal / interior effects — front face is culled, revealing content inside the volume.',
       trackingModes: ['slam','image','face','hand'], appliesTo: 'entity', type: 'config',
       properties: {
-        // Which side of the geometry writes to the depth buffer.
-        // BackSide = portal effect (content inside box is visible because
-        // front faces are culled). FrontSide = classic occluder.
-        side: { type: 'select', label: 'Side', default: 'back', options: ['front','back','double'] },
+        // Which face writes to the depth buffer.
+        //   FrontSide (default) = classic occluder / boolean cutter.
+        //     Front face writes depth at its own Z — everything behind
+        //     the cube is culled by depth test. This is what the test
+        //     harness shows when "Default hider" or "Portal hider +
+        //     flipped normals" is selected; both end up writing depth
+        //     at the near face.
+        //   BackSide = portal. Front faces culled, back face writes
+        //     depth at the far Z — content between near and far faces
+        //     stays visible. Use this for windows, interiors, or a
+        //     GLB authored with outward normals that you want to be
+        //     "see-into-able".
+        side: { type: 'select', label: 'Side', default: 'front', options: ['front','back','double'] },
         // Reverse triangle winding on the mesh — same end result as
         // BackSide when the GLB was authored with outward normals.
         invertNormals: { type: 'boolean', label: 'Invert normals', default: false },

@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.18">
+<meta name="version" content="3.10.19">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -566,13 +566,15 @@ if (typeof AFRAME !== 'undefined') {
   // hider entity so the hider's depth clips them to its bounds.
   AFRAME.registerComponent('ar-hider-material', {
     schema: {
-      // 'back' (default) gives the portal effect on a normally-oriented
-      // mesh — only back-facing triangles are rendered invisibly, so
-      // content inside the volume passes the depth test. 'front' is
-      // the classic hider behaviour that relies on the GLB being
-      // authored with inverted normals (matches 8th Wall's dunnasifairy
-      // BoxHider.glb). 'double' renders both sides.
-      side:          { type: 'string',  default: 'back' },  // 'front' | 'back' | 'double'
+      // 'front' (default) is the classic occluder / boolean cutter —
+      // the front face writes depth at its own Z, so anything behind
+      // the mesh is culled. Works out of the box on any mesh with
+      // outward-facing normals (primitive cubes, standard GLBs).
+      // 'back' is the portal effect — front faces cull away, only the
+      // back face writes depth, so content between near and far faces
+      // stays visible. Use for windows / interior-reveals. 'double'
+      // renders both sides.
+      side:          { type: 'string',  default: 'front' }, // 'front' | 'back' | 'double'
       // If true, reverses triangle winding on every mesh under this
       // entity — equivalent to modelling with inverted normals. Use
       // for GLBs not authored that way when `side` is 'front'.
@@ -1413,13 +1415,15 @@ function buildEntity(obj, i) {
     // control the full lifecycle so no external dependency can
     // regress behaviour.
     if (key === 'xrextras-hider-material') {
-      // Only forward the player-relevant props. `showWireframe` and
-      // `solidFill` are studio preview options and meaningless here.
+      // Only forward the player-relevant props. Studio-only preview
+      // fields (if any existed) are meaningless here.
       const cfg = (config && typeof config === 'object') ? config : {};
-      const side = cfg.side || 'back';
+      const side = cfg.side || 'front';
       const invert = !!cfg.invertNormals;
       const parts = [];
-      if (side && side !== 'back')        parts.push('side: ' + side);
+      // Skip side when it matches the component's own default so the
+      // serialised attribute stays minimal.
+      if (side && side !== 'front')        parts.push('side: ' + side);
       if (invert)                          parts.push('invertNormals: true');
       attrs += parts.length
         ? ` ar-hider-material="${parts.join('; ')}"`
