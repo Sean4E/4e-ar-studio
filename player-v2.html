@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.3.3">
+<meta name="version" content="3.4.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.3.3';
+const PLAYER_VERSION = '3.4.0';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -278,6 +278,172 @@ if (typeof AFRAME !== 'undefined') {
     remove() {
       if (this._fadeId) clearInterval(this._fadeId);
       if (this._audio) { this._audio.pause(); this._audio.remove(); }
+    }
+  });
+
+  // ─── video-on-target ────────────────────────────────────
+  // Attaches a child <a-plane> with a video texture to the host entity.
+  // Plane is auto-sized to the video's natural aspect ratio (width stays
+  // fixed, height = width × videoHeight/videoWidth). The video plays
+  // when the target is found and fades out when lost. Muted by default
+  // so it joins the global audio button's control list — tapping the
+  // button unmutes all target media at once (iOS gesture-unlock).
+  AFRAME.registerComponent('video-on-target', {
+    schema: {
+      src: { type: 'string', default: '' },
+      volume: { type: 'number', default: 1.0 },
+      loop: { type: 'boolean', default: true },
+      fadeIn: { type: 'number', default: 0.5 },
+      fadeOut: { type: 'number', default: 1.0 },
+      resumeOnFound: { type: 'boolean', default: true },
+      muted: { type: 'boolean', default: false },
+      width: { type: 'number', default: 1.0 },        // plane width in metres
+      chromaKey: { type: 'color', default: '' }        // optional green-screen (future)
+    },
+    init() {
+      const src = this.data.src;
+      if (!src) return;
+
+      // Resolve #asset-id reference (created by buildAssets) or build one
+      let video;
+      if (src.charAt(0) === '#') {
+        video = document.querySelector(src);
+      }
+      if (!video) {
+        video = document.createElement('video');
+        video.src = src;
+        video.crossOrigin = 'anonymous';
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
+        video.preload = 'auto';
+        document.body.appendChild(video);
+      }
+      video.loop = this.data.loop;
+      // Always start muted (iOS autoplay requirement). If muted:false in
+      // the studio, register with _4E_AUDIO so the global button can
+      // unmute it. If muted:true, it stays silent — visual-only.
+      video.muted = true;
+      video.volume = 0;
+      video.autoplay = false;
+      this._video = video;
+
+      // Register for global mute-button control (same list as audio)
+      if (window._4E_AUDIO && !this.data.muted) window._4E_AUDIO.onTarget.push(video);
+
+      // Build the plane that displays the video. Aspect = 16:9 by default,
+      // refined once loadedmetadata fires with real video dimensions.
+      const width = this.data.width || 1;
+      const initialHeight = width * 9 / 16;
+      this._plane = document.createElement('a-plane');
+      this._plane.setAttribute('width', width);
+      this._plane.setAttribute('height', initialHeight);
+      this._plane.setAttribute('material',
+        'shader: flat; src: ' + (src.charAt(0) === '#' ? src : '#' + video.id) +
+        '; side: double; transparent: true; opacity: 0');
+      // Plane face-forward on the target (image targets treat Y as up,
+      // so a plane at rotation 0,0,0 is already coplanar with the image).
+      this.el.appendChild(this._plane);
+
+      // Auto-resize the plane to match video's true aspect ratio
+      const syncAspect = () => {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (vw > 0 && vh > 0) {
+          this._plane.setAttribute('height', width * (vh / vw));
+        }
+      };
+      if (video.readyState >= 1) syncAspect();
+      else video.addEventListener('loadedmetadata', syncAspect, { once: true });
+
+      this._fadeId = null;
+      this._opacityFadeId = null;
+      this._isPlaying = false;
+
+      // Scope to this entity's own target (in multi-target scenes)
+      const targetEl = this.el.closest('xrextras-named-image-target');
+      const tName = targetEl ? targetEl.getAttribute('name') : '';
+      this._targetName = tName;
+
+      const onFound = (e) => {
+        const n = e && e.detail && e.detail.name || '';
+        if (tName && n !== tName) return;
+        this._play();
+      };
+      const onLost = (e) => {
+        const n = e && e.detail && e.detail.name || '';
+        if (tName && n !== tName) return;
+        this._stop();
+      };
+
+      const sceneEl = this.el.sceneEl;
+      const attach = () => {
+        sceneEl.addEventListener('xrimagefound', onFound);
+        sceneEl.addEventListener('xrimagelost', onLost);
+      };
+      if (sceneEl.hasLoaded) attach();
+      else sceneEl.addEventListener('loaded', attach);
+    },
+    _play() {
+      if (!this._video || this._isPlaying) return;
+      this._isPlaying = true;
+      if (!this.data.resumeOnFound) { try { this._video.currentTime = 0; } catch(e){} }
+      const p = this._video.play();
+      if (p && p.catch) p.catch(err => {
+        console.warn('[video-on-target] play failed:', err && err.message);
+        this._isPlaying = false;
+      });
+      this._fadeVolume(this.data.volume, this.data.fadeIn);
+      this._fadePlane(1, this.data.fadeIn);
+    },
+    _stop() {
+      if (!this._video || !this._isPlaying) return;
+      this._fadeVolume(0, this.data.fadeOut);
+      this._fadePlane(0, this.data.fadeOut, () => {
+        try { this._video.pause(); } catch(e){}
+        this._isPlaying = false;
+      });
+    },
+    _fadeVolume(target, dur) {
+      if (this._fadeId) clearInterval(this._fadeId);
+      if (!this._video || dur <= 0) {
+        if (this._video) this._video.volume = target;
+        return;
+      }
+      const start = this._video.volume;
+      const steps = Math.max(1, Math.round(dur * 20));
+      let i = 0;
+      this._fadeId = setInterval(() => {
+        i++;
+        this._video.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
+        if (i >= steps) { clearInterval(this._fadeId); this._fadeId = null; }
+      }, dur * 1000 / steps);
+    },
+    _fadePlane(target, dur, done) {
+      if (this._opacityFadeId) clearInterval(this._opacityFadeId);
+      if (!this._plane || dur <= 0) {
+        if (this._plane) this._plane.setAttribute('material', 'opacity', target);
+        if (done) done();
+        return;
+      }
+      const mat = this._plane.getAttribute('material') || {};
+      const start = mat.opacity != null ? mat.opacity : 0;
+      const steps = Math.max(1, Math.round(dur * 20));
+      let i = 0;
+      this._opacityFadeId = setInterval(() => {
+        i++;
+        const o = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
+        this._plane.setAttribute('material', 'opacity', o);
+        if (i >= steps) {
+          clearInterval(this._opacityFadeId);
+          this._opacityFadeId = null;
+          if (done) done();
+        }
+      }, dur * 1000 / steps);
+    },
+    remove() {
+      if (this._fadeId) clearInterval(this._fadeId);
+      if (this._opacityFadeId) clearInterval(this._opacityFadeId);
+      if (this._video) { try { this._video.pause(); } catch(e){} }
+      if (this._plane && this._plane.parentNode) this._plane.parentNode.removeChild(this._plane);
     }
   });
 }

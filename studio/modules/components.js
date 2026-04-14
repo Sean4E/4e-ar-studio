@@ -159,16 +159,17 @@ Studio.Components = {
     },
     'video-on-target': {
       name: 'Video on Target', category: 'image', icon: '📹',
-      description: 'Play video when image target found. Full control: fade in/out, volume, loop, resume.',
+      description: 'Play video on a plane when image target found. Plane auto-sizes to video aspect ratio.',
       trackingModes: ['image'], appliesTo: 'entity', type: 'config',
       properties: {
         src: { type: 'text', label: 'Video URL (.mp4)', default: '' },
+        width: { type: 'range', label: 'Plane width (m)', default: 1.0, min: 0.1, max: 4, step: 0.05 },
         volume: { type: 'range', label: 'Volume', default: 1.0, min: 0, max: 1, step: 0.05 },
         loop: { type: 'boolean', label: 'Loop', default: true },
         fadeIn: { type: 'range', label: 'Fade In (s)', default: 0.5, min: 0, max: 3, step: 0.1 },
         fadeOut: { type: 'range', label: 'Fade Out (s)', default: 1.0, min: 0, max: 3, step: 0.1 },
         resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true },
-        muted: { type: 'boolean', label: 'Mute audio', default: false }
+        muted: { type: 'boolean', label: 'Force mute audio', default: false }
       }
     },
 
