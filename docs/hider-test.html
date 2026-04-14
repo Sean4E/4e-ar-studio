@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E · Hider Material Test Harness</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0a0e1a;color:#d4daf0;font-family:system-ui,sans-serif;overflow:hidden}
+  #app{display:grid;grid-template-columns:1fr 320px;height:100%}
+  canvas{display:block;width:100%;height:100%;background:#080c16}
+  .panel{background:#0f1424;border-left:1px solid #1e2844;overflow-y:auto;padding:16px}
+  h1{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#a78bfa;margin-bottom:4px}
+  .sub{font-size:11px;color:#6b7a9e;margin-bottom:18px;line-height:1.5}
+  .section{background:#141a2e;border:1px solid #1e2844;border-radius:8px;padding:12px;margin-bottom:12px}
+  .section h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#8b5cf6;margin-bottom:10px;font-weight:700;display:flex;align-items:center;gap:6px}
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
+  .row label{flex:0 0 70px;color:#6b7a9e}
+  .row input[type=range]{flex:1;height:18px}
+  .row input[type=color]{width:28px;height:20px;border:1px solid #1e2844;border-radius:3px;background:none;cursor:pointer;padding:0}
+  .row input[type=number]{width:54px;background:#0a0e1a;border:1px solid #1e2844;border-radius:3px;color:#d4daf0;padding:3px 5px;font-family:monospace;font-size:10px}
+  .row select{flex:1;background:#0a0e1a;border:1px solid #1e2844;border-radius:3px;color:#d4daf0;padding:3px 5px;font-family:inherit;font-size:11px}
+  .val{font-family:monospace;font-size:10px;color:#22d3ee;width:36px;text-align:right}
+  .toggle{display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 0}
+  .toggle input{width:14px;height:14px}
+  .hint{font-size:10px;color:#4a5578;line-height:1.5;margin-top:8px;font-style:italic}
+  .preset{display:flex;gap:4px;margin-top:6px}
+  .preset button{flex:1;background:#141a2e;border:1px solid #2a3456;color:#d4daf0;padding:5px;font-family:inherit;font-size:10px;border-radius:3px;cursor:pointer;transition:all .12s}
+  .preset button:hover{border-color:#8b5cf6;background:#1a2038}
+  #file-input{display:none}
+  .upload{background:#1a2038;border:1px dashed #2a3456;color:#8899b0;padding:10px;border-radius:5px;text-align:center;font-size:10px;cursor:pointer;transition:all .12s}
+  .upload:hover{border-color:#8b5cf6;color:#d4daf0}
+  .legend{position:absolute;top:12px;left:12px;background:rgba(15,20,36,0.9);border:1px solid #1e2844;padding:10px 14px;border-radius:6px;font-size:10px;color:#8899b0;line-height:1.6;backdrop-filter:blur(4px)}
+  .legend b{color:#d4daf0}
+  .legend .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="position:relative">
+    <canvas id="c"></canvas>
+    <div class="legend" id="legend">
+      <b>Controls:</b> drag to orbit · scroll to zoom · right-drag to pan<br>
+      <b>Hider (box A):</b> material applies to this shape<br>
+      <b>Content (box B):</b> stays as a normal lit material so you see when it's occluded
+    </div>
+  </div>
+  <div class="panel">
+    <h1>Hider Test Harness</h1>
+    <p class="sub">Experiment with hider material settings in isolation.<br>Find what works, then bring the config back to the studio.</p>
+
+    <div class="section">
+      <h2>📦 Presets</h2>
+      <div class="preset">
+        <button onclick="applyPreset('none')">Off</button>
+        <button onclick="applyPreset('default')">Default hider<br>(FrontSide)</button>
+      </div>
+      <div class="preset">
+        <button onclick="applyPreset('back')">Portal hider<br>(BackSide)</button>
+        <button onclick="applyPreset('double')">Double<br>side</button>
+      </div>
+      <div class="hint">Most likely answer for a box-shaped portal: <b>BackSide</b> (or model the GLB with inverted normals + FrontSide).</div>
+    </div>
+
+    <div class="section">
+      <h2>🎭 Box A — Hider candidate</h2>
+      <label class="toggle"><input type="checkbox" id="hider-on" onchange="rebuild()"> Apply hider material</label>
+      <div class="row"><label>side</label>
+        <select id="hider-side" onchange="rebuild()">
+          <option value="FrontSide">FrontSide (default)</option>
+          <option value="BackSide" selected>BackSide</option>
+          <option value="DoubleSide">DoubleSide</option>
+        </select>
+      </div>
+      <label class="toggle"><input type="checkbox" id="flip-normals" onchange="rebuild()"> Invert geometry (flip normals)</label>
+      <div class="row"><label>scale X</label><input type="range" id="a-sx" min="0.1" max="3" step="0.1" value="1.5" oninput="updateA()"><span class="val" id="a-sx-v">1.5</span></div>
+      <div class="row"><label>scale Y</label><input type="range" id="a-sy" min="0.1" max="3" step="0.1" value="1.5" oninput="updateA()"><span class="val" id="a-sy-v">1.5</span></div>
+      <div class="row"><label>scale Z</label><input type="range" id="a-sz" min="0.1" max="3" step="0.1" value="1.5" oninput="updateA()"><span class="val" id="a-sz-v">1.5</span></div>
+      <div class="row"><label>visible</label><input type="checkbox" id="a-vis" checked onchange="rebuild()"></div>
+      <div class="hint">Keep Box A BIGGER than Box B to make the portal effect obvious.</div>
+    </div>
+
+    <div class="section">
+      <h2>🎯 Box B — Content inside</h2>
+      <div class="row"><label>colour</label><input type="color" id="b-col" value="#fb923c" oninput="rebuild()"></div>
+      <div class="row"><label>scale</label><input type="range" id="b-s" min="0.2" max="1.5" step="0.1" value="0.6" oninput="updateB()"><span class="val" id="b-s-v">0.6</span></div>
+      <div class="row"><label>pos X</label><input type="range" id="b-px" min="-2" max="2" step="0.05" value="0" oninput="updateB()"><span class="val" id="b-px-v">0</span></div>
+      <div class="row"><label>pos Y</label><input type="range" id="b-py" min="-2" max="2" step="0.05" value="0" oninput="updateB()"><span class="val" id="b-py-v">0</span></div>
+      <div class="row"><label>pos Z</label><input type="range" id="b-pz" min="-2" max="2" step="0.05" value="0" oninput="updateB()"><span class="val" id="b-pz-v">0</span></div>
+    </div>
+
+    <div class="section">
+      <h2>📥 Custom GLB</h2>
+      <label for="file-input" class="upload">Click to load a .glb as Box A</label>
+      <input type="file" id="file-input" accept=".glb,.gltf" onchange="loadGlb(this.files[0])">
+      <div class="hint">Drop your own hider GLB here (e.g. the BoxHider.glb from dunnasifairy1) to test exactly what 8th Wall's portal looks like.</div>
+    </div>
+
+    <div class="section">
+      <h2>🌍 Scene</h2>
+      <div class="row"><label>BG colour</label><input type="color" id="bg-col" value="#080c16" oninput="applyBg()"></div>
+      <label class="toggle"><input type="checkbox" id="show-world" checked onchange="toggleWorld()"> Show world markers (for depth reference)</label>
+    </div>
+
+    <div class="hint" style="margin-top:14px;font-size:10px;line-height:1.6">
+      <b>How to read the scene:</b> when the hider works as a portal, Box B stays visible inside Box A, but anything you'd otherwise see outside Box A's volume (including world markers) gets clipped where Box A's depth writes.
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+// ── Scene ─────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+camera.position.set(3, 2, 4);
+
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+dir.position.set(2, 4, 3);
+scene.add(dir);
+
+// Grid
+const grid = new THREE.GridHelper(6, 30, 0x222244, 0x1a1a3a);
+scene.add(grid);
+
+// World markers — reference points at various depths. Makes it easy
+// to SEE when the hider's depth is clipping something.
+const worldMarkers = new THREE.Group();
+[
+  [0, 0.1, -2, 0xf87171], [2, 0.1, 0, 0x34d399],
+  [-2, 0.1, 0, 0x22d3ee], [0, 0.1, 2, 0xfb923c],
+  [0, 2.5, 0, 0xa78bfa],
+].forEach(([x, y, z, color]) => {
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1, 12, 10),
+    new THREE.MeshStandardMaterial({ color })
+  );
+  m.position.set(x, y, z);
+  worldMarkers.add(m);
+});
+scene.add(worldMarkers);
+
+// ── Boxes ──
+let boxA, boxB;
+let customGlb = null;
+
+function buildBoxA() {
+  if (boxA) { scene.remove(boxA); if (boxA.geometry) boxA.geometry.dispose(); if (boxA.material) boxA.material.dispose(); }
+
+  let geom;
+  if (customGlb) {
+    // User uploaded a GLB — use it
+    boxA = customGlb.clone();
+    applyMatToGroup(boxA, buildMat());
+    scene.add(boxA);
+    updateA();
+    return;
+  }
+
+  geom = new THREE.BoxGeometry(1, 1, 1);
+  if (document.getElementById('flip-normals').checked) {
+    // Flip normals by reversing index / scaling X — simplest: set
+    // geometry's triangles inside-out
+    const pos = geom.attributes.position;
+    // Reverse triangle winding: swap indices in each face
+    const idx = geom.index;
+    if (idx) {
+      for (let i = 0; i < idx.count; i += 3) {
+        const a = idx.array[i], b = idx.array[i + 1], c = idx.array[i + 2];
+        idx.array[i + 1] = c; idx.array[i + 2] = b;
+      }
+      idx.needsUpdate = true;
+    }
+    geom.computeVertexNormals();
+  }
+
+  boxA = new THREE.Mesh(geom, buildMat());
+  scene.add(boxA);
+  updateA();
+}
+
+function buildMat() {
+  const hiderOn = document.getElementById('hider-on').checked;
+  const sideStr = document.getElementById('hider-side').value;
+  const side = { FrontSide: THREE.FrontSide, BackSide: THREE.BackSide, DoubleSide: THREE.DoubleSide }[sideStr];
+  if (hiderOn) {
+    // Hider — colorWrite off, depth on
+    const m = new THREE.MeshStandardMaterial({ side });
+    m.colorWrite = false;
+    return m;
+  }
+  // Preview — semi-transparent so you can see the shape without hider
+  return new THREE.MeshStandardMaterial({ color: 0x7c3aed, side, transparent: true, opacity: 0.35 });
+}
+
+function applyMatToGroup(group, mat) {
+  group.traverse(n => { if (n.isMesh) n.material = mat; });
+}
+
+function buildBoxB() {
+  if (boxB) { scene.remove(boxB); boxB.geometry.dispose(); boxB.material.dispose(); }
+  const col = document.getElementById('b-col').value;
+  boxB = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: col })
+  );
+  scene.add(boxB);
+  updateB();
+}
+
+function updateA() {
+  if (!boxA) return;
+  const sx = +document.getElementById('a-sx').value;
+  const sy = +document.getElementById('a-sy').value;
+  const sz = +document.getElementById('a-sz').value;
+  boxA.scale.set(sx, sy, sz);
+  document.getElementById('a-sx-v').textContent = sx;
+  document.getElementById('a-sy-v').textContent = sy;
+  document.getElementById('a-sz-v').textContent = sz;
+  boxA.visible = document.getElementById('a-vis').checked;
+}
+
+function updateB() {
+  if (!boxB) return;
+  const s = +document.getElementById('b-s').value;
+  const px = +document.getElementById('b-px').value;
+  const py = +document.getElementById('b-py').value;
+  const pz = +document.getElementById('b-pz').value;
+  boxB.scale.setScalar(s);
+  boxB.position.set(px, py, pz);
+  document.getElementById('b-s-v').textContent = s;
+  document.getElementById('b-px-v').textContent = px;
+  document.getElementById('b-py-v').textContent = py;
+  document.getElementById('b-pz-v').textContent = pz;
+}
+
+function rebuild() {
+  buildBoxA();
+  buildBoxB();
+}
+
+function applyPreset(kind) {
+  const hiderOn = document.getElementById('hider-on');
+  const side = document.getElementById('hider-side');
+  const flip = document.getElementById('flip-normals');
+  if (kind === 'none')    { hiderOn.checked = false; }
+  if (kind === 'default') { hiderOn.checked = true; side.value = 'FrontSide'; flip.checked = false; }
+  if (kind === 'back')    { hiderOn.checked = true; side.value = 'BackSide';  flip.checked = false; }
+  if (kind === 'double')  { hiderOn.checked = true; side.value = 'DoubleSide'; flip.checked = false; }
+  rebuild();
+}
+
+function applyBg() {
+  const c = document.getElementById('bg-col').value;
+  renderer.setClearColor(c);
+  scene.background = new THREE.Color(c);
+}
+
+function toggleWorld() {
+  worldMarkers.visible = document.getElementById('show-world').checked;
+}
+
+function loadGlb(file) {
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  new THREE.GLTFLoader().load(url, (gltf) => {
+    customGlb = gltf.scene;
+    // Normalise size so loaded GLB fits in the view
+    const box = new THREE.Box3().setFromObject(customGlb);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    customGlb.scale.setScalar(1.5 / maxDim);
+    rebuild();
+  }, null, (e) => console.error('GLB load failed', e));
+}
+
+// ── Resize + render loop ──
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas);
+resize();
+
+function tick() {
+  requestAnimationFrame(tick);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+rebuild();
+applyBg();
+tick();
+</script>
+</body>
+</html>
