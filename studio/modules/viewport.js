@@ -1015,52 +1015,56 @@ Studio.Viewport = {
   },
 
   // Dump everything we can about the scene's render state so we can
-  // pinpoint why a hider cube isn't occluding. Call from the browser
-  // console while the cube is selected:
-  //   Studio.Viewport.diagnoseScene()
+  // pinpoint why a hider cube isn't occluding. Outputs TWO tables:
+  //   1. Your primitives/GLBs (objects with an objId) — the things
+  //      you actually placed in the scene.
+  //   2. Any mesh that writes depth AND color (potentially paints over
+  //      the hider's pixels): suspects for "cube invisible but doesn't
+  //      occlude" bugs.
+  // Uses console.table() so every property is visible in one line,
+  // no expanding required.
   diagnoseScene() {
     const r = this.renderer;
-    const info = {
-      renderer: {
-        autoClear:       r.autoClear,
-        autoClearColor:  r.autoClearColor,
-        autoClearDepth:  r.autoClearDepth,
-        sortObjects:     r.sortObjects,
-        outputColorSpace:r.outputColorSpace,
-        shadowMapEnabled:r.shadowMap.enabled,
-      },
-      camera: {
-        position: this.camera.position.toArray(),
-        near: this.camera.near,
-        far:  this.camera.far,
-      },
-      meshes: [],
+    const rendererState = {
+      autoClear:       r.autoClear,
+      autoClearColor:  r.autoClearColor,
+      autoClearDepth:  r.autoClearDepth,
+      sortObjects:     r.sortObjects,
+      shadowMap:       r.shadowMap.enabled,
     };
+    console.log('[4E renderer]', rendererState);
+
+    const userMeshes = [];
+    const paintSuspects = [];  // anything that writes both depth and color
     this.scene.traverse(o => {
       if (!o.isMesh) return;
       const m = o.material;
-      info.meshes.push({
+      const row = {
         name:        o.name || '(unnamed)',
-        objId:       o.userData._objId || null,
+        objId:       o.userData._objId || '',
         type:        o.type,
         visible:     o.visible,
-        position:    o.position.toArray(),
-        scale:       o.scale.toArray(),
-        renderOrder: o.renderOrder,
-        frustumCulled: o.frustumCulled,
-        material: m ? {
-          type:        m.type,
-          colorWrite:  m.colorWrite,
-          depthWrite:  m.depthWrite,
-          depthTest:   m.depthTest,
-          transparent: m.transparent,
-          opacity:     m.opacity,
-          side:        ['Front','Back','Double'][m.side],
-        } : null,
-      });
+        pos:         '[' + o.position.toArray().map(n => n.toFixed(2)).join(', ') + ']',
+        scale:       '[' + o.scale.toArray().map(n => n.toFixed(2)).join(', ') + ']',
+        matType:     m ? m.type : '',
+        colorWrite:  m ? m.colorWrite : '',
+        depthWrite:  m ? m.depthWrite : '',
+        depthTest:   m ? m.depthTest : '',
+        transparent: m ? m.transparent : '',
+        opacity:     m ? m.opacity : '',
+        side:        m ? ['Front','Back','Double'][m.side] : '',
+      };
+      if (o.userData._objId) userMeshes.push(row);
+      if (m && m.colorWrite && m.depthWrite && o.visible) paintSuspects.push(row);
     });
-    console.log('[4E diagnoseScene]', info);
-    return info;
+
+    console.log('[4E your primitives / GLBs] (objects you placed):');
+    console.table(userMeshes);
+
+    console.log('[4E paint suspects] (visible meshes writing both color AND depth — any of these at/near the cube position could be covering the hider):');
+    console.table(paintSuspects);
+
+    return { rendererState, userMeshes, paintSuspects };
   },
 
   // Adds a cyan wireframe outline as a child of every sub-mesh. Because
