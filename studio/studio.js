@@ -477,7 +477,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.PWA.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.10.6';
+  // Single source of truth: <meta name="version"> in index.html.
+  // Hardcoding it here caused a real-world bug where the toolbar kept
+  // reading 3.10.6 after index.html had moved to 3.10.11 — the user
+  // thought the deploy hadn't landed. Read it from the DOM so bumping
+  // one line in index.html is all it takes.
+  Studio.VERSION = (document.querySelector('meta[name="version"]')?.content) || 'dev';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;
