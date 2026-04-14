@@ -843,19 +843,22 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // EXACT replica of docs/hider-test.html buildMat():
+        // Test harness buildMat() does just these three lines:
         //   const m = new THREE.MeshStandardMaterial({ side });
         //   m.colorWrite = false;
-        // Three lines, nothing else. If the studio diverges from the
-        // test visually, the material itself is not the cause.
-        // Default side is `front` — front face writes depth at its own
-        // Z, occluding everything behind the cube. That's the classic
-        // "boolean cutter" behaviour most users expect from a hider.
+        //   return m;
+        // Three.js defaults for MeshStandardMaterial are depthWrite=true
+        // and depthTest=true — but we set them explicitly anyway so
+        // future refactors of Three.js or inherited material defaults
+        // can't silently break occlusion.
         const sideStr = (hider && hider.side) || 'front';
         const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
         const side = sideMap[sideStr] != null ? sideMap[sideStr] : THREE.FrontSide;
         const m = new THREE.MeshStandardMaterial({ side });
         m.colorWrite = false;
+        m.depthWrite = true;
+        m.depthTest = true;
+        m.transparent = false;
         return m;
       }
       return null;  // no override → restore
@@ -948,13 +951,27 @@ Studio.Viewport = {
           : '';
         Studio.log(`[material] ${obj.name||obj.id}: ${active}${cfg} (rebuilt)`);
         if (hider && window.console) {
+          // Full dump so we can see every property that matters for
+          // occlusion. If occlusion doesn't work, the problem has to
+          // be visible in one of these values.
           console.log('[4E hider]', obj.name || obj.id, {
-            materialType: newMesh.material.type,
-            colorWrite: newMesh.material.colorWrite,
-            side: newMesh.material.side,
-            castShadow: newMesh.castShadow,
+            materialType:    newMesh.material.type,
+            colorWrite:      newMesh.material.colorWrite,
+            depthWrite:      newMesh.material.depthWrite,
+            depthTest:       newMesh.material.depthTest,
+            transparent:     newMesh.material.transparent,
+            opacity:         newMesh.material.opacity,
+            side:            newMesh.material.side,
+            sideHuman:       ['Front','Back','Double'][newMesh.material.side],
+            visible:         newMesh.visible,
+            castShadow:      newMesh.castShadow,
+            renderOrder:     newMesh.renderOrder,
+            frustumCulled:   newMesh.frustumCulled,
+            scale:           newMesh.scale.toArray(),
+            position:        newMesh.position.toArray(),
             geometryIndexed: !!newMesh.geometry.index,
-            flippedWinding: !!wantFlip,
+            geometryType:    newMesh.geometry.type,
+            flippedWinding:  !!wantFlip,
           });
         }
         return;  // primitive path done
@@ -995,6 +1012,55 @@ Studio.Viewport = {
     if (hider && window.console) {
       console.log('[4E hider]', obj.name || obj.id, 'meshes:', meshInfo);
     }
+  },
+
+  // Dump everything we can about the scene's render state so we can
+  // pinpoint why a hider cube isn't occluding. Call from the browser
+  // console while the cube is selected:
+  //   Studio.Viewport.diagnoseScene()
+  diagnoseScene() {
+    const r = this.renderer;
+    const info = {
+      renderer: {
+        autoClear:       r.autoClear,
+        autoClearColor:  r.autoClearColor,
+        autoClearDepth:  r.autoClearDepth,
+        sortObjects:     r.sortObjects,
+        outputColorSpace:r.outputColorSpace,
+        shadowMapEnabled:r.shadowMap.enabled,
+      },
+      camera: {
+        position: this.camera.position.toArray(),
+        near: this.camera.near,
+        far:  this.camera.far,
+      },
+      meshes: [],
+    };
+    this.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const m = o.material;
+      info.meshes.push({
+        name:        o.name || '(unnamed)',
+        objId:       o.userData._objId || null,
+        type:        o.type,
+        visible:     o.visible,
+        position:    o.position.toArray(),
+        scale:       o.scale.toArray(),
+        renderOrder: o.renderOrder,
+        frustumCulled: o.frustumCulled,
+        material: m ? {
+          type:        m.type,
+          colorWrite:  m.colorWrite,
+          depthWrite:  m.depthWrite,
+          depthTest:   m.depthTest,
+          transparent: m.transparent,
+          opacity:     m.opacity,
+          side:        ['Front','Back','Double'][m.side],
+        } : null,
+      });
+    });
+    console.log('[4E diagnoseScene]', info);
+    return info;
   },
 
   // Adds a cyan wireframe outline as a child of every sub-mesh. Because
