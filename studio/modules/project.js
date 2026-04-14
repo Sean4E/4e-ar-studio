@@ -205,6 +205,11 @@ Studio.Project = {
     const toRemove = this.state.objects.filter(o => o.prefabId === id).map(o => o.id);
     toRemove.forEach(oid => this.removeObject(oid));
 
+    // Free the session-only blob URL so it doesn't leak memory
+    if (prefab._blobUrl) {
+      try { URL.revokeObjectURL(prefab._blobUrl); } catch(e) {}
+    }
+
     // Delete the shared GLB from GitHub
     if (Studio.GitHub?.deleteByUrl && prefab.glbUrl) {
       Studio.GitHub.deleteByUrl(prefab.glbUrl).catch(() => {});

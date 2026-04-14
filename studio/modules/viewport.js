@@ -175,21 +175,24 @@ Studio.Viewport = {
   async handleModelFile(file) {
     if (!file) return;
 
+    // Create a session-only blob URL RIGHT AWAY and keep it on the
+    // prefab — this is what the viewport uses to load meshes, so
+    // instantiating works immediately even while GitHub Pages is still
+    // propagating the freshly-uploaded GLB (~10-60s delay).
+    const blobUrl = URL.createObjectURL(file);
+
     const prefab = Studio.Project.createPrefab({
       name: file.name.replace(/\.\w+$/, ''),
       file: file,
+      _blobUrl: blobUrl,   // transient, per session; revoked on removePrefab
     });
 
-    // Peek at the GLB to detect animation clips (for UI affordances).
-    // Use a detached loader — we DON'T add the mesh to the scene here;
-    // the scene only gets an instance when the user clicks the prefab.
+    // Peek at the GLB to detect animation clips (for UI affordances)
     try {
-      const blobUrl = URL.createObjectURL(file);
       await new Promise((resolve) => {
         const loader = new THREE.GLTFLoader();
         loader.load(blobUrl, gltf => {
           prefab.clips = (gltf.animations || []).map(a => a.name).filter(n => n);
-          URL.revokeObjectURL(blobUrl);
           resolve();
         }, null, () => resolve());
       });
@@ -199,7 +202,8 @@ Studio.Viewport = {
     Studio.Assets.render();
     Studio.toast(prefab.name + ' added to library', 'ok');
 
-    // Upload immediately so the glbUrl is set before the user publishes
+    // Upload so the GitHub-hosted URL is ready for publish (the player
+    // can only load over the network — it can't use blob: URLs).
     const gh = Studio.GitHub.getConfig();
     if (!gh.token) {
       Studio.toast(prefab.name + ' in library — needs Publish to upload', 'warn');
@@ -210,6 +214,9 @@ Studio.Viewport = {
       const path = 'assets/' + Studio.Project.state.id + '/prefabs/' + prefab.id + '.glb';
       Studio.toast('Uploading ' + prefab.name + '…', 'ok');
       prefab.glbUrl = await Studio.GitHub.upload(path, await Studio.GitHub.file2b64(file));
+      // Keep prefab._blobUrl for the rest of the session — the viewport
+      // uses it for fast local loads regardless of GH Pages propagation.
+      // Clear .file so the transient File object can be GC'd.
       prefab.file = null;
       Studio.Project.markDirty();
       Studio.Assets.render();
@@ -237,10 +244,15 @@ Studio.Viewport = {
       visible: true,
     });
 
-    // Prefer the uploaded URL; fall back to a fresh blob if we're still
-    // mid-upload (covers the window between addPrefab and upload done).
-    let loadUrl = prefab.glbUrl;
-    if (!loadUrl && prefab.file) loadUrl = URL.createObjectURL(prefab.file);
+    // Load order preference for the studio viewport:
+    //   1. _blobUrl (instant, from RAM, survives GH Pages propagation)
+    //   2. prefab.glbUrl (GitHub Pages URL, only reliable after propagation)
+    //   3. Fresh blob from prefab.file (edge case, pre-upload)
+    let loadUrl = prefab._blobUrl || prefab.glbUrl;
+    if (!loadUrl && prefab.file) {
+      loadUrl = URL.createObjectURL(prefab.file);
+      prefab._blobUrl = loadUrl;
+    }
     if (!loadUrl) {
       Studio.toast('Prefab has no GLB yet — wait for upload', 'warn');
       return;
@@ -251,6 +263,19 @@ Studio.Viewport = {
       Studio.Project.addObject(obj);
       this.selectObject(obj.id);
     } catch (e) {
+      // If loading from the GitHub URL failed (e.g. GH Pages still
+      // propagating and we had no blob fallback), retry once after a
+      // short delay to cover the propagation window.
+      if (loadUrl === prefab.glbUrl) {
+        Studio.log('Prefab load failed, retrying in 3s…');
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          await this._loadModelIntoScene(obj, loadUrl + (loadUrl.includes('?') ? '&' : '?') + '_t=' + Date.now());
+          Studio.Project.addObject(obj);
+          this.selectObject(obj.id);
+          return;
+        } catch (e2) { /* fall through to error toast */ }
+      }
       Studio.toast('Load failed: ' + e.message, 'err');
     }
   },

@@ -4,6 +4,11 @@
 // ═══════════════════════════════════════════════════════════
 
 Studio.Assets = {
+  _tab: 'project',         // 'project' | 'library'
+  _library: null,          // cached cross-project asset list
+  _libraryLoading: false,
+  _libraryError: null,
+
   init() {
     Studio.EventBus.on('object:added', () => this.render());
     Studio.EventBus.on('object:removed', () => this.render());
@@ -14,6 +19,20 @@ Studio.Assets = {
     Studio.EventBus.on('prefab:added', () => this.render());
     Studio.EventBus.on('prefab:removed', () => this.render());
 
+    // Convert vertical mouse-wheel into horizontal scroll when hovering
+    // the asset drawer — natural navigation for the row-based layout.
+    const container = document.getElementById('bp-assets');
+    if (container) {
+      container.addEventListener('wheel', (e) => {
+        // Horizontal intent already (trackpad, shift-wheel) → let it through
+        if (e.deltaX !== 0 && Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+        // Only intercept when there IS horizontal content to scroll
+        if (container.scrollWidth <= container.clientWidth) return;
+        e.preventDefault();
+        container.scrollLeft += e.deltaY;
+      }, { passive: false });
+    }
+
     this.render();
   },
 
@@ -23,6 +42,19 @@ Studio.Assets = {
 
     const state = Studio.Project.state;
     let html = '';
+
+    // Tabs — sticky on the left
+    html += `<div class="ast-tabs">
+      <button class="ast-tab${this._tab === 'project' ? ' active' : ''}" onclick="Studio.Assets.setTab('project')">Project</button>
+      <button class="ast-tab${this._tab === 'library' ? ' active' : ''}" onclick="Studio.Assets.setTab('library')">Library</button>
+    </div>`;
+
+    if (this._tab === 'library') {
+      html += this._renderLibrary();
+      container.innerHTML = html;
+      return;
+    }
+    // Project tab — existing content below
 
     // ─── Section: Primitives ──────────────────────────
     html += `<div class="ast-section">
@@ -178,6 +210,141 @@ Studio.Assets = {
   _primIcon(type) {
     const icons = { cube: '⬜', sphere: '⚪', cylinder: '🔷', plane: '▬', cone: '🔺', torus: '⭕', empty: '◇' };
     return icons[type] || '🔲';
+  },
+
+  // ─── Tabs + Library ────────────────────────────────────
+  setTab(name) {
+    this._tab = name;
+    this.render();
+    // Lazy-load the library the first time the tab is opened
+    if (name === 'library' && this._library == null && !this._libraryLoading) {
+      this.loadLibrary();
+    }
+  },
+
+  async loadLibrary() {
+    const cfg = Studio.GitHub.getConfig();
+    if (!cfg.token) {
+      this._libraryError = 'GitHub token not set — save a project once to enter one.';
+      this.render();
+      return;
+    }
+    this._libraryLoading = true;
+    this._libraryError = null;
+    this.render();
+    try {
+      const files = await Studio.GitHub.listContentsRecursive('assets');
+      // Classify + dedupe. Filter out PWA/splash/target auxiliary files
+      // that users don't want to re-add as generic library items.
+      const lib = { models: [], audio: [], video: [], images: [] };
+      files.forEach(f => {
+        const path = f.path;
+        const name = f.name;
+        const size = f.size || 0;
+        const ext = (name.split('.').pop() || '').toLowerCase();
+        // Skip auto-generated per-project files
+        if (/\/pwa\//.test(path)) return;
+        if (/splash-logo\.png$/.test(path)) return;
+        if (/_luminance\./.test(name) || /_thumb(nail)?\./.test(name) || /_original\./.test(name)) return;
+        const cfg = Studio.GitHub.getConfig();
+        const url = `https://${cfg.owner}.github.io/${cfg.repo}/${path}`;
+        const projectId = (path.match(/^assets\/([^\/]+)\//) || [])[1] || '';
+        const item = { name, path, size, url, projectId, ext };
+        if (ext === 'glb' || ext === 'gltf') lib.models.push(item);
+        else if (['mp3','wav','ogg','m4a'].includes(ext)) lib.audio.push(item);
+        else if (['mp4','webm','mov','m4v'].includes(ext)) lib.video.push(item);
+        else if (['png','jpg','jpeg','webp','gif'].includes(ext)) lib.images.push(item);
+      });
+      // Sort within each group by project id then name
+      ['models','audio','video','images'].forEach(k => {
+        lib[k].sort((a, b) => (a.projectId + a.name).localeCompare(b.projectId + b.name));
+      });
+      this._library = lib;
+    } catch (e) {
+      this._libraryError = e.message;
+    } finally {
+      this._libraryLoading = false;
+      this.render();
+    }
+  },
+
+  _renderLibrary() {
+    if (this._libraryLoading) {
+      return `<div class="ast-section"><div style="padding:20px;color:var(--muted);font-size:12px">Loading cross-project assets…</div></div>`;
+    }
+    if (this._libraryError) {
+      return `<div class="ast-section"><div style="padding:20px;color:var(--red);font-size:12px">${this._esc(this._libraryError)}</div><div class="ast-row"><div class="ast-card ast-action" onclick="Studio.Assets.loadLibrary()"><div class="ast-card-icon">🔄</div><div class="ast-card-label">Retry</div></div></div></div>`;
+    }
+    if (!this._library) {
+      return `<div class="ast-section"><div style="padding:20px;color:var(--faint);font-size:12px">No library loaded yet</div></div>`;
+    }
+    const lib = this._library;
+    const total = lib.models.length + lib.audio.length + lib.video.length + lib.images.length;
+    if (total === 0) {
+      return `<div class="ast-section"><div style="padding:20px;color:var(--faint);font-size:12px">No assets across any project yet</div></div>`;
+    }
+
+    const iconFor = (ext) => ({
+      glb:'📦', gltf:'📦',
+      mp3:'🎵', wav:'🎵', ogg:'🎵', m4a:'🎵',
+      mp4:'🎬', webm:'🎬', mov:'🎬', m4v:'🎬',
+      png:'🖼', jpg:'🖼', jpeg:'🖼', webp:'🖼', gif:'🖼',
+    })[ext] || '📎';
+
+    const section = (title, items, kind) => {
+      if (!items.length) return '';
+      let rows = '';
+      items.forEach(it => {
+        const shortProj = it.projectId ? it.projectId.slice(-6) : '—';
+        const sizeKb = it.size ? (it.size >= 1024*1024 ? (it.size/1024/1024).toFixed(1)+'M' : (it.size/1024).toFixed(0)+'K') : '';
+        rows += `
+          <div class="ast-card ast-library" onclick="Studio.Assets.addLibraryAsset('${kind}', '${this._esc(it.url)}', '${this._esc(it.name)}')" title="${this._esc(it.name)} · project ${it.projectId}">
+            <div class="ast-card-icon">${iconFor(it.ext)}</div>
+            <div class="ast-card-label">${this._truncate(it.name, 14)}</div>
+            <div class="ast-card-sub">${sizeKb} · ${shortProj}</div>
+          </div>`;
+      });
+      return `<div class="ast-section">
+        <div class="ast-section-title">${title} (${items.length})</div>
+        <div class="ast-row">${rows}</div>
+      </div>`;
+    };
+
+    return section('3D Models', lib.models, 'model') +
+           section('Videos',    lib.video,  'video') +
+           section('Audio',     lib.audio,  'audio') +
+           section('Images',    lib.images, 'image') +
+           `<div class="ast-section"><div class="ast-row"><div class="ast-card ast-action" onclick="Studio.Assets.loadLibrary()" title="Fetch fresh list from GitHub"><div class="ast-card-icon">🔄</div><div class="ast-card-label">Refresh</div></div></div></div>`;
+  },
+
+  // Click-to-add from the library → current project. Doesn't copy the
+  // file; references the existing GitHub URL, so no extra storage.
+  addLibraryAsset(kind, url, name) {
+    if (kind === 'model') {
+      // Avoid duplicates
+      let pf = Studio.Project.getPrefabByUrl(url);
+      if (!pf) {
+        pf = Studio.Project.createPrefab({ name: name.replace(/\.\w+$/, ''), glbUrl: url });
+        Studio.Project.addPrefab(pf);
+        Studio.toast(name + ' added to project', 'ok');
+      } else {
+        Studio.toast(name + ' is already in the project', 'ok');
+      }
+      this.setTab('project');
+      return;
+    }
+    // Audio / video / image → media library entry
+    const media = Studio.Project.state.media || (Studio.Project.state.media = []);
+    if (media.some(m => m.url === url)) {
+      Studio.toast(name + ' is already in the project', 'ok');
+      this.setTab('project');
+      return;
+    }
+    const type = kind === 'audio' ? 'audio/' : kind === 'video' ? 'video/' : 'image/';
+    media.push({ name, url, type });
+    Studio.Project.markDirty();
+    this.setTab('project');
+    Studio.toast(name + ' added to project', 'ok');
   },
 
   removePrefab(id) {

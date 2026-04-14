@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio</title>
-<meta name="version" content="3.9.0">
+<meta name="version" content="3.9.1">
 
 <!-- Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -194,8 +194,10 @@
   <div class="modal">
     <div class="modal-header">GitHub Token</div>
     <p class="modal-desc">One-time setup for publishing. Create at <a href="https://github.com/settings/tokens?type=beta" target="_blank">github.com/settings/tokens</a></p>
-    <input class="modal-input" id="token-input" type="password" placeholder="github_pat_xxxxx...">
-    <button class="tb-btn tb-primary" onclick="Studio.saveToken()" style="width:100%">Save & Publish</button>
+    <form onsubmit="event.preventDefault(); Studio.saveToken();" autocomplete="off">
+      <input class="modal-input" id="token-input" type="password" placeholder="github_pat_xxxxx..." autocomplete="off">
+      <button type="submit" class="tb-btn tb-primary" style="width:100%;margin-top:6px">Save & Publish</button>
+    </form>
   </div>
 </div>
 
