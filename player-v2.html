@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.4.1">
+<meta name="version" content="3.4.2">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.4.1';
+const PLAYER_VERSION = '3.4.2';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -338,26 +338,42 @@ if (typeof AFRAME !== 'undefined') {
       const initialHeight = width * 9 / 16;
       const isHostPlane = this.el.tagName.toLowerCase() === 'a-plane';
 
-      const materialAttr =
-        'shader: flat; src: ' + (src.charAt(0) === '#' ? src : '#' + video.id) +
-        '; side: double; transparent: true; opacity: 0';
-
       if (isHostPlane) {
-        // Host IS the display surface
         this._plane = this.el;
         this._ownsPlane = false;
         this._plane.setAttribute('width', width);
         this._plane.setAttribute('height', initialHeight);
-        this._plane.setAttribute('material', materialAttr);
       } else {
-        // Create a child plane for Empty/GLB/other hosts
         this._plane = document.createElement('a-plane');
         this._ownsPlane = true;
         this._plane.setAttribute('width', width);
         this._plane.setAttribute('height', initialHeight);
-        this._plane.setAttribute('material', materialAttr);
+        // Child plane lies flat on the image target by default (image
+        // target's Y axis is the normal, so -90° on X makes the plane
+        // coplanar with the image).
+        this._plane.setAttribute('rotation', '-90 0 0');
         this.el.appendChild(this._plane);
       }
+
+      // Apply video texture using A-Frame's material component — passing
+      // the video element directly (not a selector) bypasses the loading
+      // race condition that was causing the white plane. A-Frame then
+      // creates the VideoTexture internally and keeps it in sync.
+      const applyMaterial = () => {
+        this._plane.setAttribute('material', {
+          shader: 'flat',
+          src: video,
+          side: 'double',
+          transparent: true,
+          opacity: 0,
+          npot: true
+        });
+        // Grab the mesh reference for direct opacity updates during fade
+        this._mesh = this._plane.getObject3D('mesh');
+      };
+
+      if (this._plane.hasLoaded) applyMaterial();
+      else this._plane.addEventListener('loaded', applyMaterial, { once: true });
 
       // Auto-resize to match video's true aspect ratio
       const syncAspect = () => {
@@ -434,11 +450,9 @@ if (typeof AFRAME !== 'undefined') {
     },
     _fadePlane(target, dur, done) {
       if (this._opacityFadeId) clearInterval(this._opacityFadeId);
-      if (!this._plane || dur <= 0) {
-        if (this._plane) this._plane.setAttribute('material', 'opacity', target);
-        if (done) done();
-        return;
-      }
+      if (!this._plane) { if (done) done(); return; }
+      const setOp = (o) => this._plane.setAttribute('material', 'opacity', o);
+      if (dur <= 0) { setOp(target); if (done) done(); return; }
       const mat = this._plane.getAttribute('material') || {};
       const start = mat.opacity != null ? mat.opacity : 0;
       const steps = Math.max(1, Math.round(dur * 20));
@@ -446,7 +460,7 @@ if (typeof AFRAME !== 'undefined') {
       this._opacityFadeId = setInterval(() => {
         i++;
         const o = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
-        this._plane.setAttribute('material', 'opacity', o);
+        setOp(o);
         if (i >= steps) {
           clearInterval(this._opacityFadeId);
           this._opacityFadeId = null;

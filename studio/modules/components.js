@@ -198,10 +198,13 @@ Studio.Components = {
       description: 'Invisible material that occludes objects behind it',
       trackingModes: ['slam','image','face','hand'], appliesTo: 'entity', type: 'boolean',
     },
+    // Hidden — superseded by 'video-on-target', which handles both the
+    // video texture and the target-based playback. Kept for backwards
+    // compatibility with any project data that references it.
     'xrextras-video-material': {
       name: 'Video Material', category: 'materials', icon: '📹',
-      description: 'Apply video texture to object surface',
-      trackingModes: ['slam','image'], appliesTo: 'entity', type: 'config',
+      description: 'Superseded by Video on Target.',
+      trackingModes: ['slam','image'], appliesTo: 'entity', type: 'config', hidden: true,
       properties: {
         src: { type: 'text', label: 'Video URL', default: '' },
         autoplay: { type: 'boolean', label: 'Autoplay', default: true }

@@ -642,13 +642,14 @@ Studio.Viewport = {
       if (vid.readyState >= 1) resize(obj.mesh);
       else vid.addEventListener('loadedmetadata', () => resize(obj.mesh), { once: true });
     } else {
-      // Child plane preview for Empty/other hosts
+      // Child plane preview for Empty/other hosts. Rotated -90° on X
+      // to lie flat on the image target (matches the player component).
       const geo = new THREE.PlaneGeometry(width, width * 9/16);
       const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
       const plane = new THREE.Mesh(geo, mat);
+      plane.rotation.x = -Math.PI / 2;
       plane.userData._videoPreview = true;
       plane.userData._objId = obj.id;
-      // Make child not raycastable (so user still selects the host Empty)
       plane.userData._ignoreRaycast = true;
       obj.mesh.add(plane);
       if (vid.readyState >= 1) resize(plane);
@@ -734,15 +735,44 @@ Studio.Viewport = {
     });
 
     mesh.userData._objId = obj.id;
+    mesh.userData._primitiveType = type;
     mesh.traverse(c => { c.userData._objId = obj.id; });
     this.scene.add(mesh);
     obj.mesh = mesh;
-    // Set initial transform from mesh
+    // Persist initial transform so save/reload and the published player
+    // use the same orientation we're showing in the editor. Plane
+    // primitives lie flat on the image target (X = -90°) — this is the
+    // 8th Wall image-target convention (Y = normal, XZ = image plane).
     obj.transform.position.y = mesh.position.y;
+    if (type === 'plane') obj.transform.rotation.x = -90;
 
     Studio.Project.addObject(obj);
     this.selectObject(obj.id);
     Studio.toast(def.name + ' added', 'ok');
+  },
+
+  // Add a plane pre-configured for video-on-target. One-click workflow:
+  // user picks the video from the inspector dropdown and it just works.
+  addVideoPlane() {
+    this.addPrimitive('plane');
+    const obj = Studio.Project.state.objects[Studio.Project.state.objects.length - 1];
+    if (!obj) return;
+    obj.name = 'Video Plane';
+    if (!obj.xrComponents) obj.xrComponents = {};
+    // Pre-populate with component defaults (matches _toggleComponent logic)
+    const compDef = Studio.Components?.registry?.['video-on-target'];
+    if (compDef?.properties) {
+      const cfg = {};
+      Object.entries(compDef.properties).forEach(([k, d]) => { cfg[k] = d.default; });
+      obj.xrComponents['video-on-target'] = cfg;
+    } else {
+      obj.xrComponents['video-on-target'] = { src: '', width: 1, volume: 1, loop: true, fadeIn: 0.5, fadeOut: 1, resumeOnFound: true, muted: false };
+    }
+    Studio.Project.markDirty();
+    // Refresh inspector so the user sees the video-on-target toggle already on
+    Studio.Inspector.render(obj.id);
+    Studio.Hierarchy.render();
+    Studio.toast('Video Plane added — pick a video in the inspector', 'ok');
   },
 
   // ─── Load Sample Model ─────────────────────────────────
