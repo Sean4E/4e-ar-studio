@@ -784,17 +784,16 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // Studio preview of an xrextras-hider-material. The published
-        // player uses the real 8th Wall component which writes depth
-        // without colour — making real-world geometry occlude virtual
-        // objects behind it. In the studio viewport there's no camera
-        // feed to occlude, so we render a ghostly translucent blue
-        // tint as a visual marker: the user can SEE where the hider
-        // sits and mentally model it as "invisible-but-solid" in AR.
+        // TRUE occluder material — identical to what 8th Wall's
+        // xrextras-hider-material installs under the hood: writes
+        // to the depth buffer but not to the colour buffer. In AR
+        // this means virtual content behind the mesh is clipped,
+        // and the mesh itself shows the real camera feed through
+        // where it would have been. Using the same material in the
+        // studio viewport gives us 1:1 visual parity with the
+        // published app — no translucent "preview" approximation.
         return new THREE.MeshBasicMaterial({
-          color: 0x22d3ee,
-          transparent: true,
-          opacity: 0.22,
+          colorWrite: false,
           depthWrite: true,
           side: THREE.DoubleSide,
         });
@@ -803,6 +802,10 @@ Studio.Viewport = {
     };
 
     const overrideMat = makeMaterial();
+
+    // Remove any wireframe helper from a previous hider toggle so it
+    // doesn't leak when we switch to basic/pbr or back to default.
+    this._removeOccluderHelper(obj);
 
     obj.mesh.traverse(c => {
       if (!c.isMesh) return;
@@ -815,6 +818,41 @@ Studio.Viewport = {
         c.material = c.userData._origMat;
       }
     });
+
+    // Hider is invisible by design — add a wireframe outline so the
+    // user can still see + position the occluder in the viewport.
+    if (hider) this._addOccluderHelper(obj);
+  },
+
+  // Adds a cyan wireframe outline as a child of every sub-mesh. Because
+  // it's a child (not a scene-level helper), it inherits transforms
+  // automatically — moves with the gizmo, no per-frame updates needed.
+  _addOccluderHelper(obj) {
+    if (!obj?.mesh) return;
+    const wireMat = new THREE.LineBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.7 });
+    const added = [];
+    obj.mesh.traverse(c => {
+      if (!c.isMesh || !c.geometry) return;
+      const wireGeo = new THREE.WireframeGeometry(c.geometry);
+      const wire = new THREE.LineSegments(wireGeo, wireMat);
+      wire.userData._occluderHelper = true;
+      // Bump renderOrder so the wireframe draws after the (invisible)
+      // occluder material and isn't depth-clipped by it.
+      wire.renderOrder = 10;
+      c.add(wire);
+      added.push(wire);
+    });
+    obj._occluderHelpers = added;
+  },
+
+  _removeOccluderHelper(obj) {
+    if (!obj?._occluderHelpers?.length) return;
+    obj._occluderHelpers.forEach(w => {
+      if (w.parent) w.parent.remove(w);
+      if (w.geometry) w.geometry.dispose();
+      if (w.material) w.material.dispose();
+    });
+    obj._occluderHelpers = null;
   },
 
   _disposeVideoMesh(mesh) {
