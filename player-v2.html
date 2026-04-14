@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.4.2">
+<meta name="version" content="3.6.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.4.2';
+const PLAYER_VERSION = '3.6.0';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -190,7 +190,9 @@ if (typeof AFRAME !== 'undefined') {
       volume: { type: 'number', default: 0.8 },
       loop: { type: 'boolean', default: true },
       fadeIn: { type: 'number', default: 0.5 },
-      fadeOut: { type: 'number', default: 1.0 }
+      fadeOut: { type: 'number', default: 1.0 },
+      pauseOnLost: { type: 'boolean', default: true },
+      resumeOnFound: { type: 'boolean', default: true }
     },
     init() {
       const src = this.data.src;
@@ -226,7 +228,9 @@ if (typeof AFRAME !== 'undefined') {
       const onLost = (e) => {
         const n = e?.detail?.name || '';
         if (tName && n !== tName) return;
-        this._stop();
+        // If pauseOnLost is false, audio keeps playing even after target
+        // is no longer visible (useful with image→SLAM anchoring).
+        if (this.data.pauseOnLost) this._stop();
       };
 
       // Wait for scene to be ready before listening
@@ -241,6 +245,8 @@ if (typeof AFRAME !== 'undefined') {
     _play() {
       if (!this._audio || this._isPlaying) return;
       this._isPlaying = true;
+      // resumeOnFound=false → restart from 0 on every re-find
+      if (!this.data.resumeOnFound) { try { this._audio.currentTime = 0; } catch(e){} }
       this._audio.play().catch(err => {
         console.warn('[target-audio-direct] play failed:', err);
         this._isPlaying = false;
@@ -295,6 +301,7 @@ if (typeof AFRAME !== 'undefined') {
       loop: { type: 'boolean', default: true },
       fadeIn: { type: 'number', default: 0.5 },
       fadeOut: { type: 'number', default: 1.0 },
+      pauseOnLost: { type: 'boolean', default: true },
       resumeOnFound: { type: 'boolean', default: true },
       muted: { type: 'boolean', default: false },
       width: { type: 'number', default: 1.0 },        // plane width in metres
@@ -402,7 +409,10 @@ if (typeof AFRAME !== 'undefined') {
       const onLost = (e) => {
         const n = e && e.detail && e.detail.name || '';
         if (tName && n !== tName) return;
-        this._stop();
+        // If pauseOnLost is false, video keeps playing (useful with
+        // image→SLAM anchoring — the plane is world-locked so the
+        // video should continue even when target is out of view).
+        if (this.data.pauseOnLost) this._stop();
       };
 
       const sceneEl = this.el.sceneEl;
@@ -477,6 +487,46 @@ if (typeof AFRAME !== 'undefined') {
       if (this._ownsPlane && this._plane && this._plane.parentNode) {
         this._plane.parentNode.removeChild(this._plane);
       }
+    }
+  });
+
+  // ─── image-to-slam ──────────────────────────────────────
+  // On the first xrimagefound matching this entity's target, captures
+  // the entity's world transform (set by 8th Wall from the detected
+  // image) and reparents the Three.js Object3D from the image-target
+  // node to the scene root. After that, the entity is tracked by
+  // world/SLAM (8th Wall's world tracking runs alongside image
+  // tracking), so it stays put even if the image goes out of view.
+  // Gesture components (xrextras-hold-drag, pinch-scale, etc.) keep
+  // working on the promoted entity.
+  AFRAME.registerComponent('image-to-slam', {
+    init() {
+      const sceneEl = this.el.sceneEl;
+      const targetEl = this.el.closest('xrextras-named-image-target');
+      if (!targetEl) return;
+      const tName = targetEl.getAttribute('name') || '';
+      this._promoted = false;
+
+      const onFound = (e) => {
+        const n = e && e.detail && e.detail.name || '';
+        if (tName && n !== tName) return;
+        if (this._promoted) return;
+
+        // Defer one frame so 8th Wall has set the image-target node's
+        // world transform from the detection pose before we snapshot it.
+        requestAnimationFrame(() => {
+          const obj3d = this.el.object3D;
+          obj3d.updateMatrixWorld(true);
+          // THREE's scene.attach(child) reparents while preserving the
+          // child's world transform — exactly what we need here.
+          sceneEl.object3D.attach(obj3d);
+          this._promoted = true;
+        });
+      };
+
+      const attach = () => sceneEl.addEventListener('xrimagefound', onFound);
+      if (sceneEl.hasLoaded) attach();
+      else sceneEl.addEventListener('loaded', attach);
     }
   });
 }
@@ -861,9 +911,12 @@ function buildEntity(obj, i) {
   // — the component then applies the video texture to the plane itself.
   const hasVideoComp = obj.xrComponents && obj.xrComponents['video-on-target'];
   const isPlaneWithVideo = obj.primitiveType === 'plane' && hasVideoComp;
+  // Any primitive with image-to-slam also needs full buildEntity path so
+  // the image-to-slam attribute is emitted on the A-Frame element.
+  const needsFullPath = isPlaneWithVideo || obj.imageToSlam;
 
-  // Primitive objects (except empty and plane-with-video) use A-Frame built-ins
-  if (obj.type === 'primitive' && obj.primitiveType && obj.primitiveType !== 'empty' && !isPlaneWithVideo) {
+  // Primitives (except empty or the full-path cases above) use A-Frame built-ins
+  if (obj.type === 'primitive' && obj.primitiveType && obj.primitiveType !== 'empty' && !needsFullPath) {
     return buildPrimitive(obj, i);
   }
 
@@ -899,6 +952,10 @@ function buildEntity(obj, i) {
     attrs += ` animation__pulse="property: scale; from: ${s*(1-a)} ${s*(1-a)} ${s*(1-a)}; to: ${s*(1+a)} ${s*(1+a)} ${s*(1+a)}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`;
   }
 
+  // Image → SLAM anchoring: on first xrimagefound, promote the entity
+  // to world space so it stays put even when the image is out of view.
+  if (obj.imageToSlam) attrs += ' image-to-slam';
+
   // 8th Wall native interactions from legacy interactions{} field
   const ix = obj.interactions || {};
   if (ix.holdDrag) attrs += ' xrextras-hold-drag';
@@ -923,7 +980,9 @@ function buildEntity(obj, i) {
         const loop = config.loop !== false;
         const fIn = config.fadeIn != null ? config.fadeIn : 0.5;
         const fOut = config.fadeOut != null ? config.fadeOut : 1.0;
-        attrs += ` target-audio-direct="src: ${src}; volume: ${vol}; loop: ${loop}; fadeIn: ${fIn}; fadeOut: ${fOut}"`;
+        const pauseOnLost = config.pauseOnLost !== false;
+        const resumeOnFound = config.resumeOnFound !== false;
+        attrs += ` target-audio-direct="src: ${src}; volume: ${vol}; loop: ${loop}; fadeIn: ${fIn}; fadeOut: ${fOut}; pauseOnLost: ${pauseOnLost}; resumeOnFound: ${resumeOnFound}"`;
       }
       return;
     }

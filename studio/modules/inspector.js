@@ -412,13 +412,26 @@ Studio.Inspector = {
     const opts = targets.map(t =>
       `<option value="${t.id}" ${obj.targetId === t.id ? 'selected' : ''}>${t.name}</option>`
     ).join('');
+    const i2sChecked = obj.imageToSlam ? 'checked' : '';
     return this._buildSection('📷 Image Target', `
       <select class="insp-select" onchange="Studio.Inspector._setTargetId(this.value)">
         <option value="">— All targets —</option>
         ${opts}
       </select>
       <div style="font-size:9px;color:var(--faint);margin-top:3px">Which image target triggers this object</div>
+      <label class="insp-check" style="display:flex;align-items:center;gap:6px;margin-top:10px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;cursor:pointer" title="Once the image is detected, the object is anchored in world space (SLAM). It stays put even when the image goes out of view.">
+        <input type="checkbox" ${i2sChecked} onchange="Studio.Inspector._setImageToSlam(this.checked)">
+        <span style="font-size:11px;font-weight:600">Image → SLAM anchor</span>
+      </label>
+      <div style="font-size:9px;color:var(--faint);margin-top:3px;padding:0 2px">Use the image to place the object, then lock it into the world. Gestures keep working.</div>
     `);
+  },
+
+  _setImageToSlam(enabled) {
+    const obj = Studio.Project.getObject(this.currentId);
+    if (!obj) return;
+    obj.imageToSlam = !!enabled;
+    Studio.Project.markDirty();
   },
 
   _setTargetId(targetId) {

@@ -66,6 +66,7 @@ Studio.Project = {
       file: null,         // transient
       visible: true,
       targetId: null,      // which image target this object belongs to
+      imageToSlam: false,  // on first image-found, promote object to world space (SLAM anchor) so it stays put when target is lost
       parentId: null,
       sortOrder: this.state.objects.length,
 
@@ -172,7 +173,8 @@ Studio.Project = {
         id: o.id, name: o.name, type: o.type,
         primitiveType: o.primitiveType || null, primitiveColor: o.primitiveColor || null,
         glbUrl: o.glbUrl,
-        visible: o.visible, targetId: o.targetId, parentId: o.parentId, sortOrder: o.sortOrder,
+        visible: o.visible, targetId: o.targetId, imageToSlam: !!o.imageToSlam,
+        parentId: o.parentId, sortOrder: o.sortOrder,
         transform: JSON.parse(JSON.stringify(o.transform)),
         clips: [...o.clips], defaultAnim: o.defaultAnim, loop: o.loop,
         presets: JSON.parse(JSON.stringify(o.presets)),
@@ -239,7 +241,8 @@ Studio.Project = {
           id: od.id, name: od.name, type: od.type || 'model',
           primitiveType: od.primitiveType || null, primitiveColor: od.primitiveColor || null,
           glbUrl: od.glbUrl, visible: od.visible !== false,
-          targetId: od.targetId || null, parentId: od.parentId, sortOrder: od.sortOrder || 0,
+          targetId: od.targetId || null, imageToSlam: !!od.imageToSlam,
+          parentId: od.parentId, sortOrder: od.sortOrder || 0,
           transform: od.transform || { position:{x:0,y:0,z:0}, rotation:{x:0,y:0,z:0}, scale:{x:1,y:1,z:1} },
           clips: od.clips || [], defaultAnim: od.defaultAnim || '', loop: od.loop || 'repeat',
           presets: od.presets || { spin:null, bob:null, pulse:null },

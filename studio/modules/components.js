@@ -167,7 +167,8 @@ Studio.Components = {
         loop: { type: 'boolean', label: 'Loop', default: true },
         fadeIn: { type: 'range', label: 'Fade In (s)', default: 0.5, min: 0, max: 3, step: 0.1 },
         fadeOut: { type: 'range', label: 'Fade Out (s)', default: 1.0, min: 0, max: 3, step: 0.1 },
-        resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true },
+        pauseOnLost: { type: 'boolean', label: 'Pause when target lost', default: true },
+        resumeOnFound: { type: 'boolean', label: 'Resume on found (else restart)', default: true },
         muted: { type: 'boolean', label: 'Force mute audio', default: false }
       }
     },
@@ -241,7 +242,8 @@ Studio.Components = {
         loop: { type: 'boolean', label: 'Loop', default: true },
         fadeIn: { type: 'range', label: 'Fade In (s)', default: 0.5, min: 0, max: 3, step: 0.1 },
         fadeOut: { type: 'range', label: 'Fade Out (s)', default: 1.0, min: 0, max: 3, step: 0.1 },
-        resumeOnFound: { type: 'boolean', label: 'Resume on found', default: true },
+        pauseOnLost: { type: 'boolean', label: 'Pause when target lost', default: true },
+        resumeOnFound: { type: 'boolean', label: 'Resume on found (else restart)', default: true },
         delay: { type: 'range', label: 'Delay (s)', default: 0, min: 0, max: 5, step: 0.1 }
       }
     },
