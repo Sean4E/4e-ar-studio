@@ -25,6 +25,11 @@ Studio.Project = {
       shadowCatcher: true,
       ambientIntensity: 0.5,
       directIntensity: 0.8,
+      // spawnMode controls how SLAM-tracked objects appear in the
+      // published app: 'showOnStart' = visible from frame 1 at saved
+      // world transform; 'tapToPlace' = hidden until user taps any
+      // detected ground surface, then anchored at the tap point.
+      spawnMode: 'showOnStart',
     },
 
     splash: {
@@ -277,7 +282,7 @@ Studio.Project = {
     s.target = { mindUrl: '', imageUrl: '', mindBuffer: null, imgFile: null };
     s.targets = [];
     s.objects = [];
-    s.scene = { shadowCatcher: true, ambientIntensity: 0.5, directIntensity: 0.8 };
+    s.scene = { shadowCatcher: true, ambientIntensity: 0.5, directIntensity: 0.8, spawnMode: 'showOnStart' };
     s.splash = { title:'', subtitle:'', bgColor:'#060a18', textColor:'#e2e8f0', accentColor:'#8b5cf6', logoUrl:'', logoFile:null, showSpinner:true, showBranding:true, showLogo:true, showTitle:true, showSubtitle:true, gradient:'', duration:3 };
     s.media = [];
     s.pwa = { icon192Url: '', icon512Url: '', appleIconUrl: '' };

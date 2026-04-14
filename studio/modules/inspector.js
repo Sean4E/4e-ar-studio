@@ -18,8 +18,20 @@ Studio.Inspector = {
 
   clear() {
     this.currentId = null;
-    document.getElementById('insp-empty').classList.remove('hidden');
-    document.getElementById('insp-content').classList.add('hidden');
+    // Show the AR Scene section even when nothing is selected, so
+    // scene-wide settings (lighting, shadow catcher, spawn mode) are
+    // accessible without having to first pick an object.
+    const empty = document.getElementById('insp-empty');
+    const content = document.getElementById('insp-content');
+    empty.classList.add('hidden');
+    content.classList.remove('hidden');
+    content.innerHTML = '';
+    const hint = document.createElement('div');
+    hint.className = 'panel-empty';
+    hint.style.cssText = 'padding:14px;text-align:center;font-size:11px;color:var(--faint)';
+    hint.textContent = 'Select an object — or configure the scene below';
+    content.appendChild(hint);
+    content.appendChild(this._buildSceneSection());
   },
 
   render(id) {
@@ -244,11 +256,33 @@ Studio.Inspector = {
   // ─── Scene Settings ────────────────────────────────────
   _buildSceneSection() {
     const sc = Studio.Project.state.scene;
+    const mode = Studio.Project.state.trackingMode;
+    const spawnMode = sc.spawnMode || 'showOnStart';
+
+    // Spawn mode dropdown is only meaningful for SLAM/surface tracking.
+    // In image mode the image target itself is the placement trigger.
+    const spawnRow = mode === 'slam' ? `
+      <div style="margin-top:8px">
+        <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Spawn Mode</label>
+        <select class="insp-select" onchange="Studio.Inspector._setSpawnMode(this.value)" title="How objects appear when the AR experience starts">
+          <option value="showOnStart" ${spawnMode==='showOnStart'?'selected':''}>Show on start</option>
+          <option value="tapToPlace" ${spawnMode==='tapToPlace'?'selected':''}>Tap to place on surface</option>
+        </select>
+        <div style="font-size:9px;color:var(--faint);margin-top:3px">${spawnMode==='tapToPlace' ? 'User taps the floor to drop the scene at that point. Objects keep their relative positions.' : 'Objects appear immediately at their saved positions.'}</div>
+      </div>` : '';
+
     return this._buildSection('🌍 AR Scene', `
       <label class="insp-check"><input type="checkbox" ${sc.shadowCatcher?'checked':''} onchange="Studio.Project.state.scene.shadowCatcher=this.checked;Studio.Project.markDirty()"> Shadow catcher</label>
       <div class="insp-row" style="margin-top:4px"><label style="font-size:9px;color:var(--muted);width:50px">Ambient</label><input type="range" min="0" max="2" step="0.1" value="${sc.ambientIntensity}" oninput="Studio.Project.state.scene.ambientIntensity=+this.value;Studio.Project.markDirty()" style="flex:1"><span style="font-size:9px;width:20px">${sc.ambientIntensity}</span></div>
       <div class="insp-row"><label style="font-size:9px;color:var(--muted);width:50px">Direct</label><input type="range" min="0" max="3" step="0.1" value="${sc.directIntensity}" oninput="Studio.Project.state.scene.directIntensity=+this.value;Studio.Project.markDirty()" style="flex:1"><span style="font-size:9px;width:20px">${sc.directIntensity}</span></div>
+      ${spawnRow}
     `);
+  },
+
+  _setSpawnMode(val) {
+    Studio.Project.state.scene.spawnMode = val;
+    Studio.Project.markDirty();
+    this.render(this.currentId);   // refresh hint text
   },
 
   // ─── Actions ───────────────────────────────────────────

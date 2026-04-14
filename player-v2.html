@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.7.1">
+<meta name="version" content="3.8.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.7.1';
+const PLAYER_VERSION = '3.8.0';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -549,6 +549,51 @@ if (typeof AFRAME !== 'undefined') {
       };
 
       const attach = () => sceneEl.addEventListener('xrimagefound', onFound);
+      if (sceneEl.hasLoaded) attach();
+      else sceneEl.addEventListener('loaded', attach);
+    }
+  });
+
+  // ─── tap-to-spawn ──────────────────────────────────────
+  // Wraps the SLAM scene's objects. On init, hides itself and shows a
+  // "tap to place" hint. On the first tap of the ground entity, moves
+  // its position to the tap's hit point and reveals all children. The
+  // children's relative positions to each other (as designed in the
+  // studio) are preserved because we move the parent, not the kids.
+  AFRAME.registerComponent('tap-to-spawn', {
+    schema: {
+      surface: { type: 'string', default: 'ground' }   // 'ground' (future: 'wall')
+    },
+    init() {
+      const sceneEl = this.el.sceneEl;
+      const obj3d = this.el.object3D;
+
+      obj3d.visible = false;
+      this._placed = false;
+
+      // Repurpose the existing scan-hint element for a placement prompt
+      const hint = document.getElementById('scan-hint');
+      if (hint) {
+        hint.textContent = 'Tap a surface to place the scene';
+        hint.classList.remove('hidden');
+      }
+
+      const onTap = (e) => {
+        if (this._placed) return;
+        // A-Frame cursor click events expose the THREE.Intersection on
+        // event.detail.intersection — point is a world-space Vector3.
+        const intersection = e && e.detail && e.detail.intersection;
+        if (!intersection || !intersection.point) return;
+        obj3d.position.copy(intersection.point);
+        obj3d.visible = true;
+        this._placed = true;
+        if (hint) hint.classList.add('hidden');
+      };
+
+      const attach = () => {
+        const ground = sceneEl.querySelector('#ground');
+        if (ground) ground.addEventListener('click', onTap);
+      };
       if (sceneEl.hasLoaded) attach();
       else sceneEl.addEventListener('loaded', attach);
     }
@@ -1093,6 +1138,19 @@ function buildSLAM() {
   const dirInt = APP.directIntensity ?? 0.8;
   const showShadow = APP.shadowCatcher !== false;
 
+  // Spawn mode controls how objects appear:
+  //   showOnStart — visible immediately at saved positions (default)
+  //   tapToPlace  — hidden until user taps the ground; whole scene is
+  //                 then anchored to the tap point (preserving the
+  //                 relative positions designed in the studio)
+  // We always wrap entities in a #spawn-anchor entity so the player
+  // can move ALL of them as one unit on tap. Wrapping is harmless for
+  // showOnStart (anchor stays at origin, identity transform).
+  const spawnMode = APP.scene?.spawnMode || 'showOnStart';
+  const spawnAttrs = spawnMode === 'tapToPlace'
+    ? ' tap-to-spawn="surface: ground"'
+    : '';
+
   const entities = objects.map((o,i) => buildEntity(o,i)).join('\n');
 
   const html = `
@@ -1128,17 +1186,29 @@ function buildSLAM() {
 
       <a-light type="ambient" intensity="${ambInt}"></a-light>
 
-      ${showShadow ? `
+      <!-- Ground entity is needed for tap-to-spawn AND xrextras-hold-drag
+           tap targets, regardless of whether shadow catching is on. The
+           material differs: shadow shader when catching shadows; fully
+           transparent (still raycastable) otherwise. -->
       <a-box id="ground" class="cantap"
         scale="1000 2 1000" position="0 -1 0"
-        material="shader: shadow; transparent: true; opacity: 0.4"
-        shadow>
-      </a-box>` : ''}
+        ${showShadow
+          ? 'material="shader: shadow; transparent: true; opacity: 0.4" shadow'
+          : 'material="transparent: true; opacity: 0"'}>
+      </a-box>
 
-      ${entities}
+      <a-entity id="spawn-anchor"${spawnAttrs}>
+        ${entities}
+      </a-entity>
     </a-scene>`;
 
-  mountScene(html, objects, 'Look around to detect surfaces');
+  // Initial hint depends on spawn mode. tap-to-spawn component will
+  // also update this text once it initializes; setting it here avoids
+  // a flash of the wrong text between scene load and component init.
+  const initialHint = spawnMode === 'tapToPlace'
+    ? 'Tap a surface to place the scene'
+    : 'Look around to detect surfaces';
+  mountScene(html, objects, initialHint);
 }
 
 // ═══════════════════════════════════════════════════════════
