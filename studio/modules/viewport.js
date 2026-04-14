@@ -784,17 +784,21 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // TRUE occluder material — identical to what 8th Wall's
-        // xrextras-hider-material installs under the hood: writes
-        // to the depth buffer but not to the colour buffer. In AR
-        // this means virtual content behind the mesh is clipped,
-        // and the mesh itself shows the real camera feed through
-        // where it would have been. Using the same material in the
-        // studio viewport gives us 1:1 visual parity with the
-        // published app — no translucent "preview" approximation.
+        // Occluder. In AR, xrextras-hider-material uses
+        // colorWrite:false so the camera feed shows through. In the
+        // studio there's no camera feed to show — so we paint the
+        // surface with the viewport's clear colour instead. Visually
+        // it reads as a "hole cut out of the scene": matches the
+        // background, clearly showing where the occluder is. Depth
+        // still writes, so anything rendered behind gets clipped —
+        // that's the actual occlusion demo. The wireframe child
+        // keeps the shape outlined.
+        const clear = new THREE.Color();
+        this.renderer.getClearColor(clear);
         return new THREE.MeshBasicMaterial({
-          colorWrite: false,
+          color: clear,
           depthWrite: true,
+          depthTest: true,
           side: THREE.DoubleSide,
         });
       }
@@ -812,15 +816,19 @@ Studio.Viewport = {
       // Cache the original material the first time we override, so
       // toggling the switch off can put it back exactly as it was.
       if (!c.userData._origMat) c.userData._origMat = c.material;
+      if (!c.userData._origRenderOrder) c.userData._origRenderOrder = c.renderOrder || 0;
       if (overrideMat) {
         c.material = overrideMat;
+        // Render the occluder EARLY so the depth buffer is populated
+        // before later objects try to render behind it.
+        c.renderOrder = hider ? -10 : c.userData._origRenderOrder;
       } else if (c.userData._origMat) {
         c.material = c.userData._origMat;
+        c.renderOrder = c.userData._origRenderOrder;
       }
     });
 
-    // Hider is invisible by design — add a wireframe outline so the
-    // user can still see + position the occluder in the viewport.
+    // Outline helper on top so the user can always see the shape
     if (hider) this._addOccluderHelper(obj);
   },
 
