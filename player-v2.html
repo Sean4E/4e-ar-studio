@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.6.3">
+<meta name="version" content="3.7.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.6.3';
+const PLAYER_VERSION = '3.7.0';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -498,37 +498,54 @@ if (typeof AFRAME !== 'undefined') {
   });
 
   // ─── image-to-slam ──────────────────────────────────────
-  // On the first xrimagefound matching this entity's target, captures
-  // the entity's world transform (set by 8th Wall from the detected
-  // image) and reparents the Three.js Object3D from the image-target
-  // node to the scene root. After that, the entity is tracked by
-  // world/SLAM (8th Wall's world tracking runs alongside image
-  // tracking), so it stays put even if the image goes out of view.
-  // Gesture components (xrextras-hold-drag, pinch-scale, etc.) keep
-  // working on the promoted entity.
+  // 8th Wall's recommended pattern (per their forum + xrextras source):
+  // do NOT make the entity a child of <xrextras-named-image-target>,
+  // because that component sets visible=false on xrimagelost and re-
+  // snaps position on every xrimageupdated. Instead, place the entity
+  // at scene root, snapshot its initial transform as a "local offset
+  // relative to image", listen for xrimagefound directly on the scene,
+  // compose image_pose * local_offset into the world transform, apply
+  // once. After the first lock the entity is in SLAM space — it stays
+  // put even when the image leaves view, and gesture components keep
+  // working on it (since SLAM/world tracking is also active).
   AFRAME.registerComponent('image-to-slam', {
+    schema: {
+      targetName: { type: 'string', default: '' }   // empty = match first image found
+    },
     init() {
       const sceneEl = this.el.sceneEl;
-      const targetEl = this.el.closest('xrextras-named-image-target');
-      if (!targetEl) return;
-      const tName = targetEl.getAttribute('name') || '';
+      const tName = this.data.targetName;
       this._promoted = false;
 
+      // Snapshot the user's intended LOCAL offset from the image
+      const obj3d = this.el.object3D;
+      const localPos = obj3d.position.clone();
+      const localQuat = obj3d.quaternion.clone();
+      const localScale = obj3d.scale.clone();
+
+      // Hide until the image is first detected — avoids a flash at
+      // origin while the user hasn't found the marker yet.
+      obj3d.visible = false;
+
       const onFound = (e) => {
-        const n = e && e.detail && e.detail.name || '';
-        if (tName && n !== tName) return;
+        const d = e && e.detail;
+        if (!d) return;
+        if (tName && d.name !== tName) return;
         if (this._promoted) return;
 
-        // Defer one frame so 8th Wall has set the image-target node's
-        // world transform from the detection pose before we snapshot it.
-        requestAnimationFrame(() => {
-          const obj3d = this.el.object3D;
-          obj3d.updateMatrixWorld(true);
-          // THREE's scene.attach(child) reparents while preserving the
-          // child's world transform — exactly what we need here.
-          sceneEl.object3D.attach(obj3d);
-          this._promoted = true;
-        });
+        // Compose: world = image_pose * local_offset. detail.scale is a
+        // uniform scalar (the real-world size factor of the image), so
+        // apply it as a Vector3 of (s,s,s) when building the matrix.
+        const imgM = new THREE.Matrix4().compose(
+          new THREE.Vector3().copy(d.position),
+          new THREE.Quaternion().copy(d.rotation),
+          new THREE.Vector3(d.scale, d.scale, d.scale)
+        );
+        const localM = new THREE.Matrix4().compose(localPos, localQuat, localScale);
+        imgM.multiply(localM).decompose(obj3d.position, obj3d.quaternion, obj3d.scale);
+
+        obj3d.visible = true;
+        this._promoted = true;
       };
 
       const attach = () => sceneEl.addEventListener('xrimagefound', onFound);
@@ -973,9 +990,16 @@ function buildEntity(obj, i) {
     attrs += ` animation__pulse="property: scale; from: ${s*(1-a)} ${s*(1-a)} ${s*(1-a)}; to: ${s*(1+a)} ${s*(1+a)} ${s*(1+a)}; dur: ${dur}; loop: true; dir: alternate; easing: easeInOutSine"`;
   }
 
-  // Image → SLAM anchoring: on first xrimagefound, promote the entity
-  // to world space so it stays put even when the image is out of view.
-  if (obj.imageToSlam) attrs += ' image-to-slam';
+  // Image → SLAM anchoring: on first xrimagefound for this target,
+  // compose the image's world pose with the user's local offset and
+  // lock the entity in world space. Entity must live at scene root
+  // (not as a child of <xrextras-named-image-target>) for this to work
+  // — buildImageNative handles the placement.
+  if (obj.imageToSlam) {
+    const tgt = (APP?.targets || []).find(t => t.id === obj.targetId);
+    const tName = tgt ? tgt.name : '';
+    attrs += ` image-to-slam="targetName: ${tName}"`;
+  }
 
   // 8th Wall native interactions from legacy interactions{} field
   const ix = obj.interactions || {};
@@ -1180,24 +1204,36 @@ function buildImageNative(objects) {
   const ambInt = APP.scene?.ambientIntensity ?? APP.ambientIntensity ?? 0.8;
   const dirInt = APP.scene?.directIntensity ?? APP.directIntensity ?? 1.0;
 
-  // Group objects by target
+  // Group objects by target. Objects with imageToSlam=true are emitted
+  // at scene root (not inside <xrextras-named-image-target>) so 8th
+  // Wall's named-image-target component doesn't auto-hide them on
+  // xrimagelost or re-snap them on xrimageupdated. Their image-to-slam
+  // component listens to xrimagefound directly and locks them in world
+  // space — see the component definition for the math.
   let targetEntities = '';
+  let slamRootEntities = '';
   APP.targets.forEach(target => {
     const targetObjs = objects.filter(o => {
       if (o.targetId === target.id) return true;
       if (!o.targetId && (target.objectIds || []).includes(o.id)) return true;
       return false;
     });
-    // If no explicit assignment, put all objects on first target
+    // If no explicit assignment, put all unassigned objects on first target
     const useObjs = targetObjs.length > 0 ? targetObjs : (target === APP.targets[0] ? objects.filter(o => !o.targetId) : []);
 
-    if (useObjs.length > 0) {
-      const ents = useObjs.map((o, i) => buildEntity(o, objects.indexOf(o))).join('\n');
+    const trackedObjs = useObjs.filter(o => !o.imageToSlam);
+    const slamObjs = useObjs.filter(o => o.imageToSlam);
+
+    if (trackedObjs.length > 0) {
+      const ents = trackedObjs.map(o => buildEntity(o, objects.indexOf(o))).join('\n');
       targetEntities += `
         <xrextras-named-image-target name="${target.name}">
           ${ents}
         </xrextras-named-image-target>`;
     }
+    slamObjs.forEach(o => {
+      slamRootEntities += '\n      ' + buildEntity(o, objects.indexOf(o));
+    });
   });
 
   // World tracking must be enabled when any object uses image-to-SLAM
@@ -1238,6 +1274,7 @@ function buildImageNative(objects) {
       ${groundEl}
 
       ${targetEntities}
+      ${slamRootEntities}
     </a-scene>`;
 
   const container = document.createElement('div');
