@@ -83,7 +83,12 @@ Studio.Viewport = {
 
     // Listen for events
     Studio.EventBus.on('project:reset', () => this._clearScene());
-    Studio.EventBus.on('project:loaded', () => this._rebuildScene());
+    Studio.EventBus.on('project:loaded', () => {
+      // Restore the project's stored viewport background colour
+      const bg = Studio.Project.state.scene?.viewportBg;
+      if (bg && this.renderer) this.renderer.setClearColor(bg);
+      this._rebuildScene();
+    });
     Studio.EventBus.on('object:removed', ({ id, object }) => this._removeFromScene(object));
     Studio.EventBus.on('target:changed', () => {
       if (Studio.Project.state.trackingMode === 'image') this.showMultiTargets();
@@ -399,6 +404,36 @@ Studio.Viewport = {
     };
   },
 
+  // Which target is currently "focused" in the viewport. null = grid
+  // mode (show all targets spread out). When set, only that target
+  // plane is shown (at world origin), and object visibility is
+  // filtered so only objects assigned to this target (or unassigned)
+  // are visible.
+  _focusedTargetId: null,
+
+  // Toggle focus on a target — pass null or same-id to return to grid.
+  focusTarget(id) {
+    this._focusedTargetId = (this._focusedTargetId === id) ? null : id;
+    this.showMultiTargets();
+    this._syncFocusVisibility();
+    Studio.Hierarchy?.render();   // re-render so hierarchy highlights the focused target
+  },
+
+  // Hide objects assigned to OTHER image targets while one is focused.
+  // Unassigned objects (no targetId) stay visible — they're "global"
+  // to the scene.
+  _syncFocusVisibility() {
+    const focus = this._focusedTargetId;
+    Studio.Project.state.objects.forEach(obj => {
+      if (!obj.mesh) return;
+      // Respect the user's explicit visibility flag as the baseline,
+      // then add focus-based filtering on top.
+      let visible = obj.visible !== false;
+      if (focus && obj.targetId && obj.targetId !== focus) visible = false;
+      obj.mesh.visible = visible;
+    });
+  },
+
   // ─── Multi-Target Visualization ────────────────────────
   showMultiTargets() {
     // Clear old target planes
@@ -410,17 +445,22 @@ Studio.Viewport = {
     const targets = Studio.Project.state.targets || [];
     if (targets.length === 0) return;
 
-    const spacing = 2.0; // distance between targets
-    const startX = -(targets.length - 1) * spacing / 2;
+    // If a target is focused: render ONLY that one, centered at origin
+    // so the user sees it in-place with its assigned objects (which
+    // are authored near origin). Returning to grid mode unfocuses.
+    const focus = this._focusedTargetId;
+    const visible = focus ? targets.filter(t => t.id === focus) : targets;
 
-    targets.forEach((target, idx) => {
+    const spacing = 2.0;
+    const startX = focus ? 0 : -(visible.length - 1) * spacing / 2;
+
+    visible.forEach((target, idx) => {
       const url = target.originalUrl || target._thumbnailDataUrl || target.thumbnailUrl;
       if (!url) return;
 
       const tex = new THREE.TextureLoader().load(url);
       tex.colorSpace = THREE.SRGBColorSpace;
 
-      // Default 3:4 aspect (matches target processing)
       const pw = 1.2, ph = pw * (4/3);
       const geo = new THREE.PlaneGeometry(pw, ph);
       const mat = new THREE.MeshBasicMaterial({
@@ -430,14 +470,14 @@ Studio.Viewport = {
 
       const plane = new THREE.Mesh(geo, mat);
       plane.rotation.x = -Math.PI / 2;
-      plane.position.set(startX + idx * spacing, 0.001, 0);
+      const x = focus ? 0 : startX + idx * spacing;
+      plane.position.set(x, 0.001, 0);
       plane.userData.targetId = target.id;
       plane.userData.targetName = target.name;
       this.targetPlanes.push(plane);
       this.scene.add(plane);
 
-      // Label above the target
-      this._addTargetLabel(target.name, startX + idx * spacing, 0, ph / 2 + 0.15);
+      this._addTargetLabel(target.name, x, 0, ph / 2 + 0.15);
     });
   },
 
@@ -580,6 +620,9 @@ Studio.Viewport = {
         }
       }
     }
+    // Re-apply focus filtering now that fresh meshes may have set
+    // visible=true regardless of the current focus state.
+    this._syncFocusVisibility();
   },
 
   // ─── Tracking Mode Helper (face/hand reference) ─────────
@@ -784,19 +827,26 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // Occluder. In AR, xrextras-hider-material uses
-        // colorWrite:false so the camera feed shows through. In the
-        // studio there's no camera feed to show — so we paint the
-        // surface with the viewport's clear colour instead. Visually
-        // it reads as a "hole cut out of the scene": matches the
-        // background, clearly showing where the occluder is. Depth
-        // still writes, so anything rendered behind gets clipped —
-        // that's the actual occlusion demo. The wireframe child
-        // keeps the shape outlined.
-        const clear = new THREE.Color();
-        this.renderer.getClearColor(clear);
+        // Occluder. Two studio-only toggles control how we PREVIEW
+        // the hider — the published player always uses the real
+        // xrextras-hider-material (camera feed shows through).
+        //   solidFill = true  → paint with viewport clear colour so
+        //                       it reads as a "hole in the scene"
+        //   solidFill = false → colorWrite:false (truly invisible,
+        //                       only depth), matches AR behaviour
+        const useSolidFill = hider === true || hider.solidFill !== false;
+        if (useSolidFill) {
+          const clear = new THREE.Color();
+          this.renderer.getClearColor(clear);
+          return new THREE.MeshBasicMaterial({
+            color: clear,
+            depthWrite: true,
+            depthTest: true,
+            side: THREE.DoubleSide,
+          });
+        }
         return new THREE.MeshBasicMaterial({
-          color: clear,
+          colorWrite: false,
           depthWrite: true,
           depthTest: true,
           side: THREE.DoubleSide,
@@ -829,7 +879,9 @@ Studio.Viewport = {
     });
 
     // Outline helper on top so the user can always see the shape
-    if (hider) this._addOccluderHelper(obj);
+    // — but only if the user hasn't switched it off.
+    const showWireframe = hider === true || hider?.showWireframe !== false;
+    if (hider && showWireframe) this._addOccluderHelper(obj);
   },
 
   // Adds a cyan wireframe outline as a child of every sub-mesh. Because

@@ -154,6 +154,20 @@ a { color: var(--cyan); }
 .h-item .h-vis { opacity: 0.3; cursor: pointer; font-size: 11px; flex-shrink: 0; }
 .h-item .h-vis:hover { opacity: 1; }
 .h-track { font-size: 10px; color: var(--faint); padding: 2px 10px; }
+.h-item .h-chevron {
+  font-size: 8px; width: 10px; text-align: center; cursor: pointer;
+  color: var(--muted); flex-shrink: 0; user-select: none;
+}
+.h-item .h-chevron:hover { color: var(--text); }
+.h-item.h-target-row { gap: 4px; }
+.h-item.h-target-focused {
+  background: var(--purple3); border-left-color: var(--purple);
+}
+.h-item.h-target-focused .h-icon { color: var(--purple2); }
+.h-item .h-target-edit {
+  font-size: 11px; opacity: 0.3; cursor: pointer; flex-shrink: 0;
+}
+.h-item .h-target-edit:hover { opacity: 1; color: var(--purple2); }
 
 /* ─── Workspace (centre) ────────────────────────────────── */
 #workspace {

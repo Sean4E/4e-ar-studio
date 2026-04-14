@@ -25,11 +25,10 @@ Studio.Project = {
       shadowCatcher: true,
       ambientIntensity: 0.5,
       directIntensity: 0.8,
-      // spawnMode controls how SLAM-tracked objects appear in the
-      // published app: 'showOnStart' = visible from frame 1 at saved
-      // world transform; 'tapToPlace' = hidden until user taps any
-      // detected ground surface, then anchored at the tap point.
       spawnMode: 'showOnStart',
+      // Studio 3D viewport background — editor-only preference. Not
+      // used by the published player.
+      viewportBg: '#080c16',
     },
 
     splash: {

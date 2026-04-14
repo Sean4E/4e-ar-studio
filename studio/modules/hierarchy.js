@@ -4,6 +4,7 @@
 
 Studio.Hierarchy = {
   _selectedId: null,
+  _collapsed: new Set(),   // targetIds whose children are currently collapsed
 
   init() {
     // Listen for state changes
@@ -41,27 +42,37 @@ Studio.Hierarchy = {
           <span class="h-name">+ Add Image Target</span>
         </div>`;
       } else {
+        const focusedId = Studio.Viewport?._focusedTargetId || null;
         targets.forEach(t => {
           const assigned = (t.objectIds || []).length;
           const qCol = t.quality >= 70 ? 'var(--green)' : t.quality >= 45 ? 'var(--amber,#f0a)' : 'var(--faint)';
-          html += `<div class="h-item" onclick="Studio.Hierarchy.selectTarget('${t.id}')">
-            <span class="h-icon">🎯</span>
-            <span class="h-name">${t.name}</span>
-            <span style="font-size:9px;color:${qCol}">${assigned} obj</span>
+          const isFocused = focusedId === t.id;
+          const isCollapsed = this._collapsed.has(t.id);
+          const chevron = isCollapsed ? '▶' : '▼';
+          // Header: chevron toggles collapse, rest of row focuses the
+          // target in the viewport (centres it, hides other targets).
+          html += `<div class="h-item h-target-row${isFocused ? ' h-target-focused' : ''}">
+            <span class="h-chevron" onclick="event.stopPropagation();Studio.Hierarchy.toggleCollapse('${t.id}')" title="${isCollapsed ? 'Expand' : 'Collapse'}">${chevron}</span>
+            <span class="h-icon" onclick="Studio.Hierarchy.focusTarget('${t.id}')" title="Centre this target in the viewport — click again to return to grid view">🎯</span>
+            <span class="h-name" onclick="Studio.Hierarchy.focusTarget('${t.id}')">${t.name}</span>
+            <span style="font-size:9px;color:${qCol}" title="Number of assigned objects">${assigned} obj</span>
+            <span class="h-target-edit" onclick="event.stopPropagation();Studio.Hierarchy.editTarget('${t.id}')" title="Edit target settings (opens Targets tab)">✎</span>
           </div>`;
 
-          // Show assigned objects indented under their target
-          (t.objectIds || []).forEach(oid => {
-            const obj = Studio.Project.getObject(oid);
-            if (!obj) return;
-            const sel = obj.id === this._selectedId;
-            const icon = obj.type === 'primitive' ? (obj.primitiveType === 'empty' ? '◇' : '🔲') : '📦';
-            html += `<div class="h-item h-indent${sel ? ' selected' : ''}" onclick="Studio.Viewport.selectObject('${obj.id}')" style="padding-left:24px">
-              <span class="h-icon">${icon}</span>
-              <span class="h-name">${obj.name}</span>
-              <span class="h-vis${obj.visible ? '' : ' off'}" onclick="event.stopPropagation();Studio.Hierarchy.toggleVisibility('${obj.id}')">${obj.visible ? '👁' : '🚫'}</span>
-            </div>`;
-          });
+          // Children — hidden when collapsed
+          if (!isCollapsed) {
+            (t.objectIds || []).forEach(oid => {
+              const obj = Studio.Project.getObject(oid);
+              if (!obj) return;
+              const sel = obj.id === this._selectedId;
+              const icon = obj.type === 'primitive' ? (obj.primitiveType === 'empty' ? '◇' : '🔲') : '📦';
+              html += `<div class="h-item h-indent${sel ? ' selected' : ''}" onclick="Studio.Viewport.selectObject('${obj.id}')" style="padding-left:28px">
+                <span class="h-icon">${icon}</span>
+                <span class="h-name">${obj.name}</span>
+                <span class="h-vis${obj.visible ? '' : ' off'}" onclick="event.stopPropagation();Studio.Hierarchy.toggleVisibility('${obj.id}')">${obj.visible ? '👁' : '🚫'}</span>
+              </div>`;
+            });
+          }
         });
 
         html += `<div class="h-item" style="opacity:0.5" onclick="Studio.Targets.addTarget()">
@@ -102,13 +113,34 @@ Studio.Hierarchy = {
     this._updateStatus();
   },
 
-  selectTarget(targetId) {
-    // Switch to Targets tab and select this target
+  // Centre this target in the viewport + hide other targets. Does NOT
+  // switch tabs — user stays in the 3D Scene tab. Click again on the
+  // same target to return to grid view (all targets visible).
+  focusTarget(targetId) {
+    if (Studio.Viewport?.focusTarget) Studio.Viewport.focusTarget(targetId);
+  },
+
+  // Explicit "edit target settings" action (quality, image replace,
+  // etc.) — switches to the Targets tab. Triggered by the pencil icon,
+  // not by the row body itself.
+  editTarget(targetId) {
     Studio.switchTab('targets');
-    if (Studio.Targets._selectedId !== targetId) {
+    if (Studio.Targets && Studio.Targets._selectedId !== targetId) {
       Studio.Targets._selectedId = targetId;
       Studio.Targets.render();
     }
+  },
+
+  // Legacy alias — some older callers may still route here. Point
+  // them at focusTarget which is now the default action.
+  selectTarget(targetId) {
+    this.focusTarget(targetId);
+  },
+
+  toggleCollapse(targetId) {
+    if (this._collapsed.has(targetId)) this._collapsed.delete(targetId);
+    else this._collapsed.add(targetId);
+    this.render();
   },
 
   toggleVisibility(id) {

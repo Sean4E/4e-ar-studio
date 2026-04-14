@@ -196,8 +196,15 @@ Studio.Components = {
     },
     'xrextras-hider-material': {
       name: 'Hider Material', category: 'materials', icon: '🚫',
-      description: 'Invisible material that occludes objects behind it',
-      trackingModes: ['slam','image','face','hand'], appliesTo: 'entity', type: 'boolean',
+      description: 'Occludes objects behind it. In AR the surface is invisible (camera feed shows through). Studio-only toggles below control the editor preview.',
+      trackingModes: ['slam','image','face','hand'], appliesTo: 'entity', type: 'config',
+      properties: {
+        // Studio preview options — NOT forwarded to the published player
+        // (the xrextras native hider has no config; buildEntity strips
+        // these before emitting the attribute).
+        showWireframe: { type: 'boolean', label: 'Show wireframe (studio)', default: true },
+        solidFill:     { type: 'boolean', label: 'Solid fill (studio)', default: true },
+      }
     },
     // Hidden — superseded by 'video-on-target', which handles both the
     // video texture and the target-based playback. Kept for backwards

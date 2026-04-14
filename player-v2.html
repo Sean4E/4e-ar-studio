@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.9.5">
+<meta name="version" content="3.10.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -156,7 +156,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.9.5';
+const PLAYER_VERSION = '3.10.0';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -1210,6 +1210,15 @@ function buildEntity(obj, i) {
         const loop = config.loop !== false;
         attrs += ` ambient-audio-direct="src: ${src}; volume: ${vol}; loop: ${loop}"`;
       }
+      return;
+    }
+
+    // xrextras-hider-material has no runtime config — studio-only
+    // preview toggles (showWireframe, solidFill) live on the object
+    // but must NOT be serialised into the A-Frame attribute (the 8th
+    // Wall component doesn't understand them).
+    if (key === 'xrextras-hider-material') {
+      attrs += ` ${key}`;
       return;
     }
 

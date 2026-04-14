@@ -273,12 +273,26 @@ Studio.Inspector = {
         <div style="font-size:9px;color:var(--faint);margin-top:3px">${spawnMode==='tapToPlace' ? 'User taps the floor to drop the scene at that point. Objects keep their relative positions.' : 'Objects appear immediately at their saved positions.'}</div>
       </div>` : '';
 
+    const bg = sc.viewportBg || '#080c16';
     return this._buildSection('🌍 AR Scene', `
       <label class="insp-check"><input type="checkbox" ${sc.shadowCatcher?'checked':''} onchange="Studio.Project.state.scene.shadowCatcher=this.checked;Studio.Project.markDirty()"> Shadow catcher</label>
       <div class="insp-row" style="margin-top:4px"><label style="font-size:9px;color:var(--muted);width:50px">Ambient</label><input type="range" min="0" max="2" step="0.1" value="${sc.ambientIntensity}" oninput="Studio.Project.state.scene.ambientIntensity=+this.value;Studio.Project.markDirty()" style="flex:1"><span style="font-size:9px;width:20px">${sc.ambientIntensity}</span></div>
       <div class="insp-row"><label style="font-size:9px;color:var(--muted);width:50px">Direct</label><input type="range" min="0" max="3" step="0.1" value="${sc.directIntensity}" oninput="Studio.Project.state.scene.directIntensity=+this.value;Studio.Project.markDirty()" style="flex:1"><span style="font-size:9px;width:20px">${sc.directIntensity}</span></div>
+      <div class="insp-row" style="margin-top:6px" title="Studio-only preference — changes the 3D editor viewport background colour">
+        <label style="font-size:9px;color:var(--muted);width:50px">Viewport</label>
+        <input type="color" value="${bg}" oninput="Studio.Inspector._setViewportBg(this.value)" style="width:32px;height:20px;border:none;background:none">
+        <span style="font-size:9px;color:var(--faint);margin-left:6px">Editor bg colour</span>
+      </div>
       ${spawnRow}
     `);
+  },
+
+  _setViewportBg(hex) {
+    Studio.Project.state.scene.viewportBg = hex;
+    if (Studio.Viewport?.renderer) {
+      Studio.Viewport.renderer.setClearColor(hex);
+    }
+    Studio.Project.markDirty();
   },
 
   _setSpawnMode(val) {
