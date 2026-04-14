@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.6.2">
+<meta name="version" content="3.6.3">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -151,7 +151,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.6.2';
+const PLAYER_VERSION = '3.6.3';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 // Stamp version on the splash branding line as soon as JS runs, so we
@@ -917,47 +917,37 @@ function buildAssets(objects) {
   return assets;
 }
 
-// Map primitive types to A-Frame elements
-function buildPrimitive(obj, i) {
+// Per-primitive geometry attributes (everything except position/rotation/
+// scale/color, which are added by buildEntity). Used as the "base" attrs
+// when emitting a primitive that's been routed through buildEntity.
+const PRIMITIVE_GEOMETRY = {
+  cube:     '',  // <a-box> defaults to 1m³ which the user's transform.scale modulates
+  sphere:   ' radius="0.18"',
+  cylinder: ' radius="0.15" height="0.35"',
+  plane:    ' width="0.5" height="0.5"',
+  cone:     ' radius-bottom="0.18" height="0.35"',
+  torus:    ' radius="0.15" radius-tubular="0.05"',
+};
+const PRIMITIVE_TAG = {
+  cube: 'a-box', sphere: 'a-sphere', cylinder: 'a-cylinder',
+  plane: 'a-plane', cone: 'a-cone', torus: 'a-torus',
+};
+
+function buildEntity(obj, i) {
+  // Single path for everything — primitives, empties, and GLBs all flow
+  // through here so they all pick up presets, interactions, xrComponents,
+  // image-to-slam, etc. The final element type is chosen at the end
+  // based on obj.type / obj.primitiveType / obj.glbUrl.
+
   const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
   const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
   const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
   const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
   const color = obj.primitiveColor || '#8b5cf6';
-
-  const primMap = {
-    cube:     `<a-box position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" shadow="cast: true"></a-box>`,
-    sphere:   `<a-sphere position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius="0.18" shadow="cast: true"></a-sphere>`,
-    cylinder: `<a-cylinder position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius="0.15" height="0.35" shadow="cast: true"></a-cylinder>`,
-    plane:    `<a-plane position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" width="0.5" height="0.5"></a-plane>`,
-    cone:     `<a-cone position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius-bottom="0.18" height="0.35" shadow="cast: true"></a-cone>`,
-    torus:    `<a-torus position="${pos}" rotation="${rot}" scale="${sc}" color="${color}" radius="0.15" radius-tubular="0.05" shadow="cast: true"></a-torus>`,
-  };
-  return primMap[obj.primitiveType] || '';
-}
-
-function buildEntity(obj, i) {
-  // Plane primitives with a video component should flow through the
-  // full buildEntity logic so the video-on-target attribute is included
-  // — the component then applies the video texture to the plane itself.
+  const isPrimitive = obj.type === 'primitive' && obj.primitiveType;
+  const isEmpty = obj.primitiveType === 'empty';
   const hasVideoComp = obj.xrComponents && obj.xrComponents['video-on-target'];
   const isPlaneWithVideo = obj.primitiveType === 'plane' && hasVideoComp;
-  // Any primitive with image-to-slam also needs full buildEntity path so
-  // the image-to-slam attribute is emitted on the A-Frame element.
-  const needsFullPath = isPlaneWithVideo || obj.imageToSlam;
-
-  // Primitives (except empty or the full-path cases above) use A-Frame built-ins
-  if (obj.type === 'primitive' && obj.primitiveType && obj.primitiveType !== 'empty' && !needsFullPath) {
-    return buildPrimitive(obj, i);
-  }
-
-  // Empty primitives fall through to here — rendered as invisible <a-entity>
-  // with xrComponents (audio, video, etc.) attached
-
-  const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
-  const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
-  const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
-  const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
 
   // GLB animation
   let attrs = '';
@@ -1048,11 +1038,23 @@ function buildEntity(obj, i) {
     return `<a-plane id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}" width="1" height="1"${attrs}></a-plane>`;
   }
 
-  // Empty objects or objects with no GLB → <a-entity> (invisible container for components)
-  if (!obj.glbUrl && (obj.primitiveType === 'empty' || obj.type === 'primitive')) {
+  // Empty primitive → invisible <a-entity> container for components
+  if (isEmpty) {
     return `<a-entity id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-entity>`;
   }
 
+  // Other primitives → emit <a-box>/<a-sphere>/etc. with full attrs
+  // (color + geometry + presets + interactions + xrComponents + ...)
+  if (isPrimitive) {
+    const tag = PRIMITIVE_TAG[obj.primitiveType];
+    if (tag) {
+      const geom = PRIMITIVE_GEOMETRY[obj.primitiveType] || '';
+      return `<${tag} id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}" color="${color}"${geom}${attrs}></${tag}>`;
+    }
+    return '';
+  }
+
+  // GLB model
   return `<a-gltf-model id="gltf-${i}" class="cantap" src="#m${i}" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-gltf-model>`;
 }
 
@@ -1198,10 +1200,29 @@ function buildImageNative(objects) {
     }
   });
 
+  // World tracking must be enabled when any object uses image-to-SLAM
+  // (the promotion to scene root requires SLAM to keep the entity in
+  // place) or any drag-on-ground gesture (xrextras-hold-drag needs
+  // SLAM plane detection to follow a finger). When none of these are
+  // present, world tracking stays off for faster image-only init.
+  const needsWorld = objects.some(o =>
+    o.imageToSlam ||
+    (o.interactions && o.interactions.holdDrag));
+  const xrwebAttr = needsWorld
+    ? 'allowedDevices: any'
+    : 'disableWorldTracking: true; allowedDevices: any';
+
+  // xrextras-hold-drag looks up an entity with id="ground" to drag
+  // along. Always emit one when world tracking is enabled (invisible
+  // shadow plane works for both purposes).
+  const groundEl = needsWorld
+    ? `<a-box id="ground" class="cantap" scale="1000 2 1000" position="0 -1 0" material="shader: shadow; transparent: true; opacity: 0" shadow></a-box>`
+    : '';
+
   const html = `
     <a-scene
       xrextras-gesture-detector
-      xrweb="disableWorldTracking: true; allowedDevices: any"
+      xrweb="${xrwebAttr}"
       renderer="colorManagement: true; physicallyCorrectLights: true"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
@@ -1214,6 +1235,7 @@ function buildImageNative(objects) {
       <a-camera id="camera" position="0 0 0" look-controls="enabled: false"></a-camera>
       <a-light type="ambient" intensity="${ambInt}"></a-light>
       <a-light type="directional" intensity="${dirInt}" position="2 4 3"></a-light>
+      ${groundEl}
 
       ${targetEntities}
     </a-scene>`;
