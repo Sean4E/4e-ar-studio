@@ -429,7 +429,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.PWA.init();
   Studio.Preview.init();
 
-  Studio.VERSION = '3.10.1';
+  Studio.VERSION = '3.10.2';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
   const tbVersion = document.getElementById('tb-version');
   if (tbVersion) tbVersion.textContent = 'v' + Studio.VERSION;

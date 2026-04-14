@@ -3,7 +3,13 @@
 // network-first fetch for the player shell. Data/assets are served
 // from Firestore / GitHub Pages and don't need caching here.
 
-const CACHE = '4e-ar-shell-v1';
+// Bump this version whenever the player shell materially changes so
+// returning PWAs pick up the new code. The activate handler below
+// nukes any cache that doesn't match the current version, and the
+// no-cache headers on sw.js (firebase.json) ensure this file itself
+// is re-fetched promptly instead of living for hours in the browser
+// HTTP cache.
+const CACHE = '4e-ar-shell-v2';
 const SHELL = ['/player-v2.html', '/config.js'];
 
 self.addEventListener('install', e => {

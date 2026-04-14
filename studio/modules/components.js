@@ -294,10 +294,16 @@ Studio.Components = {
         target: { type: 'text', label: 'Target Selector', default: '[camera]' }
       }
     },
+    // Hidden — this was a confusing duplicate of the hierarchy's
+    // visibility eye icon (which controls obj.visible / renders or
+    // skips the object). Enabling the component did not actually
+    // change whether the object rendered. The eye in the Hierarchy
+    // panel is now the single source of truth for object visibility.
     'visible': {
       name: 'Visibility', category: 'rendering', icon: '👁‍🗨',
-      description: 'Set initial visibility',
+      description: 'Superseded by the Hierarchy panel\'s eye toggle.',
       trackingModes: ['slam','image','face','hand'], appliesTo: 'entity', type: 'config',
+      hidden: true,
       properties: {
         value: { type: 'boolean', label: 'Visible', default: true }
       }
