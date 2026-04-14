@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.4">
+<meta name="version" content="3.10.5">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -159,7 +159,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.10.4';
+const PLAYER_VERSION = '3.10.5';
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 
@@ -540,6 +540,47 @@ if (typeof AFRAME !== 'undefined') {
         this._plane.parentNode.removeChild(this._plane);
       }
     }
+  });
+
+  // ─── ar-hider-material ───────────────────────────────────
+  // Mirrors 8th Wall's ECS `material:{type:"hider"}` behaviour
+  // exactly (see the dunnasifairy1 BoxHider reference project):
+  //   - MeshStandardMaterial with colorWrite=false (invisible in AR,
+  //     shows the camera feed through, but writes depth so it
+  //     occludes virtual content behind)
+  //   - Applied to every sub-mesh of the entity (GLBs have an
+  //     invisible group root + the actual render meshes as
+  //     children — the native A-Frame material component only sets
+  //     the root, so we must traverse)
+  //   - Re-applies on model-loaded (GLBs load async)
+  //
+  // Usage:
+  //   <a-entity gltf-model="#boxhider.glb" ar-hider-material></a-entity>
+  // Or on a primitive:
+  //   <a-box ar-hider-material></a-box>
+  // Inner content (fairies, foliage, etc.) goes as CHILDREN of the
+  // hider entity so the hider's depth clips them to its bounds.
+  AFRAME.registerComponent('ar-hider-material', {
+    init() {
+      const mat = new THREE.MeshStandardMaterial();
+      mat.colorWrite = false;
+      this._mat = mat;
+      this._apply = this._apply.bind(this);
+      this._apply();
+      this.el.addEventListener('model-loaded', this._apply);
+      this.el.addEventListener('object3dset', this._apply);
+    },
+    _apply() {
+      const root = this.el.object3D;
+      if (!root) return;
+      root.traverse(node => {
+        if (node.isMesh) node.material = this._mat;
+      });
+    },
+    remove() {
+      this.el.removeEventListener('model-loaded', this._apply);
+      this.el.removeEventListener('object3dset', this._apply);
+    },
   });
 
   // ─── ar-material ────────────────────────────────────────
@@ -1311,12 +1352,16 @@ function buildEntity(obj, i) {
       return;
     }
 
-    // xrextras-hider-material has no runtime config — studio-only
-    // preview toggles (showWireframe, solidFill) live on the object
-    // but must NOT be serialised into the A-Frame attribute (the 8th
-    // Wall component doesn't understand them).
+    // Hider material — emit our own ar-hider-material (mirrors the
+    // 8th Wall ECS hider spec from projects like dunnasifairy1:
+    // MeshStandardMaterial with colorWrite=false applied to every
+    // sub-mesh). The studio-only toggles showWireframe/solidFill
+    // live on the config for the editor preview and are stripped
+    // before emission. Does NOT use xrextras-hider-material — we
+    // control the full lifecycle so no external dependency can
+    // regress behaviour.
     if (key === 'xrextras-hider-material') {
-      attrs += ` ${key}`;
+      attrs += ` ar-hider-material`;
       return;
     }
 
