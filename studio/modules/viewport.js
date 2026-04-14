@@ -836,18 +836,22 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // Occluder. Studio-only toggles control how we PREVIEW the
-        // hider — the published player always uses the real
-        // ar-hider-material (camera feed shows through).
-        //   solidFill = false (default) → colorWrite:false, truly
-        //                       invisible, matches AR behaviour exactly.
-        //                       Grid + objects behind the hider show
-        //                       through just like the three.js test
-        //                       harness.
+        // Occluder — byte-for-byte the same recipe as the standalone
+        // test harness (docs/hider-test.html):
+        //   new THREE.MeshStandardMaterial({ side });  m.colorWrite = false;
+        // Using MeshStandardMaterial (not Basic) keeps any discrepancy
+        // between "works in harness" and "works in studio" from being
+        // attributable to the material type itself.
+        //
+        // Studio-only toggles control the preview:
+        //   solidFill = false (default) → colorWrite:false. Truly
+        //                       invisible, grid + objects behind show
+        //                       through, matches AR exactly.
         //   solidFill = true  → paint with viewport clear colour so
-        //                       it reads as a "hole in the scene"
-        // `side` controls which face renders. BackSide = portal
-        // effect (interior visible because front faces cull away).
+        //                       it reads as a visible "hole".
+        //   side              → FrontSide / BackSide / DoubleSide.
+        //                       BackSide gives portal effect on a
+        //                       normally-oriented mesh.
         const useSolidFill = (typeof hider === 'object' && hider !== null && hider.solidFill === true);
         const sideStr = (hider && hider.side) || 'back';
         const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
@@ -855,19 +859,16 @@ Studio.Viewport = {
         if (useSolidFill) {
           const clear = new THREE.Color();
           this.renderer.getClearColor(clear);
-          return new THREE.MeshBasicMaterial({
-            color: clear,
-            depthWrite: true,
-            depthTest: true,
-            side,
-          });
+          const m = new THREE.MeshStandardMaterial({ side, color: clear });
+          m.depthWrite = true;
+          m.depthTest = true;
+          return m;
         }
-        return new THREE.MeshBasicMaterial({
-          colorWrite: false,
-          depthWrite: true,
-          depthTest: true,
-          side,
-        });
+        const m = new THREE.MeshStandardMaterial({ side });
+        m.colorWrite = false;
+        m.depthWrite = true;
+        m.depthTest = true;
+        return m;
       }
       return null;  // no override → restore
     };
@@ -909,6 +910,28 @@ Studio.Viewport = {
     // — but only if the user hasn't switched it off.
     const showWireframe = hider === true || hider?.showWireframe !== false;
     if (hider && showWireframe) this._addOccluderHelper(obj);
+
+    // Diagnostic trail for any material toggle — makes it possible to
+    // answer "does this switch do anything?" from the browser console
+    // without digging through source. Logs object name, which material
+    // is active, the full config, and how many sub-meshes we touched.
+    if (Studio.Viewport._debugMaterial || window.__4eDebugMaterial) {
+      let meshCount = 0;
+      obj.mesh?.traverse(c => { if (c.isMesh) meshCount++; });
+      const active = basic ? 'basic' : pbr ? 'pbr' : hider ? 'hider' : 'none';
+      Studio.log(`[material] ${obj.name||obj.id}: ${active}` +
+        (active === 'hider' ? ` side=${(hider && hider.side)||'back'} solidFill=${!!(typeof hider==='object'&&hider.solidFill)} invertNormals=${!!(typeof hider==='object'&&hider.invertNormals)} wireframe=${showWireframe}` : '') +
+        ` meshes=${meshCount}`);
+    }
+  },
+
+  // Toggle material-apply diagnostics. Call from console:
+  //   Studio.Viewport.debugMaterial(true)   — turn on verbose logging
+  //   Studio.Viewport.debugMaterial(false)  — silence
+  // Useful when a material switch doesn't appear to do what you expect.
+  debugMaterial(on) {
+    Studio.Viewport._debugMaterial = !!on;
+    Studio.log('[material] debug ' + (on ? 'ON' : 'off'));
   },
 
   // Adds a cyan wireframe outline as a child of every sub-mesh. Because
