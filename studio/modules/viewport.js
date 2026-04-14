@@ -639,22 +639,29 @@ Studio.Viewport = {
     this.removeTrackingHelper();
 
     if (mode === 'face') {
-      // Simple face outline using a sphere + features
+      // Simple face outline using a sphere + features.
+      // Color choice matters here: the primitive default is #8b5cf6
+      // (the same lavender), and when a user places a cube on or near
+      // origin it visually merges with this helper — misread as "the
+      // hider isn't working". Using a distinct amber (#f59e0b) keeps
+      // the helper clearly identifiable as a reference, never as content.
+      const HELPER_COLOR = 0xf59e0b;
       const group = new THREE.Group();
       group.name = '_trackingHelper';
 
       // Head sphere (wireframe)
       const head = new THREE.Mesh(
         new THREE.SphereGeometry(0.12, 16, 12),
-        new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: 0.3 })
+        new THREE.MeshBasicMaterial({ color: HELPER_COLOR, wireframe: true, transparent: true, opacity: 0.25 })
       );
       head.position.y = 0.15;
       group.add(head);
 
-      // Nose
+      // Nose — wireframe too so it reads as a reference marker, not
+      // a solid object that could be confused with a primitive.
       const nose = new THREE.Mesh(
         new THREE.ConeGeometry(0.015, 0.04, 6),
-        new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.5 })
+        new THREE.MeshBasicMaterial({ color: HELPER_COLOR, wireframe: true, transparent: true, opacity: 0.4 })
       );
       nose.position.set(0, 0.14, 0.12);
       nose.rotation.x = Math.PI / 2;
@@ -836,38 +843,16 @@ Studio.Viewport = {
         });
       }
       if (hider) {
-        // Occluder — byte-for-byte the same recipe as the standalone
-        // test harness (docs/hider-test.html):
-        //   new THREE.MeshStandardMaterial({ side });  m.colorWrite = false;
-        // Using MeshStandardMaterial (not Basic) keeps any discrepancy
-        // between "works in harness" and "works in studio" from being
-        // attributable to the material type itself.
-        //
-        // Studio-only toggles control the preview:
-        //   solidFill = false (default) → colorWrite:false. Truly
-        //                       invisible, grid + objects behind show
-        //                       through, matches AR exactly.
-        //   solidFill = true  → paint with viewport clear colour so
-        //                       it reads as a visible "hole".
-        //   side              → FrontSide / BackSide / DoubleSide.
-        //                       BackSide gives portal effect on a
-        //                       normally-oriented mesh.
-        const useSolidFill = (typeof hider === 'object' && hider !== null && hider.solidFill === true);
+        // EXACT replica of docs/hider-test.html buildMat():
+        //   const m = new THREE.MeshStandardMaterial({ side });
+        //   m.colorWrite = false;
+        // Three lines, nothing else. If the studio diverges from the
+        // test visually, the material itself is not the cause.
         const sideStr = (hider && hider.side) || 'back';
         const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
         const side = sideMap[sideStr] != null ? sideMap[sideStr] : THREE.BackSide;
-        if (useSolidFill) {
-          const clear = new THREE.Color();
-          this.renderer.getClearColor(clear);
-          const m = new THREE.MeshStandardMaterial({ side, color: clear });
-          m.depthWrite = true;
-          m.depthTest = true;
-          return m;
-        }
         const m = new THREE.MeshStandardMaterial({ side });
         m.colorWrite = false;
-        m.depthWrite = true;
-        m.depthTest = true;
         return m;
       }
       return null;  // no override → restore
@@ -875,21 +860,18 @@ Studio.Viewport = {
 
     const overrideMat = makeMaterial();
 
-    // Remove any wireframe helper from a previous hider toggle so it
-    // doesn't leak when we switch to basic/pbr or back to default.
-    this._removeOccluderHelper(obj);
-
     // Whether the hider wants geometry normals reversed. Flipping
     // triangle winding is a one-time mutation — we track state per
     // mesh so toggling OFF restores the original winding.
     const wantFlip = !!(hider && hider !== true && hider.invertNormals);
+
+    const meshInfo = [];  // captured for the diagnostic log below
 
     obj.mesh.traverse(c => {
       if (!c.isMesh) return;
       // Cache the original material the first time we override, so
       // toggling the switch off can put it back exactly as it was.
       if (!c.userData._origMat) c.userData._origMat = c.material;
-      if (!c.userData._origRenderOrder) c.userData._origRenderOrder = c.renderOrder || 0;
 
       // Toggle triangle winding to match hider.invertNormals state.
       const isFlipped = !!c.userData._hiderFlipped;
@@ -897,41 +879,34 @@ Studio.Viewport = {
 
       if (overrideMat) {
         c.material = overrideMat;
-        // Render the occluder EARLY so the depth buffer is populated
-        // before later objects try to render behind it.
-        c.renderOrder = hider ? -10 : c.userData._origRenderOrder;
       } else if (c.userData._origMat) {
         c.material = c.userData._origMat;
-        c.renderOrder = c.userData._origRenderOrder;
       }
+
+      meshInfo.push({
+        name: c.name || '(unnamed)',
+        materialType: c.material?.type,
+        colorWrite: c.material?.colorWrite,
+        side: c.material?.side,
+        visible: c.visible,
+        childCount: c.children.length,
+      });
     });
 
-    // Outline helper on top so the user can always see the shape
-    // — but only if the user hasn't switched it off.
-    const showWireframe = hider === true || hider?.showWireframe !== false;
-    if (hider && showWireframe) this._addOccluderHelper(obj);
-
-    // Diagnostic trail for any material toggle — makes it possible to
-    // answer "does this switch do anything?" from the browser console
-    // without digging through source. Logs object name, which material
-    // is active, the full config, and how many sub-meshes we touched.
-    if (Studio.Viewport._debugMaterial || window.__4eDebugMaterial) {
-      let meshCount = 0;
-      obj.mesh?.traverse(c => { if (c.isMesh) meshCount++; });
-      const active = basic ? 'basic' : pbr ? 'pbr' : hider ? 'hider' : 'none';
-      Studio.log(`[material] ${obj.name||obj.id}: ${active}` +
-        (active === 'hider' ? ` side=${(hider && hider.side)||'back'} solidFill=${!!(typeof hider==='object'&&hider.solidFill)} invertNormals=${!!(typeof hider==='object'&&hider.invertNormals)} wireframe=${showWireframe}` : '') +
-        ` meshes=${meshCount}`);
+    // TEMPORARY diagnostic: log whenever a material is applied. Makes
+    // it possible to see exactly what happened when the user toggles
+    // a switch, without enabling anything. Logs: which material is
+    // active, the hider config, and each mesh that was touched with
+    // its resulting material state. Remove once the studio-vs-test
+    // hider discrepancy is resolved.
+    const active = basic ? 'basic' : pbr ? 'pbr' : hider ? 'hider' : 'none';
+    const cfg = (active === 'hider' && typeof hider === 'object')
+      ? ` side=${hider.side||'back'} invertNormals=${!!hider.invertNormals}`
+      : '';
+    Studio.log(`[material] ${obj.name||obj.id}: ${active}${cfg} meshes=${meshInfo.length}`);
+    if (hider && window.console) {
+      console.log('[4E hider]', obj.name || obj.id, 'meshes:', meshInfo);
     }
-  },
-
-  // Toggle material-apply diagnostics. Call from console:
-  //   Studio.Viewport.debugMaterial(true)   — turn on verbose logging
-  //   Studio.Viewport.debugMaterial(false)  — silence
-  // Useful when a material switch doesn't appear to do what you expect.
-  debugMaterial(on) {
-    Studio.Viewport._debugMaterial = !!on;
-    Studio.log('[material] debug ' + (on ? 'ON' : 'off'));
   },
 
   // Adds a cyan wireframe outline as a child of every sub-mesh. Because

@@ -206,16 +206,11 @@ Studio.Components = {
         // Reverse triangle winding on the mesh — same end result as
         // BackSide when the GLB was authored with outward normals.
         invertNormals: { type: 'boolean', label: 'Invert normals', default: false },
-        // Studio preview options (editor only — not forwarded to player).
-        //   showWireframe — cyan outline on top so the user can still SEE
-        //                   the shape's bounds while it's invisible.
-        //   solidFill      — false (default) uses colorWrite:false, the
-        //                   same as the AR player; grid + objects show
-        //                   through just like the test harness. Set true
-        //                   to paint with the viewport clear colour for
-        //                   a "hole in the scene" preview instead.
-        showWireframe: { type: 'boolean', label: 'Show wireframe (studio)', default: true },
-        solidFill:     { type: 'boolean', label: 'Solid fill (studio)', default: false },
+        // showWireframe and solidFill have been removed while we debug
+        // the studio's hider preview against the standalone test harness.
+        // Adding a wireframe-child and a paint-color fill were studio-
+        // only features that diverged from the test path — we're
+        // replicating the test exactly for now.
       }
     },
     // Hidden — superseded by 'video-on-target', which handles both the
