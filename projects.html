@@ -324,7 +324,34 @@ async function loadAssets(p) {
   const list = el('assets-list');
   const cfg = ghConfig();
   if (!cfg.token) {
-    list.innerHTML = `<div class="token-notice" style="margin:0;border-radius:10px">GitHub token not set. Save a project in the studio to enter one, or add it to localStorage under key <code>${TOKEN_KEY}</code>.</div>`;
+    // Inline token entry — pasting here stores it in localStorage and
+    // reloads the assets list. Also surfaces the common case of "moved
+    // to a new origin, token left behind on the old one" without
+    // forcing a round-trip through the studio modal.
+    list.innerHTML = `
+      <div class="token-notice" style="margin:0;border-radius:10px">
+        <div style="margin-bottom:10px">
+          GitHub token not set for <code>${location.origin}</code>.
+          Paste it below to store it for this origin, or open the Studio
+          and save any project to trigger the token modal.
+        </div>
+        <div style="display:flex;gap:8px">
+          <input id="token-inline" type="password" placeholder="github_pat_xxxxx..."
+                 style="flex:1;background:var(--bg);border:1px solid var(--border2);
+                        color:var(--text);padding:7px 10px;border-radius:6px;
+                        font-family:monospace;font-size:12px">
+          <button id="token-save" class="btn primary" style="padding:7px 16px">Save</button>
+        </div>
+      </div>`;
+    el('token-save').onclick = () => {
+      const t = el('token-inline').value.trim();
+      if (!t) return;
+      localStorage.setItem(TOKEN_KEY, t);
+      loadAssets(p);
+    };
+    el('token-inline').addEventListener('keydown', e => {
+      if (e.key === 'Enter') el('token-save').click();
+    });
     return;
   }
   try {
