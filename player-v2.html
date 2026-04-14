@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060a18">
 <title>4E AR Player</title>
-<meta name="version" content="3.3.1">
+<meta name="version" content="3.3.2">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -114,6 +114,13 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
   if (sp.showTitle === false) setShown('sp-title', false);
   if (sp.showSpinner === false) setShown('sp-spinner-row', false);
   if (sp.showBranding === false) setShown('sp-branding', false);
+  // Apply gradient (fully opaque — never reveals the camera feed)
+  if (sp.gradient && sp.bgColor) {
+    var splashEl = document.getElementById('splash');
+    var acc = sp.accentColor || '#8b5cf6';
+    if (splashEl) splashEl.style.background =
+      'linear-gradient(145deg,' + sp.bgColor + ',color-mix(in srgb,' + sp.bgColor + ' 72%,' + acc + '))';
+  }
 })();
 </script>
 
@@ -136,7 +143,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-const PLAYER_VERSION = '3.3.1';
+const PLAYER_VERSION = '3.3.2';
 const el = id => document.getElementById(id);
 let APP = null, arScene = null;
 
@@ -517,9 +524,18 @@ function applySplash(app) {
   if (sp.textColor) rootStyle.setProperty('--sp-text', sp.textColor);
   if (sp.accentColor) rootStyle.setProperty('--sp-accent', sp.accentColor);
 
-  // Optional gradient background — apply to splash element directly
+  // Optional gradient background — apply to splash element directly.
+  // CRITICAL: gradient stops must be fully opaque so the splash covers
+  // the camera feed / AR UI underneath. color-mix blends bg+accent to
+  // give a subtle tinted gradient rather than fading to transparency.
   if (sp.gradient && sp.bgColor) {
-    el('splash').style.background = 'linear-gradient(145deg,' + sp.bgColor + ',' + (sp.accentColor || '#8b5cf6') + '18)';
+    const accent = sp.accentColor || '#8b5cf6';
+    el('splash').style.background =
+      'linear-gradient(145deg,' + sp.bgColor + ',' +
+      'color-mix(in srgb,' + sp.bgColor + ' 72%,' + accent + '))';
+  } else {
+    // Clear any inline gradient so CSS var-driven bg applies
+    el('splash').style.background = '';
   }
 
   // Text content — update in place (no structural DOM change)

@@ -230,7 +230,12 @@ Studio.Splash = {
     const title = sp.title || Studio.Project.state.name || 'AR Experience';
     const logo = sp._blobUrl || sp.logoUrl || '';
 
-    screen.style.background = sp.gradient ? `linear-gradient(145deg, ${bg}, ${accent}18)` : bg;
+    // Gradient uses opaque color-mix so designer preview matches the
+    // published player (transparent gradients were letting the camera
+    // feed bleed through on device)
+    screen.style.background = sp.gradient
+      ? `linear-gradient(145deg, ${bg}, color-mix(in srgb, ${bg} 72%, ${accent}))`
+      : bg;
 
     let html = '';
     if (sp.showLogo !== false) {
