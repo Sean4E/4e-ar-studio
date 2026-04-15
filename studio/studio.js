@@ -45,17 +45,21 @@ Studio.toggleFullscreen = function() {
   document.body.classList.toggle('studio-fullscreen', on);
   const btn = document.getElementById('ws-fs-btn');
   if (btn) {
-    btn.textContent = on ? '⛶' : '⛶';
+    btn.textContent = on ? '⛶ Exit' : '⛶';
     btn.title = on
       ? 'Exit fullscreen (restore toolbar + side panels)'
-      : 'Fullscreen workspace (hide toolbar + side panels). Same button to exit.';
+      : 'Fullscreen workspace (hide toolbar + side panels)';
     btn.classList.toggle('active', on);
   }
-  // Trigger viewport resize after layout settles so the 3D scene
-  // redraws at the new canvas size.
+  console.log('[Studio] fullscreen', on ? 'ON' : 'OFF');
+  if (Studio.toast) Studio.toast('Fullscreen ' + (on ? 'ON' : 'OFF'), 'ok');
   setTimeout(() => {
-    if (Studio.Viewport?._resize) Studio.Viewport._resize();
-  }, 50);
+    if (Studio.Viewport && Studio.Viewport._resize) Studio.Viewport._resize();
+    // Spatial iframe needs a nudge too so its internal renderer resizes.
+    if (Studio.Spatial && Studio.Spatial._iframe) {
+      try { Studio.Spatial._iframe.contentWindow.dispatchEvent(new Event('resize')); } catch (_) {}
+    }
+  }, 80);
 };
 
 Studio.showBottomTab = function(tab) {

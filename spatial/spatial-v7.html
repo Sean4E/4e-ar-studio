@@ -2778,6 +2778,15 @@ function PathInspector({
     [k]: v
   });
   const [tab, setTab] = useState("path");
+  // Re-render when studio pushes updated project (so scene-object list
+  // stays fresh when objects are added/removed in the studio hierarchy).
+  const [, _tickPI] = useState(0);
+  useEffect(() => {
+    const h = () => _tickPI(t => t + 1);
+    window.addEventListener('studio-project-update', h);
+    return () => window.removeEventListener('studio-project-update', h);
+  }, []);
+  const studioObjects = (window.STUDIO_PROJECT && window.STUDIO_PROJECT.objects) || [];
   const updLTV = (k, v) => onUpdate(edgeKey, {
     ...(pathConfigs[edgeKey] || {}),
     [k]: v
@@ -3007,21 +3016,64 @@ function PathInspector({
       fontSize: 10,
       fontFamily: mono
     }
-  }, "Uses global traveller."), ltv.type === "object" && React.createElement(React.Fragment, null, React.createElement("div", {
+  }, "Uses global traveller."), ltv.type === "object" && React.createElement(React.Fragment, null, React.createElement(FR, {
+    label: "From project"
+  }, React.createElement.apply(null, [
+    "select",
+    {
+      disabled: studioObjects.length === 0,
+      value: ltv.object.source && ltv.object.source.type === "project" ? ltv.object.source.objectId : "",
+      onChange: e => {
+        const id = e.target.value;
+        if (id) {
+          const obj = studioObjects.find(o => o.id === id);
+          updLTV("legTvObject", {
+            ...ltv.object,
+            source: { type: "project", objectId: id, name: obj ? obj.name : id }
+          });
+        } else {
+          const { source, ...rest } = ltv.object;
+          updLTV("legTvObject", rest);
+        }
+      },
+      style: {
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        color: studioObjects.length === 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.8)",
+        padding: "3px 7px",
+        borderRadius: 4,
+        fontSize: 11,
+        fontFamily: mono,
+        flex: 1,
+        cursor: studioObjects.length === 0 ? "not-allowed" : "pointer"
+      }
+    }
+  ].concat(
+    studioObjects.length === 0
+      ? [React.createElement("option", { key: "empty", value: "" }, "— No scene objects (add in Hierarchy) —")]
+      : [React.createElement("option", { key: "primitive", value: "" }, "— Use primitive below —")].concat(
+          studioObjects.map(o => React.createElement("option", {
+            key: o.id,
+            value: o.id
+          }, o.name || o.id))
+        )
+  ))), React.createElement("div", {
     style: {
       display: "flex",
       flexWrap: "wrap",
       gap: 3,
-      marginBottom: 6
+      marginBottom: 6,
+      opacity: ltv.object.source && ltv.object.source.type === "project" ? 0.35 : 1
     }
   }, MESH_TYPES.map(t => React.createElement(Btn, {
     key: t,
-    active: ltv.object.meshType === t,
+    active: ltv.object.meshType === t && !(ltv.object.source && ltv.object.source.type === "project"),
     col: C.amber,
     small: true,
     onClick: () => updLTV("legTvObject", {
       ...ltv.object,
-      meshType: t
+      meshType: t,
+      source: undefined
     })
   }, t))), React.createElement(Cpk, {
     label: "Color",
@@ -3071,6 +3123,12 @@ function AnchorInspector({
     return () => window.removeEventListener('studio-project-update', handler);
   }, []);
   const studioTargets = (window.STUDIO_PROJECT && window.STUDIO_PROJECT.targets) || [];
+  const pickTarget = (tgt) => onUpdate(anchor.id, "it", {
+    ...anchor.it,
+    id: tgt.id,
+    widthM: tgt.widthM != null ? tgt.widthM : anchor.it.widthM
+  });
+  const targetIsPicked = studioTargets.some(t => t.id === anchor.it.id);
   const sc = anchor.it.assigned ? C.green : C.cyan;
   return React.createElement("div", null, React.createElement("div", {
     style: {
@@ -3169,13 +3227,10 @@ function AnchorInspector({
     "select",
     {
       disabled: studioTargets.length === 0,
-      value: studioTargets.some(t => t.id === anchor.it.id) ? anchor.it.id : "",
+      value: targetIsPicked ? anchor.it.id : "",
       onChange: e => {
         const picked = studioTargets.find(t => t.id === e.target.value);
-        if (picked) {
-          ui("id", picked.id);
-          if (picked.widthM != null) ui("widthM", picked.widthM);
-        }
+        if (picked) pickTarget(picked);
       },
       style: {
         background: "rgba(255,255,255,0.05)",
@@ -3198,7 +3253,7 @@ function AnchorInspector({
             value: t.id
           }, t.name ? (t.name + " (" + t.id.slice(-6) + ")") : t.id))
         )
-  ))), React.createElement(FR, {
+  ))), studioTargets.length === 0 && React.createElement(FR, {
     label: "Target ID"
   }, React.createElement("input", {
     value: anchor.it.id,
