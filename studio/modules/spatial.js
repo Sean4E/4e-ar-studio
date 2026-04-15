@@ -118,6 +118,10 @@ Studio.Spatial = {
             primitiveType: o.primitiveType || null,
             glbUrl: bestUrl,
             color: o.primitiveColor || null,
+            // Clip names — populated by _loadModelIntoScene on first
+            // GLB import. Used by the spatial editor to show an
+            // Animation dropdown under a picked traveller object.
+            clips: Array.isArray(o.clips) ? [...o.clips] : [],
           };
         }),
     };

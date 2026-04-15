@@ -1236,7 +1236,7 @@ function neatPos(n) {
   });
 }
 const IP = neatPos(4);
-const INIT_A = ["Anchor 0", "Anchor 1", "Anchor 2", "Anchor 3"].map((name, i) => ({
+const INIT_A = ["Anchor 1", "Anchor 2", "Anchor 3", "Anchor 4"].map((name, i) => ({
   id: `a${i}`,
   name,
   pos: IP[i],
@@ -1435,8 +1435,9 @@ function mkProjectObjPlaceholder(name, color, scale = 1) {
   return g;
 }
 
-// GLB cache — one fetch per URL per editor session; each traveller
-// gets a cloned copy so they don't share mutable state.
+// GLB cache — one fetch per URL per editor session. Each traveller
+// gets a SkeletonUtils clone of .scene and plays its own mixer, so
+// the cached entry is just the source-of-truth scene + animations.
 const GLB_CACHE = new Map();
 function loadGLB(url) {
   if (!url) return Promise.reject(new Error('no url'));
@@ -1444,7 +1445,8 @@ function loadGLB(url) {
   const p = new Promise((resolve, reject) => {
     if (!THREE.GLTFLoader) { reject(new Error('GLTFLoader not loaded')); return; }
     const loader = new THREE.GLTFLoader();
-    loader.load(url, gltf => resolve(gltf.scene), undefined, err => reject(err));
+    loader.load(url, gltf => resolve({ scene: gltf.scene, animations: gltf.animations || [] }),
+      undefined, err => reject(err));
   });
   GLB_CACHE.set(url, p);
   return p;
@@ -1482,14 +1484,12 @@ function mkProjectObjMesh(source, color, scale = 1) {
   const placeholder = mkProjectObjPlaceholder(source.name || '', color, 1);
   g.add(placeholder);
   g.scale.setScalar(scale);
+  // g.userData.mixer — set when the GLB finishes loading AND a clip
+  // is selected. Consumers tick it each frame with their own clock.
+  g.userData.mixer = null;
   const url = source.glbUrl;
   if (url) {
-    loadGLB(url).then(sceneTpl => {
-      // SkeletonUtils.clone — default .clone(true) shares the source
-      // skeleton so rigged meshes render at source's transform. This
-      // variant clones + rebinds the skeleton so the clone is fully
-      // independent. fitGLBToTraveller then returns a wrapper group
-      // we swap into the placeholder's slot.
+    loadGLB(url).then(({ scene: sceneTpl, animations }) => {
       const clone = THREE.SkeletonUtils.clone(sceneTpl);
       const fitted = fitGLBToTraveller(clone);
       if (g.parent) {
@@ -1499,6 +1499,25 @@ function mkProjectObjMesh(source, color, scale = 1) {
           if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
         });
         g.add(fitted);
+      }
+      // Animation — play the clip named on the source, or the first
+      // clip if none specified but clips exist. Silent if the GLB
+      // has no animations or "__none__" is selected (user opt-out).
+      if (animations && animations.length) {
+        const pick = source.animClip;
+        let clip = null;
+        if (pick === "__none__") {
+          clip = null;
+        } else if (pick) {
+          clip = animations.find(c => (c.name || '(unnamed)') === pick) || animations[0];
+        } else {
+          clip = animations[0];
+        }
+        if (clip) {
+          const mixer = new THREE.AnimationMixer(clone);
+          mixer.clipAction(clip).play();
+          g.userData.mixer = mixer;
+        }
       }
     }).catch(err => {
       console.warn('[Spatial] GLB load failed:', url, err && err.message || err);
@@ -3175,7 +3194,9 @@ function PathInspector({
               kind: obj ? obj.kind : null,
               glbUrl: obj ? (obj.glbUrl || null) : null,
               primitiveType: obj ? obj.primitiveType : null,
-              color: obj ? obj.color : null
+              color: obj ? obj.color : null,
+              clips: obj && Array.isArray(obj.clips) ? [...obj.clips] : [],
+              animClip: ""  // default: play the first clip
             }
           });
         } else {
@@ -3204,6 +3225,38 @@ function PathInspector({
             value: o.id
           }, o.name || o.id))
         )
+  ))),
+  // Animation dropdown — only shown when a project object is picked
+  // AND that object has clips (detected at studio import time).
+  ltv.object.source && ltv.object.source.type === "project" && Array.isArray(ltv.object.source.clips) && ltv.object.source.clips.length > 0 && React.createElement(FR, {
+    label: "Animation"
+  }, React.createElement.apply(null, [
+    "select",
+    {
+      value: ltv.object.source.animClip || "",
+      onChange: e => updLTV("legTvObject", {
+        ...ltv.object,
+        source: { ...ltv.object.source, animClip: e.target.value }
+      }),
+      style: {
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        color: "rgba(255,255,255,0.8)",
+        padding: "3px 7px",
+        borderRadius: 4,
+        fontSize: 11,
+        fontFamily: mono,
+        flex: 1,
+        cursor: "pointer"
+      }
+    },
+    React.createElement("option", { key: "__default__", value: "" }, "— First clip (default) —"),
+    React.createElement("option", { key: "__none__", value: "__none__" }, "— None (static pose) —")
+  ].concat(
+    ltv.object.source.clips.map(c => React.createElement("option", {
+      key: c,
+      value: c
+    }, c))
   ))), React.createElement("div", {
     style: {
       display: "flex",
@@ -3527,7 +3580,12 @@ function App() {
   });
   const dirtyRef = useRef({
     scene: true,
-    highlight: false
+    highlight: false,
+    // traveller — set when the current edge's traveller config (object,
+    // animation clip, primitive type) changes. Forces switchEdge to
+    // re-run on the next frame so the on-screen traveller picks up
+    // the new mesh / animation without waiting for an edge boundary.
+    traveller: false
   });
   const camRef = useRef({
     mode: "orbit",
@@ -3579,6 +3637,11 @@ function App() {
   useEffect(() => {
     dirtyRef.current.scene = true;
   }, [anchors, journey, loopJ, pathConfigs]);
+  // pathConfigs change → traveller might need rebuild (object swap,
+  // clip swap). Cheaper than tearing down the whole scene.
+  useEffect(() => {
+    dirtyRef.current.traveller = true;
+  }, [pathConfigs]);
   // Studio pushes target thumbnails via postMessage — mark scene dirty
   // so rebuildAnchors re-scans thumbnail URLs on the next frame.
   useEffect(() => {
@@ -4249,6 +4312,13 @@ function App() {
       const A = animRef.current;
       A.total += dt;
       A.frame++;
+      // Tick any AnimationMixer attached to a traveller mesh. Stored
+      // in userData.mixer by mkProjectObjMesh when the traveller is a
+      // GLB with an animation clip. Traversing children is cheap — at
+      // most one traveller mesh lives in tvContainer at a time.
+      tvContainer.children.forEach(c => {
+        if (c.userData && c.userData.mixer) c.userData.mixer.update(dt);
+      });
       const {
         isLive: live
       } = stateRef.current;
@@ -4329,8 +4399,9 @@ function App() {
       if (edges.length > 0) {
         const ei = Math.min(A.edgeIdx, edges.length - 1);
         const edge = edges[ei];
-        if (ei !== lastEdgeRef.current) {
+        if (ei !== lastEdgeRef.current || dirtyRef.current.traveller) {
           lastEdgeRef.current = ei;
+          dirtyRef.current.traveller = false;
           switchEdge(edge.key);
         }
         const cfg = getPCfg(pc, edge.key);
@@ -4490,7 +4561,7 @@ function App() {
     const id = newId();
     const na = {
       id,
-      name: `Anchor ${_aid - 1}`,
+      name: `Anchor ${_aid}`,
       pos: {
         x: 0,
         y: 0,
