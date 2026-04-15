@@ -4743,6 +4743,41 @@ function App() {
   }))));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+
+// ═══════════════════════════════════════════════════════════
+// Studio handshake (Milestone 3b)
+// ═══════════════════════════════════════════════════════════
+// When iframed by the studio, announce ourselves and receive the
+// current project's targets + objects. Stored on window.STUDIO_PROJECT
+// so later milestones (anchor-target dropdown, traveller-object
+// dropdown) can read it without restructuring React state.
+//
+// Cross-origin-safe: if opened standalone (not iframed by studio),
+// every postMessage call silently no-ops and STUDIO_PROJECT stays null.
+window.STUDIO_PROJECT = null;
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === '4e-spatial-project') {
+    window.STUDIO_PROJECT = d.project || null;
+    // Surface to the console for now — visible confirmation in devtools
+    // that the handshake round-trip succeeded. Later milestones will
+    // react to this and populate dropdowns.
+    console.log('[Spatial] received project data:',
+      'targets=' + (d.project?.targets?.length || 0),
+      'objects=' + (d.project?.objects?.length || 0));
+  }
+});
+// Tell the parent studio we're ready for project data. Studio responds
+// with `4e-spatial-project`. Sent after a microtask so the listener
+// above is registered even if the studio replies synchronously.
+queueMicrotask(() => {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: '4e-spatial-ready' }, '*');
+    }
+  } catch (_) { /* cross-origin or standalone — ignore */ }
+});
 </script>
 </body>
 </html>
