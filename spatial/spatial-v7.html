@@ -3648,9 +3648,20 @@ function App() {
       antialias: true
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(W, H);
+    // updateStyle=false — do NOT let renderer.setSize write explicit
+    // pixel style.width/height onto the canvas. That was the root of
+    // the fullscreen-exit clipping: the canvas's explicit style sizes
+    // outgrew the mount container and pinned the flex chain open,
+    // preventing any shrink from propagating. With updateStyle=false
+    // we size the internal drawing buffer only, and the canvas CSS
+    // stays at 100% of its mount — layout stays honest in both
+    // directions.
+    renderer.setSize(W, H, false);
     renderer.setClearColor(0x060810, 1);
     mount.appendChild(renderer.domElement);
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x060810, .03);
     const camera = new THREE.PerspectiveCamera(58, W / H, .05, 200);
@@ -4379,7 +4390,7 @@ function App() {
       if (!W || !H) return;
       camera.aspect = W / H;
       camera.updateProjectionMatrix();
-      renderer.setSize(W, H);
+      renderer.setSize(W, H, false);
       // Diagnostic — turn on by setting localStorage.setItem('4e-spatial-debug','1')
       // in the iframe context; prints every resize with source + dimensions.
       if (window.localStorage && window.localStorage.getItem('4e-spatial-debug')) {
@@ -4924,11 +4935,11 @@ function App() {
     ref: mountRef,
     style: {
       flex: 1,
-      // Allow the flex item to shrink below the canvas's explicit
-      // style.height. Without these, an oversized canvas (e.g. one
-      // sized during host fullscreen) holds the mount open after exit
-      // so ResizeObserver never sees a shrink and onResize never
-      // fires, leaving the canvas clipped. See v3.12.14 fix.
+      // Belt & suspenders alongside renderer.setSize(W,H,false):
+      // canvas CSS is always 100% of mount, so content never outgrows
+      // this container, but min-height:0 removes the flexbox
+      // min-content constraint just in case future children re-assert
+      // an intrinsic size.
       minHeight: 0,
       minWidth: 0,
       overflow: "hidden",
