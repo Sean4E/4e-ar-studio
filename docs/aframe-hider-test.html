@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E · A-Frame Hider Test Harness</title>
+<!-- Explicit dependency pinning — same versions the published player
+     uses, so behaviour here mirrors production. -->
+<script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/8thwall/web@master/xrextras/xrextras.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0a0e1a;color:#d4daf0;font-family:system-ui,sans-serif;overflow:hidden}
+  #app{display:grid;grid-template-columns:1fr 340px;height:100%}
+  .panel{background:#0f1424;border-left:1px solid #1e2844;overflow-y:auto;padding:16px}
+  h1{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#a78bfa;margin-bottom:4px}
+  .sub{font-size:11px;color:#6b7a9e;margin-bottom:18px;line-height:1.5}
+  .section{background:#141a2e;border:1px solid #1e2844;border-radius:8px;padding:12px;margin-bottom:12px}
+  .section h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#8b5cf6;margin-bottom:10px;font-weight:700}
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px}
+  .row label{flex:0 0 80px;color:#6b7a9e}
+  .row select{flex:1;background:#0a0e1a;border:1px solid #1e2844;border-radius:3px;color:#d4daf0;padding:3px 5px;font-family:inherit;font-size:11px}
+  .toggle{display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px 0;font-size:11px}
+  .toggle input{width:14px;height:14px}
+  .hint{font-size:10px;color:#4a5578;line-height:1.5;margin-top:8px;font-style:italic}
+  button{background:#141a2e;border:1px solid #2a3456;color:#d4daf0;padding:6px 10px;font-family:inherit;font-size:11px;border-radius:4px;cursor:pointer}
+  button:hover{border-color:#8b5cf6}
+  .scene-wrap{position:relative}
+  a-scene{width:100% !important;height:100% !important}
+  .legend{position:absolute;top:12px;left:12px;background:rgba(15,20,36,0.88);border:1px solid #1e2844;padding:10px 14px;border-radius:6px;font-size:10px;color:#8899b0;line-height:1.6;backdrop-filter:blur(4px);max-width:340px;pointer-events:none;z-index:2}
+  .legend b{color:#d4daf0}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="scene-wrap">
+    <div class="legend" id="legend">
+      <b>A-Frame Hider Test</b><br>
+      <span class="sw" style="background:#22d3ee"></span>Content sphere (inside hider)<br>
+      <span class="sw" style="background:#f59e0b"></span>Control sphere (outside, never occluded)<br>
+      <span class="sw" style="background:#ef4444"></span>Far plane (always behind the hider)<br>
+      <br>
+      When the hider works, the content sphere is INVISIBLE (occluded
+      by the hider's depth) and the far plane is CLIPPED wherever the
+      hider's silhouette overlaps it. The control sphere stays visible
+      regardless.
+    </div>
+    <a-scene id="scene" embedded renderer="colorManagement: true">
+      <a-assets></a-assets>
+      <a-camera position="0 1.2 3" wasd-controls="acceleration:40" look-controls="pointerLockEnabled:false"></a-camera>
+      <a-light type="ambient" intensity="0.6"></a-light>
+      <a-light type="directional" intensity="0.8" position="2 4 3"></a-light>
+
+      <!-- Background gradient so occlusion shows clearly -->
+      <a-sky color="#1e2844"></a-sky>
+
+      <!-- Far plane — always BEHIND the hider, should be cut by the
+           hider's silhouette when occlusion works. -->
+      <a-plane position="0 1.2 -2" rotation="0 0 0" width="6" height="3" color="#ef4444"></a-plane>
+
+      <!-- Control sphere — OUTSIDE the hider, always visible. Proves
+           the scene is rendering normally. -->
+      <a-sphere position="-1.5 1.2 0" radius="0.25" color="#f59e0b"></a-sphere>
+
+      <!-- The hider. Contents (the cyan sphere) are DOM-nested inside.
+           Matches 8th Wall's dunnasifairy1 pattern. -->
+      <a-box id="hider" position="0 1.2 0" width="1" height="1" depth="1">
+        <a-sphere position="0 0 0" radius="0.25" color="#22d3ee"></a-sphere>
+      </a-box>
+    </a-scene>
+  </div>
+
+  <div class="panel">
+    <h1>A-Frame Hider Test</h1>
+    <p class="sub">Same scene, toggleable between 8th Wall's stock
+    <code>xrextras-hider-material</code> and our custom
+    <code>ar-hider-material</code>. All content inside the hider is
+    a DOM child, matching the <b>dunnasifairy1</b> pattern.</p>
+
+    <div class="section">
+      <h2>🎭 Hider</h2>
+      <label class="toggle"><input type="checkbox" id="hider-on" checked onchange="apply()"> Enable hider</label>
+      <div class="row">
+        <label>impl</label>
+        <select id="impl" onchange="apply()">
+          <option value="stock">Stock (xrextras-hider-material)</option>
+          <option value="custom">Custom (our own hider — inline)</option>
+          <option value="material-transparent">Material with transparent: true</option>
+          <option value="material-visible-false">Mesh visible=false</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>side</label>
+        <select id="side" onchange="apply()">
+          <option value="front" selected>FrontSide</option>
+          <option value="back">BackSide</option>
+          <option value="double">DoubleSide</option>
+        </select>
+      </div>
+      <label class="toggle"><input type="checkbox" id="sort-on" checked onchange="apply()"> renderer.sortObjects = true</label>
+      <label class="toggle"><input type="checkbox" id="render-order-on" checked onchange="apply()"> Force hider renderOrder = -5</label>
+      <div class="hint">With sortObjects off AND renderOrder off, the
+        hider renders after its children (A-Frame attaches DOM kids
+        before the geometry mesh) and occlusion fails. Toggle each
+        independently to see which knob fixes what.</div>
+    </div>
+
+    <div class="section">
+      <h2>📊 Scene state</h2>
+      <button onclick="dump()">Dump scene → console.table</button>
+      <div class="hint">Prints every mesh with its material flags and
+        parent chain. Verify colorWrite=false, depthWrite=true, and
+        renderOrder on the hider before comparing visually.</div>
+    </div>
+
+    <div class="hint" style="font-size:11px;color:#8899b0">
+      <b>Controls:</b> mouse drag to look, WASD to move.<br>
+      <b>Expected when hider works:</b> cyan sphere disappears, red
+      plane has a cube-shaped bite out of it, amber sphere stays.
+    </div>
+  </div>
+</div>
+
+<script>
+// Custom inline hider — keeps the test self-contained (no dependency
+// on ar-hider-material from the player). Functionally identical:
+// MeshStandardMaterial with colorWrite=false + renderOrder=-5.
+AFRAME.registerComponent('test-hider', {
+  schema: {
+    side: { default: 'front' },
+    renderOrder: { default: true, type: 'boolean' },
+  },
+  init() {
+    this._apply = this._apply.bind(this);
+    this._apply();
+    this.el.addEventListener('object3dset', this._apply);
+    this.el.addEventListener('model-loaded', this._apply);
+  },
+  update() { this._apply(); },
+  _apply() {
+    const root = this.el.object3D;
+    if (!root) return;
+    const sideMap = { front: THREE.FrontSide, back: THREE.BackSide, double: THREE.DoubleSide };
+    const mat = new THREE.MeshStandardMaterial({ side: sideMap[this.data.side] || THREE.FrontSide });
+    mat.colorWrite = false;
+    const ownEl = this.el;
+    root.traverse(node => {
+      if (!node.isMesh) return;
+      // Skip nested child-entity meshes.
+      let w = node.parent;
+      while (w && w !== root) {
+        if (w.el && w.el !== ownEl) return;
+        w = w.parent;
+      }
+      node.material = mat;
+      if (this.data.renderOrder) node.renderOrder = -5;
+      node.castShadow = false;
+      node.receiveShadow = false;
+    });
+  },
+});
+
+// Same idea, no material swap — JUST render order on the existing
+// hider material. Lets us isolate renderOrder's effect.
+AFRAME.registerComponent('test-force-order', {
+  init() {
+    this._apply = this._apply.bind(this);
+    this._apply();
+    this.el.addEventListener('object3dset', this._apply);
+  },
+  _apply() {
+    const root = this.el.object3D;
+    if (!root) return;
+    const ownEl = this.el;
+    root.traverse(node => {
+      if (!node.isMesh) return;
+      let w = node.parent;
+      while (w && w !== root) {
+        if (w.el && w.el !== ownEl) return;
+        w = w.parent;
+      }
+      node.renderOrder = -5;
+    });
+  },
+});
+
+function apply() {
+  const hider = document.getElementById('hider');
+  const on = document.getElementById('hider-on').checked;
+  const impl = document.getElementById('impl').value;
+  const side = document.getElementById('side').value;
+  const sortOn = document.getElementById('sort-on').checked;
+  const renderOrderOn = document.getElementById('render-order-on').checked;
+
+  // Strip any prior hider config.
+  hider.removeAttribute('material');
+  hider.removeAttribute('xrextras-hider-material');
+  hider.removeAttribute('test-hider');
+  hider.removeAttribute('test-force-order');
+  hider.removeAttribute('visible');
+
+  if (on) {
+    if (impl === 'stock') {
+      hider.setAttribute('xrextras-hider-material', '');
+      if (renderOrderOn) hider.setAttribute('test-force-order', '');
+    } else if (impl === 'custom') {
+      hider.setAttribute('test-hider', `side: ${side}; renderOrder: ${renderOrderOn}`);
+    } else if (impl === 'material-transparent') {
+      hider.setAttribute('material', 'transparent: true; opacity: 0');
+      if (renderOrderOn) hider.setAttribute('test-force-order', '');
+    } else if (impl === 'material-visible-false') {
+      hider.setAttribute('visible', 'false');
+    }
+  } else {
+    // Default visible material.
+    hider.setAttribute('material', 'color: #8b5cf6; transparent: true; opacity: 0.35');
+  }
+
+  // Toggle renderer.sortObjects on the live scene.
+  const scene = document.getElementById('scene');
+  if (scene.renderer) {
+    scene.renderer.sortObjects = sortOn;
+    console.log('[hider-test] sortObjects =', scene.renderer.sortObjects);
+  }
+}
+
+function dump() {
+  const scene = document.getElementById('scene');
+  const rows = [];
+  scene.object3D.traverse(o => {
+    if (!o.isMesh) return;
+    const m = o.material || {};
+    rows.push({
+      el:           o.parent?.el?.tagName?.toLowerCase() || '(root)',
+      elId:         o.parent?.el?.id || '',
+      renderOrder:  o.renderOrder,
+      depth:        (() => { let d = 0, c = o.parent; while (c) { d++; c = c.parent; } return d; })(),
+      colorWrite:   m.colorWrite,
+      depthWrite:   m.depthWrite,
+      transparent:  m.transparent,
+      visible:      o.visible,
+      side:         ['Front','Back','Double'][m.side] || m.side,
+    });
+  });
+  console.log('[hider-test] renderer.sortObjects =', scene.renderer?.sortObjects);
+  console.table(rows);
+}
+
+// Apply whenever the scene is ready.
+document.getElementById('scene').addEventListener('loaded', () => apply());
+</script>
+</body>
+</html>
