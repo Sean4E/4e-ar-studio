@@ -4061,8 +4061,16 @@ function App() {
         const wp = obj.group.position.clone().add(new THREE.Vector3(0, 1.1, 0));
         wp.project(camera);
         if (wp.z < 1) {
-          el.style.left = (wp.x * .5 + .5) * rect.width + "px";
-          el.style.top = (-wp.y * .5 + .5) * rect.height + "px";
+          // Integer pixels + GPU-composited transform instead of left/top.
+          // Fractional CSS coords combined with OrbitControls damping's tiny
+          // continuous updates were causing sub-pixel jitter on label text
+          // and borders as the camera rotated. translate3d promotes the
+          // overlay to its own compositor layer so the browser doesn't
+          // re-layout or re-rasterize the label content each frame —
+          // just recomposes the already-rasterized layer at a new offset.
+          const x = Math.round((wp.x * .5 + .5) * rect.width);
+          const y = Math.round((-wp.y * .5 + .5) * rect.height);
+          el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`;
           el.style.display = "flex";
         } else el.style.display = "none";
       });
