@@ -38,6 +38,41 @@ select option{background:#0a1020;color:#ccc;}
 <!-- GLTFLoader (r128-compatible UMD build) — lets the editor render
      project objects with real GLB meshes instead of the placeholder cube. -->
 <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Minimal SkeletonUtils.clone (inlined — based on the official r128
+     examples/jsm/utils/SkeletonUtils.js). The default .clone(true) on
+     a rigged GLB shares the source skeleton, so cloned SkinnedMeshes
+     render at the source's transform and ignore the clone's scale.
+     This version clones the skeleton and re-binds properly. -->
+<script>
+THREE.SkeletonUtils = {
+  clone: function(source) {
+    const sourceLookup = new Map();
+    const cloneLookup = new Map();
+    const clone = source.clone();
+    parallelTraverse(source, clone, function(sourceNode, clonedNode) {
+      sourceLookup.set(clonedNode, sourceNode);
+      cloneLookup.set(sourceNode, clonedNode);
+    });
+    clone.traverse(function(node) {
+      if (!node.isSkinnedMesh) return;
+      const sourceMesh = sourceLookup.get(node);
+      node.skeleton = sourceMesh.skeleton.clone();
+      node.bindMatrix.copy(sourceMesh.bindMatrix);
+      node.skeleton.bones = sourceMesh.skeleton.bones.map(function(bone) {
+        return cloneLookup.get(bone);
+      });
+      node.bind(node.skeleton, node.bindMatrix);
+    });
+    return clone;
+    function parallelTraverse(a, b, callback) {
+      callback(a, b);
+      for (let i = 0; i < a.children.length; i++) {
+        parallelTraverse(a.children[i], b.children[i], callback);
+      }
+    }
+  }
+};
+</script>
 <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
 <script>
@@ -1415,8 +1450,11 @@ function loadGLB(url) {
   return p;
 }
 
-// Normalises a loaded GLB scene so it renders as a small traveller:
-// centre it on the origin and scale so its longest axis is ~0.3m.
+// Normalises a loaded GLB scene so it renders as a small traveller.
+// Wrap-then-scale: we NEVER change the cloned GLB's own root scale
+// (rigged SkinnedMesh bindings are resolved against it). Instead the
+// clone is centred inside a new wrapper group, and the wrapper is
+// scaled. Animation + skin weights stay intact.
 function fitGLBToTraveller(obj3d, targetRadius = 0.18) {
   const box = new THREE.Box3().setFromObject(obj3d);
   const size = new THREE.Vector3();
@@ -1425,9 +1463,11 @@ function fitGLBToTraveller(obj3d, targetRadius = 0.18) {
   box.getCenter(centre);
   const maxDim = Math.max(size.x, size.y, size.z) || 1;
   const s = (targetRadius * 2) / maxDim;
-  obj3d.position.sub(centre.multiplyScalar(s));
-  obj3d.scale.setScalar(s);
-  return obj3d;
+  obj3d.position.set(-centre.x, -centre.y, -centre.z);
+  const wrapper = new THREE.Group();
+  wrapper.add(obj3d);
+  wrapper.scale.setScalar(s);
+  return wrapper;
 }
 
 // Returns a Group that renders the project object:
@@ -1445,17 +1485,20 @@ function mkProjectObjMesh(source, color, scale = 1) {
   const url = source.glbUrl;
   if (url) {
     loadGLB(url).then(sceneTpl => {
-      const clone = sceneTpl.clone(true);
-      fitGLBToTraveller(clone);
-      // Only swap if the group is still in the scene — switching paths
-      // mid-load removes the group, in which case we skip the swap.
+      // SkeletonUtils.clone — default .clone(true) shares the source
+      // skeleton so rigged meshes render at source's transform. This
+      // variant clones + rebinds the skeleton so the clone is fully
+      // independent. fitGLBToTraveller then returns a wrapper group
+      // we swap into the placeholder's slot.
+      const clone = THREE.SkeletonUtils.clone(sceneTpl);
+      const fitted = fitGLBToTraveller(clone);
       if (g.parent) {
         g.remove(placeholder);
         placeholder.traverse(c => {
           if (c.geometry) c.geometry.dispose();
           if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
         });
-        g.add(clone);
+        g.add(fitted);
       }
     }).catch(err => {
       console.warn('[Spatial] GLB load failed:', url, err && err.message || err);

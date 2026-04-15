@@ -79,7 +79,7 @@ Studio.Assets = {
       <div class="ast-section-title">Sample Models</div>
       <div class="ast-row">
         ${this._sampleCard('🦆', 'Duck',  "../samples/Duck.glb")}
-        ${this._sampleCard('🦊', 'Fox',   "../samples/Fox.glb")}
+        ${this._sampleCard('🦊', 'Fox',   "../samples/Fox.glb", 0.05)}
       </div>
     </div>`;
 
@@ -210,8 +210,13 @@ Studio.Assets = {
     </div>`;
   },
 
-  _sampleCard(icon, name, url) {
-    return `<div class="ast-card ast-sample" onclick="Studio.Viewport.loadSample('${url}','${name}')" title="Add ${name} sample">
+  _sampleCard(icon, name, url, baseScale) {
+    // baseScale — optional per-prefab mesh-level correction for samples
+    // whose authored units don't match the scene (Fox.glb is in cm —
+    // baseScale 0.05). Applied once at the inner GLB; transform.scale
+    // stays at 1 so the inspector is consistent across every object.
+    const scaleArg = (baseScale != null) ? `,${baseScale}` : '';
+    return `<div class="ast-card ast-sample" onclick="Studio.Viewport.loadSample('${url}','${name}'${scaleArg})" title="Add ${name} sample">
       <div class="ast-card-icon">${icon}</div>
       <div class="ast-card-label">${name}</div>
     </div>`;

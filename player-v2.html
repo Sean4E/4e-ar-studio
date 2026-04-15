@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.12.15">
+<meta name="version" content="3.12.16">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1615,7 +1615,13 @@ function buildEntity(obj, i, childHtml = '', parentObj = null) {
   } : t.position;
   const pos = `${relPos.x} ${relPos.y} ${relPos.z}`;
   const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
-  const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
+  // Permanent per-prefab mesh-level scale correction. For samples
+  // whose authored units don't match the scene (Fox.glb is in cm —
+  // baseScale 0.05) this folds the correction into the final A-Frame
+  // scale so the published player matches the studio viewport.
+  const prefab = (obj.prefabId && APP.prefabs) ? APP.prefabs.find(p => p.id === obj.prefabId) : null;
+  const baseScale = (prefab && prefab.baseScale) || 1;
+  const sc = `${t.scale.x * baseScale} ${t.scale.y * baseScale} ${t.scale.z * baseScale}`;
   const color = obj.primitiveColor || '#8b5cf6';
   const isPrimitive = obj.type === 'primitive' && obj.primitiveType;
   const isEmpty = obj.primitiveType === 'empty';

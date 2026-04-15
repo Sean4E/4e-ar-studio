@@ -353,13 +353,24 @@ Studio.Viewport = {
       }
       loader.load(url, gltf => {
         const model = gltf.scene;
-        model.userData._objId = obj.id;
         model.traverse(c => {
-          c.userData._objId = obj.id;
           if (c.isMesh) c.castShadow = true;
         });
-        this.scene.add(model);
-        obj.mesh = model;
+        // Wrap the GLB in a container group. transform.scale applies
+        // to the container; the inner `model` takes a permanent per-
+        // prefab baseScale correction (e.g. Fox = 0.05, as the sample
+        // is authored in cm). Inspector always reads transform.scale
+        // = 1 for a fresh instance, and scaling up/down multiplies on
+        // top of the correction.
+        const prefab = obj.prefabId ? Studio.Project.getPrefab(obj.prefabId) : null;
+        const baseScale = (prefab && prefab.baseScale) || 1;
+        if (baseScale !== 1) model.scale.setScalar(baseScale);
+        const container = new THREE.Group();
+        container.add(model);
+        container.userData._objId = obj.id;
+        container.traverse(c => { c.userData._objId = obj.id; });
+        this.scene.add(container);
+        obj.mesh = container;
 
         // Extract animations
         if (gltf.animations.length) {
@@ -1484,7 +1495,10 @@ Studio.Viewport = {
   // ─── Load Sample Model ─────────────────────────────────
   // Load a built-in sample model. Adds it to the prefab library (or
   // finds an existing prefab for the same URL), then instantiates it.
-  async loadSample(url, name) {
+  // baseScale — optional permanent prefab-level correction for samples
+  // whose authored units don't match the scene (Fox.glb is in cm —
+  // baseScale 0.05). Back-filled onto existing prefabs if missing.
+  async loadSample(url, name, baseScale) {
     Studio.toast('Loading ' + name + '…', 'ok');
     try {
       const base = (window.AR_BASE_URL || window.location.origin);
@@ -1492,8 +1506,10 @@ Studio.Viewport = {
 
       let pf = Studio.Project.getPrefabByUrl(absUrl) || Studio.Project.getPrefabByUrl(url);
       if (!pf) {
-        pf = Studio.Project.createPrefab({ name, glbUrl: absUrl });
+        pf = Studio.Project.createPrefab({ name, glbUrl: absUrl, baseScale: baseScale || 1 });
         Studio.Project.addPrefab(pf);
+      } else if (baseScale && (!pf.baseScale || pf.baseScale === 1)) {
+        pf.baseScale = baseScale;
       }
       await this.instantiatePrefab(pf.id);
       Studio.toast(name + ' added ✓', 'ok');

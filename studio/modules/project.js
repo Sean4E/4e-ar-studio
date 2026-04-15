@@ -74,6 +74,12 @@ Studio.Project = {
       thumbUrl: '',   // PNG rendered from the GLB, shown on the prefab card
       file: null,     // transient, cleared after upload
       clips: [],      // animation clip names, detected on first load
+      // Permanent per-prefab mesh-level scale correction applied to
+      // the inner GLB at load time. transform.scale multiplies on top
+      // so the inspector still reads "1×" for a fresh instance. Used
+      // for samples whose authored units don't match the scene (Fox
+      // is in cm → baseScale 0.05). Defaults to 1 = no correction.
+      baseScale: 1,
       sortOrder: this.state.prefabs.length,
       ...overrides
     };
@@ -246,7 +252,8 @@ Studio.Project = {
       })),
       prefabs: (s.prefabs || []).map(p => ({
         id: p.id, name: p.name, glbUrl: p.glbUrl, thumbUrl: p.thumbUrl || '',
-        clips: [...(p.clips || [])], sortOrder: p.sortOrder || 0
+        clips: [...(p.clips || [])], sortOrder: p.sortOrder || 0,
+        baseScale: p.baseScale || 1,
       })),
       objects: s.objects.map(o => ({
         id: o.id, name: o.name, type: o.type,
@@ -321,6 +328,7 @@ Studio.Project = {
       thumbUrl: p.thumbUrl || '',
       clips: [...(p.clips || [])],
       sortOrder: p.sortOrder || 0,
+      baseScale: p.baseScale || 1,
       file: null,
     }));
 
