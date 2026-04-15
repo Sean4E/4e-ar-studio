@@ -71,7 +71,13 @@ Studio.Preview = {
       return;
     }
 
-    const playerUrl = '../player-v2.html?id=' + encodeURIComponent(projectId);
+    // Cache-bust the iframe src with a timestamp on every refresh so
+    // the browser never serves a stale player-v2.html from disk cache
+    // (Firebase sends no-cache headers but some browsers still obey a
+    // heuristic freshness window for iframe src, which meant syntax-
+    // error fixes in the player wouldn't reach the preview without a
+    // full studio reload).
+    const playerUrl = '../player-v2.html?id=' + encodeURIComponent(projectId) + '&_v=' + Date.now();
 
     // Build or update iframe
     if (this._iframe && this._iframe.parentNode === container) {
