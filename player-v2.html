@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.29">
+<meta name="version" content="3.10.30">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1568,17 +1568,32 @@ function buildSLAM() {
            to (0, 8, 0) which placed the camera 8m above the ground —
            any object near the world origin would be far below the
            initial frame and appear "missing" until SLAM activates. -->
+      <!-- wasd-controls + look-controls let the desktop preview iframe
+           fly through the scene with keyboard + mouse when 8th Wall's
+           AR isn't active (no camera permission, desktop browser, etc).
+           On real AR devices, xrweb takes over the camera pose and
+           these controls are harmless. Defaults: WASD move, mouse-drag
+           to look, acceleration 65 (standard A-Frame). -->
       <a-camera id="camera" position="0 1.6 0"
         raycaster="objects: .cantap"
-        cursor="fuse: false; rayOrigin: mouse;">
+        cursor="fuse: false; rayOrigin: mouse;"
+        wasd-controls="acceleration: 40"
+        look-controls="pointerLockEnabled: false">
       </a-camera>
 
-      <!-- Directional light following camera with shadows -->
+      <!-- Directional light following camera with shadows.
+           Frustum tightened from ±20 to ±5 (4× smaller area covered)
+           and map size doubled to 4096² so each shadow texel covers
+           ~2.5mm instead of ~20mm — crisp edges on small primitives
+           and typical AR content. shadowBias nudges the depth sample
+           to avoid self-shadow acne stripes. -->
       <a-entity
         light="type: directional; intensity: ${dirInt}; castShadow: true;
-          shadowMapHeight: 2048; shadowMapWidth: 2048;
-          shadowCameraTop: 20; shadowCameraBottom: -20;
-          shadowCameraRight: 20; shadowCameraLeft: -20;
+          shadowMapHeight: 4096; shadowMapWidth: 4096;
+          shadowCameraTop: 5; shadowCameraBottom: -5;
+          shadowCameraRight: 5; shadowCameraLeft: -5;
+          shadowCameraNear: 0.1; shadowCameraFar: 40;
+          shadowBias: -0.0005;
           target: #camera"
         xrextras-attach="target: camera; offset: 8 15 4"
         shadow>
