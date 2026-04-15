@@ -1,0 +1,81 @@
+# 4E Studio Scene Diagnose,
+# Generated,2026-04-15T19:00:41.673Z
+# Studio version,3.12.6
+# Renderer autoClear,true
+# Renderer sortObjects,true
+# Renderer shadowMap,true
+# Renderer outputColorSpace,srgb
+# Camera position,0 1.5000000000000002 3
+,
+# Project id,(unsaved)
+# Project name,Untitled
+# Tracking mode,slam
+# Image targets,0
+# Objects,0
+# Journeys,0
+,
+# Spatial tab active,true
+# Spatial iframe,loaded
+# Spatial handshake,ready
+# Spatial iframe src,https://sean4e.github.io/4e-ar-studio/spatial/spatial-v7.html
+,
+index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow,posX,posY,posZ,scaleX,scaleY,scaleZ,matType,colorWrite,depthWrite,depthTest,transparent,opacity,side
+0,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+1,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+2,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+3,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+4,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+5,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+6,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+7,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+8,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
+9,XYZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.25,Front
+10,XY,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.5,Front
+11,YZ,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.000,0.000,0.000,MeshBasicMaterial,true,false,false,true,0.5,Front
+12,XZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.5,Front
+13,XYZE,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+14,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+15,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+16,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+17,E,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.25,Front
+18,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+19,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+20,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+21,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+22,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+23,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+24,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+25,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+26,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,1,Front
+27,XY,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.5,Front
+28,YZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.5,Front
+29,XZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.5,Front
+30,XYZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.25,Front
+31,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+32,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+33,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+34,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+35,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+36,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+37,XYZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+38,XY,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+39,YZ,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.000,0.000,0.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+40,XZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,0.15,Front
+41,XYZE,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+42,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+43,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+44,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+45,E,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+46,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+47,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+48,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+49,Y,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+50,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+51,Z,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+52,XY,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+53,YZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+54,XZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+55,XYZ,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,false,false,true,0.15,Front
+56,START,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
+57,END,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
+58,(unnamed),TransformControlsPlane,,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.1,Double
