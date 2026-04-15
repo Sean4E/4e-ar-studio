@@ -56,32 +56,16 @@ Studio.Viewport = {
     });
     this.scene.add(this.gizmo);
 
-    // Lighting
+    // Lighting — reverted to the setup that was in place when shadows
+    // "looked beautiful". DirectionalLight default shadow camera
+    // (±5 units, near 0.5 / far 500) with a 2048² map. Any tuning
+    // (bias, frustum-tightening, normalBias) is deferred until we
+    // have a clear reproduction of what's wrong in isolation.
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dir = new THREE.DirectionalLight(0xffffff, 1.0);
     dir.position.set(3, 5, 4);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
-    // Tighten the shadow camera's orthographic frustum around the
-    // authoring scene. DirectionalLight defaults to left/right/top/
-    // bottom = ±5 and near/far = 0.5/500 — perfect for a 10m scene,
-    // awful for ours where primitives are 0.3m. Each shadow texel
-    // ends up covering a huge area, giving pixelated / jittery
-    // shadows. A 4m cube of coverage (±2) with near 0.1 / far 20
-    // matches what the studio actually renders; combined with the
-    // existing 2048² map that's ~0.002m per texel — clean edges.
-    dir.shadow.camera.left = -2;
-    dir.shadow.camera.right = 2;
-    dir.shadow.camera.top = 2;
-    dir.shadow.camera.bottom = -2;
-    dir.shadow.camera.near = 0.1;
-    dir.shadow.camera.far = 20;
-    // Bias nudges the shadow comparison slightly to avoid "shadow
-    // acne" (self-shadowing stripes). normalBias moves sample along
-    // surface normals to cover curvature mismatches on thin geometry.
-    dir.shadow.bias = -0.0005;
-    dir.shadow.normalBias = 0.02;
-    dir.shadow.camera.updateProjectionMatrix();
     this.scene.add(dir);
 
     // Grid + axes. Grid gets an explicit LOW renderOrder so it draws
