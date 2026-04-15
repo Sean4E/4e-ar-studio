@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>4E Fullscreen Isolation Test</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'Space Mono', ui-monospace, monospace; background: #060810; color: #e2e8f0; }
+  #app {
+    display: grid;
+    height: 100vh;
+    grid-template-rows: 42px 32px 1fr 120px;
+    grid-template-columns: 200px 1fr 240px;
+    grid-template-areas:
+      "toolbar    toolbar     toolbar"
+      "hierarchy  tabs        inspector"
+      "hierarchy  workspace   inspector"
+      "bottom     bottom      inspector";
+  }
+  #toolbar { grid-area: toolbar; background: #121826; border-bottom: 1px solid #1e2838; padding: 0 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #a78bfa; }
+  #tabs { grid-area: tabs; background: #121826; border-bottom: 1px solid #1e2838; display: flex; align-items: flex-end; padding: 0 8px; gap: 2px; }
+  .tab { padding: 5px 14px; border: none; background: transparent; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: inherit; }
+  .tab.active { color: #a78bfa; border-bottom-color: #8b5cf6; }
+  .tabs-spacer { flex: 1; }
+  .fs-btn { background: #1a2230; border: 1px solid #1e2838; color: #cbd5e1; padding: 3px 10px; border-radius: 5px; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; align-self: center; margin: 0 4px 4px 0; }
+  .fs-btn:hover { border-color: #8b5cf6; color: #a78bfa; }
+  .fs-btn.active { background: #2a1a4a; border-color: #8b5cf6; color: #a78bfa; }
+  #hierarchy { grid-area: hierarchy; background: #121826; border-right: 1px solid #1e2838; padding: 10px; font-size: 11px; color: #64748b; }
+  #inspector { grid-area: inspector; background: #121826; border-left: 1px solid #1e2838; padding: 10px; font-size: 11px; color: #64748b; }
+  #bottom { grid-area: bottom; background: #121826; border-top: 1px solid #1e2838; padding: 10px; font-size: 11px; color: #64748b; }
+  #workspace { grid-area: workspace; position: relative; background: #080c16; overflow: hidden; }
+  #spatial-container { position: absolute; inset: 0; }
+  iframe { width: 100%; height: 100%; border: none; background: #060810; display: block; }
+
+  /* Fullscreen override — mirrors studio's. */
+  body.studio-fullscreen #app {
+    grid-template-rows: 32px 1fr;
+    grid-template-columns: 1fr;
+    grid-template-areas: "tabs" "workspace";
+  }
+  body.studio-fullscreen #toolbar,
+  body.studio-fullscreen #hierarchy,
+  body.studio-fullscreen #inspector,
+  body.studio-fullscreen #bottom { display: none; }
+
+  /* Live diagnostics panel — pinned top-right of the iframe area. */
+  #live-diag {
+    position: absolute; top: 6px; right: 6px; z-index: 100;
+    background: rgba(10, 14, 26, 0.92); border: 1px solid #1e2838; border-radius: 4px;
+    padding: 6px 8px; font-size: 10px; line-height: 1.5; color: #94a3b8;
+    min-width: 260px; pointer-events: none;
+    font-family: ui-monospace, monospace;
+  }
+  #live-diag .k { color: #64748b; }
+  #live-diag .v { color: #cbd5e1; }
+  #live-diag .hi { color: #fbbf24; }
+  #live-diag .ok { color: #4ade80; }
+  #live-diag .bad { color: #f87171; }
+  #live-diag h4 { color: #a78bfa; font-size: 10px; margin-bottom: 4px; letter-spacing: 0.06em; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">4E Fullscreen Isolation Test · <span style="color:#64748b;font-weight:400">mirrors the studio Spatial-tab layout</span></div>
+  <div id="tabs">
+    <button class="tab active">Spatial</button>
+    <div class="tabs-spacer"></div>
+    <button class="fs-btn" id="fs-btn" onclick="toggleFS()">⛶</button>
+  </div>
+  <div id="hierarchy">Hierarchy<br><span style="opacity:.5">placeholder</span></div>
+  <div id="inspector">Inspector<br><span style="opacity:.5">placeholder</span></div>
+  <div id="bottom">Bottom panel<br><span style="opacity:.5">placeholder</span></div>
+  <div id="workspace">
+    <div id="spatial-container">
+      <iframe id="spatial-frame" src="../spatial/spatial-v7.html"></iframe>
+    </div>
+    <div id="live-diag"><h4>LIVE DIAGNOSTICS</h4><div id="diag-body">loading…</div></div>
+  </div>
+</div>
+
+<script>
+function toggleFS() {
+  const on = !document.body.classList.contains('studio-fullscreen');
+  document.body.classList.toggle('studio-fullscreen', on);
+  const btn = document.getElementById('fs-btn');
+  btn.textContent = on ? '⛶ Exit' : '⛶';
+  btn.classList.toggle('active', on);
+  console.log('[Test] fullscreen', on ? 'ON' : 'OFF');
+  const nudge = () => {
+    const ifr = document.getElementById('spatial-frame');
+    if (ifr && ifr.contentWindow) {
+      try { ifr.contentWindow.postMessage({ type: '4e-spatial-resize' }, '*'); } catch (_) {}
+      try { ifr.contentWindow.dispatchEvent(new Event('resize')); } catch (_) {}
+    }
+    window.dispatchEvent(new Event('resize'));
+  };
+  requestAnimationFrame(() => requestAnimationFrame(nudge));
+  setTimeout(nudge, 150);
+  setTimeout(nudge, 350);
+}
+
+// Live dimensions readout — samples every 200ms.
+function tick() {
+  const ifr = document.getElementById('spatial-frame');
+  const body = document.getElementById('diag-body');
+  if (!ifr) { body.textContent = 'no iframe'; return; }
+  const rect = ifr.getBoundingClientRect();
+  let cvsAttr = '—', cvsStyle = '—', iwin = '—', title = '—';
+  try {
+    if (ifr.contentDocument) {
+      const c = ifr.contentDocument.querySelector('canvas');
+      if (c) {
+        cvsAttr = c.width + 'x' + c.height;
+        cvsStyle = c.style.width + ' x ' + c.style.height;
+      }
+      title = ifr.contentDocument.title || '';
+    }
+    if (ifr.contentWindow) {
+      iwin = ifr.contentWindow.innerWidth + 'x' + ifr.contentWindow.innerHeight;
+    }
+  } catch (e) {}
+  const fs = document.body.classList.contains('studio-fullscreen');
+  const ifrSize = Math.round(rect.width) + 'x' + Math.round(rect.height);
+  const cvsCssSize = cvsStyle.replace(/px/g, '').split(' x ');
+  let canvasDiag = '<span class="v">' + cvsStyle + '</span>';
+  if (cvsCssSize.length === 2 && parseFloat(cvsCssSize[0]) && parseFloat(cvsCssSize[1])) {
+    const cw = parseFloat(cvsCssSize[0]);
+    const ch = parseFloat(cvsCssSize[1]);
+    const ok = Math.abs(cw - rect.width) < 8 && Math.abs(ch - rect.height) < 32;
+    canvasDiag = '<span class="' + (ok ? 'ok' : 'bad') + '">' + cvsStyle + (ok ? ' ✓' : ' ✗') + '</span>';
+  }
+  body.innerHTML = [
+    '<div><span class="k">fullscreen</span> <span class="' + (fs ? 'hi' : 'v') + '">' + fs + '</span></div>',
+    '<div><span class="k">iframe rect</span> <span class="v">' + ifrSize + '</span></div>',
+    '<div><span class="k">iframe clientWxH</span> <span class="v">' + ifr.clientWidth + 'x' + ifr.clientHeight + '</span></div>',
+    '<div><span class="k">iframeWin inner</span> <span class="v">' + iwin + '</span></div>',
+    '<div><span class="k">iframe title</span> <span class="v">' + title + '</span></div>',
+    '<div><span class="k">canvas attr</span> <span class="v">' + cvsAttr + '</span></div>',
+    '<div><span class="k">canvas style</span> ' + canvasDiag + '</div>',
+  ].join('');
+}
+setInterval(tick, 200);
+tick();
+</script>
+</body>
+</html>
