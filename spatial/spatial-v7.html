@@ -3,7 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>4E Spatial v6</title>
+<title>4E Spatial</title>
+<!-- Studio version sync: when iframed by the studio (same-origin) we
+     mirror its <meta name="version"> value into the header + browser
+     title so spatial + studio + player all report the same number.
+     Opened directly as a standalone file, falls back to "standalone".
+     Runs synchronously before the React app renders so the initial
+     paint already has the right version. -->
+<script>
+const STUDIO_VERSION = (() => {
+  try {
+    if (window.parent && window.parent !== window) {
+      const meta = window.parent.document.querySelector('meta[name="version"]');
+      if (meta && meta.content) return 'v' + meta.content;
+    }
+  } catch (_) { /* cross-origin or restricted — fall through */ }
+  return 'standalone';
+})();
+document.title = '4E Spatial · ' + STUDIO_VERSION;
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body,#root{width:100%;height:100%;overflow:hidden;background:#060810;}
@@ -4262,7 +4280,7 @@ function App() {
       fontFamily: mono,
       fontSize: 10
     }
-  }, "v6"), React.createElement("div", {
+  }, STUDIO_VERSION), React.createElement("div", {
     style: {
       width: 1,
       height: 14,
