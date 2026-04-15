@@ -1,6 +1,6 @@
 # 4E Studio Scene Diagnose,
-# Generated,2026-04-15T20:05:04.430Z
-# Studio version,3.12.10
+# Generated,2026-04-15T20:23:07.442Z
+# Studio version,3.12.11
 # Renderer autoClear,true
 # Renderer sortObjects,true
 # Renderer shadowMap,true
@@ -10,7 +10,7 @@
 # Project id,(unsaved)
 # Project name,Untitled
 # Tracking mode,image
-# Image targets,1
+# Image targets,2
 # Objects,1
 # Journeys,0
 ,
@@ -79,5 +79,6 @@ index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow
 56,START,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 57,END,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 58,(unnamed),TransformControlsPlane,,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.1,Double
-59,(unnamed),Mesh,,true,0,true,false,false,0.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
-60,LOD3spShape,Mesh,mo0haizh62xs5v,true,0,true,true,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+59,(unnamed),Mesh,,true,0,true,false,false,-1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+60,(unnamed),Mesh,,true,0,true,false,false,1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+61,LOD3spShape,Mesh,mo0hxryelc7cax,true,0,true,true,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
