@@ -1,6 +1,6 @@
 # 4E Studio Scene Diagnose,
-# Generated,2026-04-15T20:23:07.442Z
-# Studio version,3.12.11
+# Generated,2026-04-15T21:23:34.405Z
+# Studio version,3.12.13
 # Renderer autoClear,true
 # Renderer sortObjects,true
 # Renderer shadowMap,true
@@ -10,14 +10,22 @@
 # Project id,(unsaved)
 # Project name,Untitled
 # Tracking mode,image
-# Image targets,2
-# Objects,1
+# Image targets,0
+# Objects,0
 # Journeys,0
 ,
 # Spatial tab active,true
 # Spatial iframe,loaded
 # Spatial handshake,ready
 # Spatial iframe src,https://ar-studio-4e.web.app/spatial/spatial-v7.html
+# Spatial iframe clientW,1056
+# Spatial iframe clientH,439
+# Spatial iframe rect,1056x439
+# Spatial canvas attr,1262x717
+# Spatial canvas style,1010px x 574px
+# Spatial iframeWin inner,1056x439
+# Studio fullscreen,false
+# Viewport container rect,1056x439
 ,
 index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow,posX,posY,posZ,scaleX,scaleY,scaleZ,matType,colorWrite,depthWrite,depthTest,transparent,opacity,side
 0,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
@@ -79,6 +87,3 @@ index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow
 56,START,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 57,END,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 58,(unnamed),TransformControlsPlane,,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.1,Double
-59,(unnamed),Mesh,,true,0,true,false,false,-1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
-60,(unnamed),Mesh,,true,0,true,false,false,1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
-61,LOD3spShape,Mesh,mo0hxryelc7cax,true,0,true,true,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
