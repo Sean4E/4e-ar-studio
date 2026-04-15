@@ -93,16 +93,33 @@ Studio.Spatial = {
       // Objects suitable as travellers: anything with geometry
       // (primitives or GLBs), excluding `empty` containers that
       // would render invisibly.
+      // Resolve each model's best-available URL: the in-session blob
+      // (survives before publish) takes priority over the GitHub URL
+      // (only reliable after propagation). For unsaved files sitting
+      // only as prefab.file, create the blob URL on-demand so the
+      // iframe can fetch it same-origin.
       objects: (s.objects || [])
-        .filter(o => (o.type === 'primitive' && o.primitiveType !== 'empty') || o.glbUrl)
-        .map(o => ({
-          id: o.id,
-          name: o.name || '',
-          kind: o.type === 'primitive' ? 'primitive' : 'model',
-          primitiveType: o.primitiveType || null,
-          glbUrl: o.glbUrl || null,
-          color: o.primitiveColor || null,
-        })),
+        .filter(o => (o.type === 'primitive' && o.primitiveType !== 'empty') || o.glbUrl || o.prefabId)
+        .map(o => {
+          let bestUrl = o.glbUrl || null;
+          if (o.prefabId) {
+            const pf = (s.prefabs || []).find(p => p.id === o.prefabId);
+            if (pf) {
+              if (!pf._blobUrl && pf.file) {
+                try { pf._blobUrl = URL.createObjectURL(pf.file); } catch (_) {}
+              }
+              bestUrl = pf._blobUrl || pf.glbUrl || bestUrl;
+            }
+          }
+          return {
+            id: o.id,
+            name: o.name || '',
+            kind: o.type === 'primitive' ? 'primitive' : 'model',
+            primitiveType: o.primitiveType || null,
+            glbUrl: bestUrl,
+            color: o.primitiveColor || null,
+          };
+        }),
     };
   },
 

@@ -35,6 +35,9 @@ select option{background:#0a1020;color:#ccc;}
 <body>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- GLTFLoader (r128-compatible UMD build) — lets the editor render
+     project objects with real GLB meshes instead of the placeholder cube. -->
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
 <script>
@@ -1368,10 +1371,9 @@ function mkMesh(type, color, scale = 1) {
   return m;
 }
 
-// Placeholder for a scene object traveller (when path's legTvObject.source
-// points at a studio project object). We can't render the real GLB here
-// without a loader + URL wiring, so we show a distinct labeled wireframe
-// cube so the user can see WHICH project object is bound on this leg.
+// Placeholder wireframe cube — shown while a real GLB is loading, or
+// as a persistent hint when the object has no glbUrl (e.g. a project
+// primitive that the editor doesn't render inline yet).
 function mkProjectObjPlaceholder(name, color, scale = 1) {
   const g = new THREE.Group();
   const edgeMat = new THREE.LineBasicMaterial({
@@ -1395,6 +1397,70 @@ function mkProjectObjPlaceholder(name, color, scale = 1) {
     g.add(label);
   }
   g.scale.setScalar(scale);
+  return g;
+}
+
+// GLB cache — one fetch per URL per editor session; each traveller
+// gets a cloned copy so they don't share mutable state.
+const GLB_CACHE = new Map();
+function loadGLB(url) {
+  if (!url) return Promise.reject(new Error('no url'));
+  if (GLB_CACHE.has(url)) return GLB_CACHE.get(url);
+  const p = new Promise((resolve, reject) => {
+    if (!THREE.GLTFLoader) { reject(new Error('GLTFLoader not loaded')); return; }
+    const loader = new THREE.GLTFLoader();
+    loader.load(url, gltf => resolve(gltf.scene), undefined, err => reject(err));
+  });
+  GLB_CACHE.set(url, p);
+  return p;
+}
+
+// Normalises a loaded GLB scene so it renders as a small traveller:
+// centre it on the origin and scale so its longest axis is ~0.3m.
+function fitGLBToTraveller(obj3d, targetRadius = 0.18) {
+  const box = new THREE.Box3().setFromObject(obj3d);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const centre = new THREE.Vector3();
+  box.getCenter(centre);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const s = (targetRadius * 2) / maxDim;
+  obj3d.position.sub(centre.multiplyScalar(s));
+  obj3d.scale.setScalar(s);
+  return obj3d;
+}
+
+// Returns a Group that renders the project object:
+//   - A placeholder cube is added immediately so travellers aren't
+//     invisible while fetching.
+//   - If source.glbUrl resolves, the placeholder is replaced with the
+//     cloned + fitted GLB.
+//   - If loading fails (propagation lag, missing file) the placeholder
+//     stays and we log a console warning.
+function mkProjectObjMesh(source, color, scale = 1) {
+  const g = new THREE.Group();
+  const placeholder = mkProjectObjPlaceholder(source.name || '', color, 1);
+  g.add(placeholder);
+  g.scale.setScalar(scale);
+  const url = source.glbUrl;
+  if (url) {
+    loadGLB(url).then(sceneTpl => {
+      const clone = sceneTpl.clone(true);
+      fitGLBToTraveller(clone);
+      // Only swap if the group is still in the scene — switching paths
+      // mid-load removes the group, in which case we skip the swap.
+      if (g.parent) {
+        g.remove(placeholder);
+        placeholder.traverse(c => {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+        });
+        g.add(clone);
+      }
+    }).catch(err => {
+      console.warn('[Spatial] GLB load failed:', url, err && err.message || err);
+    });
+  }
   return g;
 }
 
@@ -3059,7 +3125,15 @@ function PathInspector({
           const obj = studioObjects.find(o => o.id === id);
           updLTV("legTvObject", {
             ...ltv.object,
-            source: { type: "project", objectId: id, name: obj ? obj.name : id }
+            source: {
+              type: "project",
+              objectId: id,
+              name: obj ? obj.name : id,
+              kind: obj ? obj.kind : null,
+              glbUrl: obj ? (obj.glbUrl || null) : null,
+              primitiveType: obj ? obj.primitiveType : null,
+              color: obj ? obj.color : null
+            }
           });
         } else {
           const { source, ...rest } = ltv.object;
@@ -3907,7 +3981,7 @@ function App() {
         } : ltv.object;
         const usingProject = obj.source && obj.source.type === "project";
         const m = usingProject
-          ? mkProjectObjPlaceholder(obj.source.name || "obj", obj.color || "#ffc400", obj.scale || 1)
+          ? mkProjectObjMesh(obj.source, obj.color || "#ffc400", obj.scale || 1)
           : mkMesh(obj.meshType, obj.color, obj.scale);
         m.userData.isTvMesh = true;
         tvContainer.add(m);
@@ -4299,29 +4373,35 @@ function App() {
       renderer.render(scene, camera);
     }
     tick();
-    const onResize = () => {
+    const onResize = (srcLabel) => {
       W = mount.clientWidth;
       H = mount.clientHeight;
       if (!W || !H) return;
       camera.aspect = W / H;
       camera.updateProjectionMatrix();
       renderer.setSize(W, H);
+      // Diagnostic — turn on by setting localStorage.setItem('4e-spatial-debug','1')
+      // in the iframe context; prints every resize with source + dimensions.
+      if (window.localStorage && window.localStorage.getItem('4e-spatial-debug')) {
+        console.log('[Spatial] onResize(' + (srcLabel || '?') + ')',
+          'mount=' + W + 'x' + H,
+          'iframeWin=' + window.innerWidth + 'x' + window.innerHeight,
+          'cvs=' + renderer.domElement.clientWidth + 'x' + renderer.domElement.clientHeight);
+      }
     };
-    window.addEventListener("resize", onResize);
-    // When embedded as an iframe, the host (studio) may toggle layout
-    // modes (fullscreen) that change our iframe size without firing a
-    // reliable cross-realm `resize` on us. Two backstops:
-    //   (a) ResizeObserver on the mount div — fires whenever our own
-    //       layout box changes, regardless of what the host dispatches.
-    //   (b) postMessage trigger — host posts {type:"4e-spatial-resize"}
-    //       after panel reflow and we force onResize.
+    window.addEventListener("resize", () => onResize('win'));
+    // Two backstops for iframe embedding (see milestone notes):
+    //   (a) ResizeObserver on the mount div — fires on any layout box
+    //       change, independent of cross-realm event dispatch.
+    //   (b) postMessage '4e-spatial-resize' — host posts this after
+    //       fullscreen toggle so we force onResize immediately.
     const ro = (typeof ResizeObserver !== 'undefined')
-      ? new ResizeObserver(() => onResize())
+      ? new ResizeObserver(() => onResize('RO'))
       : null;
     if (ro) ro.observe(mount);
     const msgHandler = (e) => {
       const d = e.data;
-      if (d && d.type === '4e-spatial-resize') onResize();
+      if (d && d.type === '4e-spatial-resize') onResize('msg');
     };
     window.addEventListener('message', msgHandler);
     return () => {

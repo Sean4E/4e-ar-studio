@@ -1086,8 +1086,41 @@ Studio.Viewport = {
       ['# Spatial iframe',     spatial._iframe ? 'loaded' : 'not loaded'],
       ['# Spatial handshake',  spatial._ready ? 'ready' : 'pending'],
       ['# Spatial iframe src', spatial._iframe?.src || ''],
-      ['', ''],
     ];
+    // Sample dimensions at the iframe boundary — we can compute these
+    // from the host alone (same-origin iframe). If the iframe element is
+    // sized correctly but the internal canvas is not, that points at
+    // the spatial editor's resize path; if the iframe element itself is
+    // oversized, the host grid layout is the culprit.
+    if (spatial._iframe) {
+      try {
+        const ifr = spatial._iframe;
+        const ifrRect = ifr.getBoundingClientRect();
+        meta.push(['# Spatial iframe clientW',  ifr.clientWidth]);
+        meta.push(['# Spatial iframe clientH',  ifr.clientHeight]);
+        meta.push(['# Spatial iframe rect',     Math.round(ifrRect.width) + 'x' + Math.round(ifrRect.height)]);
+        if (ifr.contentDocument) {
+          const cvs = ifr.contentDocument.querySelector('canvas');
+          if (cvs) {
+            meta.push(['# Spatial canvas attr',  cvs.width + 'x' + cvs.height]);
+            meta.push(['# Spatial canvas style', cvs.style.width + ' x ' + cvs.style.height]);
+          }
+        }
+        if (ifr.contentWindow) {
+          meta.push(['# Spatial iframeWin inner', ifr.contentWindow.innerWidth + 'x' + ifr.contentWindow.innerHeight]);
+        }
+      } catch (e) {
+        meta.push(['# Spatial iframe inspect', 'failed: ' + e.message]);
+      }
+    }
+    meta.push(['# Studio fullscreen', document.body.classList.contains('studio-fullscreen')]);
+    meta.push(['# Viewport container rect', (function () {
+      const wc = document.querySelector('.ws-content[data-tab="spatial"]');
+      if (!wc) return 'n/a';
+      const r = wc.getBoundingClientRect();
+      return Math.round(r.width) + 'x' + Math.round(r.height);
+    })()]);
+    meta.push(['', '']);
     const header = [
       'index','name','type','objId','visible','renderOrder','frustumCulled',
       'castShadow','receiveShadow',
