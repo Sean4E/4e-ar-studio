@@ -48,10 +48,28 @@ Studio.Preview = {
    * Refresh the preview iframe with the current project.
    * Points to ../player-v2.html?id=PROJECT_ID
    * If no project id exists yet, shows a placeholder.
+   *
+   * Auto-saves first if the project has unsaved changes — otherwise
+   * the iframe loads the stale Firestore copy and every "I just
+   * added contents to the hider but the preview still shows the
+   * old scene" confusion happens.
    */
-  refresh() {
+  async refresh() {
     const container = document.getElementById('preview-container');
     if (!container) return;
+
+    // If there are unsaved edits, persist them before the iframe
+    // pulls fresh project data from Firestore. Silently no-ops when
+    // clean. Failure doesn't block refresh — the user will still
+    // see the previously-saved state at worst.
+    if (Studio.Project?.state?.dirty && Studio.saveProject) {
+      try {
+        Studio.log('[Preview] saving before refresh so latest edits land in iframe');
+        await Studio.saveProject();
+      } catch (e) {
+        Studio.log('[Preview] auto-save before refresh failed: ' + (e?.message || e));
+      }
+    }
 
     const projectId = Studio.Project.state.id;
     if (!projectId) {

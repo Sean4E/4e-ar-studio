@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.11.4">
+<meta name="version" content="3.11.5">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -295,16 +295,36 @@ function diagnosePreview() {
   ];
   const header = [
     'index','name','type','uuid','visible','renderOrder','frustumCulled',
-    'castShadow','receiveShadow','parentName','parentType',
+    'castShadow','receiveShadow','depth','parentChain','parentElTag','parentElId','parentElClass',
     'posX','posY','posZ','scaleX','scaleY','scaleZ',
     'matType','colorWrite','depthWrite','depthTest','transparent','opacity','side'
   ];
   const rows = [];
   let i = 0;
+  // Walk the full Object3D chain up to the scene root and also find
+  // the nearest ancestor that has a backing A-Frame element (.el).
+  // This lets us verify DOM nesting: a hider's child should show up
+  // with `parentElId = ent-<hider-index>` — i.e. its A-Frame ancestor
+  // is the hider's entity, not the scene root.
+  function chainOf(obj) {
+    const parts = [];
+    let cur = obj.parent;
+    let depth = 0;
+    let firstEl = null;
+    while (cur && depth < 12) {
+      parts.push(cur.type + (cur.name ? ':' + cur.name : ''));
+      if (!firstEl && cur.el) firstEl = cur.el;
+      cur = cur.parent;
+      depth++;
+    }
+    return { chain: parts.join(' > '), depth, el: firstEl };
+  }
+
   threeScene.traverse(o => {
     if (!o.isMesh) return;
     const m = o.material || {};
     const p = o.position, s = o.scale;
+    const ch = chainOf(o);
     rows.push([
       i++,
       o.name || '(unnamed)',
@@ -315,8 +335,11 @@ function diagnosePreview() {
       o.frustumCulled,
       o.castShadow,
       o.receiveShadow,
-      o.parent?.name || '(root)',
-      o.parent?.type || '',
+      ch.depth,
+      ch.chain,
+      ch.el?.tagName?.toLowerCase() || '',
+      ch.el?.id || '',
+      ch.el?.className || '',
       p.x.toFixed(3), p.y.toFixed(3), p.z.toFixed(3),
       s.x.toFixed(3), s.y.toFixed(3), s.z.toFixed(3),
       m.type || '',
