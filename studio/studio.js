@@ -60,7 +60,13 @@ Studio.toggleFullscreen = function() {
   const nudge = () => {
     if (Studio.Viewport && Studio.Viewport._resize) Studio.Viewport._resize();
     if (Studio.Spatial && Studio.Spatial._iframe) {
-      try { Studio.Spatial._iframe.contentWindow.dispatchEvent(new Event('resize')); } catch (_) {}
+      const cw = Studio.Spatial._iframe.contentWindow;
+      // Two paths because cross-realm dispatchEvent can silently fail
+      // in some browsers: (a) post a message the iframe knows to treat
+      // as a resize trigger, and (b) still try a plain resize dispatch
+      // as a fallback for any future change.
+      try { cw.postMessage({ type: '4e-spatial-resize' }, '*'); } catch (_) {}
+      try { cw.dispatchEvent(new Event('resize')); } catch (_) {}
     }
     window.dispatchEvent(new Event('resize'));
   };

@@ -4302,11 +4302,28 @@ function App() {
     const onResize = () => {
       W = mount.clientWidth;
       H = mount.clientHeight;
+      if (!W || !H) return;
       camera.aspect = W / H;
       camera.updateProjectionMatrix();
       renderer.setSize(W, H);
     };
     window.addEventListener("resize", onResize);
+    // When embedded as an iframe, the host (studio) may toggle layout
+    // modes (fullscreen) that change our iframe size without firing a
+    // reliable cross-realm `resize` on us. Two backstops:
+    //   (a) ResizeObserver on the mount div — fires whenever our own
+    //       layout box changes, regardless of what the host dispatches.
+    //   (b) postMessage trigger — host posts {type:"4e-spatial-resize"}
+    //       after panel reflow and we force onResize.
+    const ro = (typeof ResizeObserver !== 'undefined')
+      ? new ResizeObserver(() => onResize())
+      : null;
+    if (ro) ro.observe(mount);
+    const msgHandler = (e) => {
+      const d = e.data;
+      if (d && d.type === '4e-spatial-resize') onResize();
+    };
+    window.addEventListener('message', msgHandler);
     return () => {
       cancelAnimationFrame(raf);
       if (psRef.current) {
@@ -4320,6 +4337,8 @@ function App() {
       window.removeEventListener("keydown", onKD);
       window.removeEventListener("keyup", onKU);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("message", msgHandler);
+      if (ro) ro.disconnect();
 
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
       renderer.dispose();
