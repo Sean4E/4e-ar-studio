@@ -516,6 +516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.Splash.init();
   Studio.PWA.init();
   Studio.Preview.init();
+  Studio.Spatial.init();
 
   // Single source of truth: <meta name="version"> in index.html.
   // Hardcoding it here caused a real-world bug where the toolbar kept

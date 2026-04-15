@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio</title>
-<meta name="version" content="3.12.2">
+<meta name="version" content="3.12.3">
 
 <!-- Tell every cache layer (browser, VSCode Live Server, any proxy) that
      this document must be revalidated on every load. Firebase Hosting
@@ -114,6 +114,7 @@
     <button class="ws-tab" data-tab="code" onclick="Studio.switchTab('code')">Code</button>
     <button class="ws-tab" data-tab="splash" onclick="Studio.switchTab('splash')">Splash</button>
     <button class="ws-tab" data-tab="preview" onclick="Studio.switchTab('preview')">Preview</button>
+    <button class="ws-tab" data-tab="spatial" onclick="Studio.switchTab('spatial')">Spatial</button>
   </div>
 
   <!-- ─── HIERARCHY (left panel) ─────────────────────── -->
@@ -147,6 +148,10 @@
     <!-- Preview tab -->
     <div class="ws-content" data-tab="preview">
       <div id="preview-container"></div>
+    </div>
+    <!-- Spatial tab — iframes spatial-v7.html lazily on first open -->
+    <div class="ws-content" data-tab="spatial">
+      <div id="spatial-container" style="width:100%;height:100%;position:relative"></div>
     </div>
   </div>
 
@@ -246,6 +251,7 @@
 <script src="modules/pwa.js"></script>
 <script src="modules/thumbnails.js"></script>
 <script src="modules/preview.js"></script>
+<script src="modules/spatial.js"></script>
 <script src="studio.js"></script>
 
 </body>
