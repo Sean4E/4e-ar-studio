@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.11.5">
+<meta name="version" content="3.11.6">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -790,8 +790,21 @@ if (typeof AFRAME !== 'undefined') {
       // Default side is FrontSide (classic occluder). Matches the schema
       // default and the studio's applyMaterial path.
       mat.side = sideMap[this.data.side] != null ? sideMap[this.data.side] : THREE.FrontSide;
+      // Only apply to meshes that BELONG to THIS entity — not to
+      // meshes under child <a-entity> descendants. Critical now that
+      // hiders can contain user content via DOM nesting; without this
+      // check we'd overwrite each child's material when _apply ran.
+      const ownEl = this.el;
       root.traverse(node => {
         if (!node.isMesh) return;
+        // Walk up from the mesh looking for the first A-Frame element
+        // we encounter. If it's a different element than ours, this
+        // mesh belongs to a nested child entity — leave it alone.
+        let walker = node.parent;
+        while (walker && walker !== root) {
+          if (walker.el && walker.el !== ownEl) return;
+          walker = walker.parent;
+        }
         if (this.data.invertNormals && !this._flipped.has(node) && node.geometry && node.geometry.index) {
           const idx = node.geometry.index.array;
           for (let i = 0; i < idx.length; i += 3) {
@@ -802,15 +815,16 @@ if (typeof AFRAME !== 'undefined') {
           this._flipped.add(node);
         }
         node.material = mat;
-        // Render order: the hider must draw BEFORE other user content
-        // so its depth is in the buffer when they try to draw and can
-        // be culled where behind it. Three.js's default opaque sort
-        // uses material.id as a tiebreaker, and since we build this
-        // material fresh it always has the highest id — meaning it
-        // would otherwise render LAST in the opaque pass, by which
-        // point surrounding user meshes have already painted colour.
-        // Explicit negative renderOrder forces it before content that
-        // hasn't set its own renderOrder.
+        // Render BEFORE children. When xrweb disables sortObjects the
+        // render list equals the scene-graph traversal order, and
+        // A-Frame ends up inserting the hider's own mesh AFTER its
+        // child entity groups in the parent Object3D's children array
+        // (DOM children are attached before the geometry component
+        // finishes wiring the mesh). Without this, the hider writes
+        // depth LAST — by which point its children have already
+        // painted colour into the framebuffer and occlusion is lost.
+        // renderOrder < 0 forces the hider's mesh first regardless of
+        // its position in the children array.
         node.renderOrder = -5;
         // An invisible hider still casts a shadow by default because
         // the shadow pass uses depth, not colour. Disable it so we
@@ -826,6 +840,45 @@ if (typeof AFRAME !== 'undefined') {
     remove() {
       this.el.removeEventListener('model-loaded', this._apply);
       this.el.removeEventListener('object3dset', this._apply);
+    },
+  });
+
+  // ─── hider-order-fix ────────────────────────────────────
+  // Sidecar component emitted alongside a hider entity to force its
+  // own mesh(es) to render BEFORE any child content in the scene
+  // graph. Works regardless of whether the hider uses our custom
+  // ar-hider-material or 8th Wall's stock xrextras-hider-material —
+  // both have the same problem with DOM-nested children when xrweb
+  // disables renderer.sortObjects. Also switches off cast/receive
+  // shadow on the hider so an "invisible" occluder doesn't throw a
+  // dark silhouette on the ground.
+  AFRAME.registerComponent('hider-order-fix', {
+    init() {
+      this._apply = this._apply.bind(this);
+      this._apply();
+      this.el.addEventListener('object3dset', this._apply);
+      this.el.addEventListener('model-loaded', this._apply);
+    },
+    _apply() {
+      const root = this.el.object3D;
+      if (!root) return;
+      const ownEl = this.el;
+      root.traverse(node => {
+        if (!node.isMesh) return;
+        // Skip meshes belonging to child entities (nested content).
+        let walker = node.parent;
+        while (walker && walker !== root) {
+          if (walker.el && walker.el !== ownEl) return;
+          walker = walker.parent;
+        }
+        node.renderOrder = -5;
+        node.castShadow = false;
+        node.receiveShadow = false;
+      });
+    },
+    remove() {
+      this.el.removeEventListener('object3dset', this._apply);
+      this.el.removeEventListener('model-loaded', this._apply);
     },
   });
 
@@ -1675,10 +1728,16 @@ function buildEntity(obj, i, childHtml = '', parentObj = null) {
       const impl = (APP && APP.hiderImpl) || 'custom';
       if (impl === 'stock') {
         // Stock 8th Wall xrextras hider has no config — just emit.
-        attrs += ` xrextras-hider-material`;
+        // Always pair with hider-order-fix so our DOM-nested
+        // children still get occluded (xrextras alone doesn't
+        // override renderOrder, and with xrweb's sortObjects=false
+        // the hider would otherwise render AFTER its children).
+        attrs += ` xrextras-hider-material hider-order-fix`;
         return;
       }
       // Custom path (default) — forward side + invertNormals.
+      // Our ar-hider-material already sets renderOrder, castShadow,
+      // etc. so no hider-order-fix needed.
       const cfg = (config && typeof config === 'object') ? config : {};
       const side = cfg.side || 'front';
       const invert = !!cfg.invertNormals;
