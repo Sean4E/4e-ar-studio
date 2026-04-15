@@ -1162,8 +1162,8 @@ const C = {
   purple: "#b388ff",
   red: "#ff6b6b",
   orange: "#ff9d7d",
-  dim: "rgba(255,255,255,0.22)",
-  dimmer: "rgba(255,255,255,0.12)"
+  dim: "rgba(255,255,255,0.65)",
+  dimmer: "rgba(255,255,255,0.78)"
 };
 const mono = "'JetBrains Mono','Fira Code',monospace";
 function neatPos(n) {
@@ -1349,6 +1349,44 @@ function mkMesh(type, color, scale = 1) {
   m.scale.setScalar(scale);
   return m;
 }
+
+function makeLabelSprite(text) {
+  const W = 320, H = 56;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  // pill bg
+  ctx.beginPath();
+  const r = 5, x = 1, y = 4, w = W-2, h = H-8;
+  ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y); ctx.closePath();
+  ctx.fillStyle = 'rgba(0,10,18,0.88)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,229,255,0.32)'; ctx.lineWidth = 1.5; ctx.stroke();
+  // text
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = "bold 17px 'JetBrains Mono', 'Courier New', monospace";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, W/2, H/2+2);
+  // stem
+  ctx.strokeStyle = 'rgba(0,229,255,0.22)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W/2, H-4); ctx.lineTo(W/2, H+4); ctx.stroke();
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false});
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2.1, 0.37, 1);
+  sprite.position.set(0, 1.18, 0);
+  sprite.userData.isLabel = true;
+  return sprite;
+}
+function updateLabelSprite(sprite, text) {
+  const old = sprite.material.map;
+  sprite.material.map = makeLabelSprite(text).material.map;
+  sprite.material.needsUpdate = true;
+  old.dispose();
+}
 function buildEdgeCfg(gj) {
   return {
     shape: gj.shape,
@@ -1376,7 +1414,7 @@ const Btn = ({
   style: {
     background: active ? `${col}18` : "rgba(255,255,255,0.04)",
     border: `1px solid ${active ? col + "55" : "rgba(255,255,255,0.09)"}`,
-    color: active ? col : "rgba(255,255,255,0.22)",
+    color: active ? col : "rgba(255,255,255,0.65)",
     padding: small ? "2px 6px" : "4px 9px",
     borderRadius: 4,
     fontSize: small ? 10 : 11,
@@ -1397,7 +1435,7 @@ const IBtn = ({
   style: {
     background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.08)",
-    color: col || "rgba(255,255,255,0.22)",
+    color: col || "rgba(255,255,255,0.65)",
     padding: small ? "2px 5px" : "3px 6px",
     borderRadius: 4,
     fontSize: small ? 10 : 11,
@@ -1414,7 +1452,7 @@ const SecL = ({
   style: {
     display: "flex",
     alignItems: "center",
-    color: col || "rgba(255,255,255,0.18)",
+    color: col || "rgba(255,255,255,0.55)",
     fontSize: 9,
     fontFamily: mono,
     textTransform: "uppercase",
@@ -1440,7 +1478,7 @@ const FR = ({
   }
 }, React.createElement("span", {
   style: {
-    color: "rgba(255,255,255,0.12)",
+    color: "rgba(255,255,255,0.78)",
     fontSize: 10,
     fontFamily: mono,
     width: 56,
@@ -1480,12 +1518,12 @@ const Tog = ({
     width: 8,
     height: 8,
     borderRadius: "50%",
-    background: value ? "#fff" : "rgba(255,255,255,0.22)",
+    background: value ? "#fff" : "rgba(255,255,255,0.35)",
     transition: "left .2s"
   }
 })), React.createElement("span", {
   style: {
-    color: "rgba(255,255,255,0.22)",
+    color: "rgba(255,255,255,0.65)",
     fontSize: 11,
     fontFamily: mono
   }
@@ -1542,7 +1580,7 @@ const Cpk = ({
   }
 }), React.createElement("span", {
   style: {
-    color: "rgba(255,255,255,0.22)",
+    color: "rgba(255,255,255,0.65)",
     fontSize: 10,
     fontFamily: mono
   }
@@ -1703,7 +1741,7 @@ function NodeGraph({
       x: sx,
       y: sy - r - 4,
       textAnchor: "middle",
-      fill: "rgba(255,255,255,0.5)",
+      fill: "rgba(255,255,255,0.80)",
       fontSize: 7,
       fontFamily: mono
     }, a.name.replace("Anchor ", "A")));
@@ -1881,7 +1919,7 @@ function Timeline({
     style: {
       fontFamily: mono,
       fontSize: 10,
-      color: "rgba(255,255,255,0.35)",
+      color: "rgba(255,255,255,0.72)",
       minWidth: 68,
       textAlign: "right",
       lineHeight: 1.5
@@ -1944,7 +1982,7 @@ function ParticleEditor({
   }, CATS.map(c => React.createElement(Btn, {
     key: c,
     active: cat === c,
-    col: "rgba(255,255,255,0.3)",
+    col: "rgba(255,255,255,0.70)",
     small: true,
     onClick: () => setCat(c)
   }, c))), React.createElement("div", {
@@ -1992,7 +2030,7 @@ function ParticleEditor({
     }
   }, pr.name)), React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 8,
       fontFamily: mono,
       overflow: "hidden",
@@ -2200,7 +2238,7 @@ function ParticleEditor({
     }
   }, React.createElement("span", {
     style: {
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       fontSize: 10,
       fontFamily: mono,
       width: 56
@@ -2329,7 +2367,7 @@ function GlobalJourneyEditor({
     }
   }), React.createElement("div", {
     style: {
-      color: gj.presetId === jp.id ? jp.col : "rgba(255,255,255,0.5)",
+      color: gj.presetId === jp.id ? jp.col : "rgba(255,255,255,0.80)",
       fontSize: 8,
       fontFamily: mono,
       overflow: "hidden",
@@ -2369,7 +2407,7 @@ function GlobalJourneyEditor({
     }
   }, gj.presetName), React.createElement("div", {
     style: {
-      color: gj.modified ? "rgba(255,157,125,0.8)" : "rgba(255,255,255,0.22)",
+      color: gj.modified ? "rgba(255,157,125,0.8)" : "rgba(255,255,255,0.65)",
       fontSize: 9,
       fontFamily: mono
     }
@@ -2379,14 +2417,14 @@ function GlobalJourneyEditor({
     onClick: () => onApplyJP(JP.find(j => j.id === gj.presetId)),
     title: "Reset to preset defaults"
   }, "\u21BA")), React.createElement(SecL, {
-    col: "rgba(255,255,255,0.25)"
+    col: "rgba(255,255,255,0.65)"
   }, "Path"), React.createElement("div", {
     style: {
       marginBottom: 7
     }
   }, React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 4
@@ -2410,7 +2448,7 @@ function GlobalJourneyEditor({
     }
   }, React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 4
@@ -2442,7 +2480,7 @@ function GlobalJourneyEditor({
     }
   }, React.createElement("span", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 9,
       fontFamily: mono
     }
@@ -2481,7 +2519,7 @@ function GlobalJourneyEditor({
       flex: 1,
       background: multActive(m) ? "rgba(255,196,0,0.15)" : "rgba(255,255,255,0.04)",
       border: `1px solid ${multActive(m) ? "rgba(255,196,0,0.4)" : "rgba(255,255,255,0.08)"}`,
-      color: multActive(m) ? C.amber : "rgba(255,255,255,0.3)",
+      color: multActive(m) ? C.amber : "rgba(255,255,255,0.70)",
       padding: "3px 0",
       borderRadius: 4,
       fontSize: 9,
@@ -2489,7 +2527,7 @@ function GlobalJourneyEditor({
       fontFamily: mono
     }
   }, "\xD7", m)))), React.createElement(SecL, {
-    col: "rgba(255,255,255,0.25)"
+    col: "rgba(255,255,255,0.65)"
   }, "Traveller"), React.createElement("div", {
     style: {
       display: "flex",
@@ -2498,7 +2536,7 @@ function GlobalJourneyEditor({
     }
   }, ["inherit", "object", "particles"].map(t => {
     const tCols = {
-      inherit: "rgba(255,255,255,0.22)",
+      inherit: "rgba(255,255,255,0.65)",
       object: C.amber,
       particles: C.cyan
     };
@@ -2512,7 +2550,7 @@ function GlobalJourneyEditor({
     }, t);
   })), gj.tvType === "particles" && React.createElement("div", null, React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 6
@@ -2556,7 +2594,7 @@ function GlobalJourneyEditor({
     }
   }), React.createElement("span", {
     style: {
-      color: gj.particlePreset === k ? pr.col : "rgba(255,255,255,0.5)",
+      color: gj.particlePreset === k ? pr.col : "rgba(255,255,255,0.80)",
       fontSize: 8,
       fontFamily: mono,
       overflow: "hidden",
@@ -2569,7 +2607,7 @@ function GlobalJourneyEditor({
       width: "100%",
       background: "rgba(255,255,255,0.04)",
       border: "1px solid rgba(255,255,255,0.08)",
-      color: showPTune ? C.cyan : "rgba(255,255,255,0.35)",
+      color: showPTune ? C.cyan : "rgba(255,255,255,0.72)",
       padding: "6px 10px",
       borderRadius: 5,
       cursor: "pointer",
@@ -2694,7 +2732,7 @@ function GlobalJourneyEditor({
       borderRadius: 8,
       padding: "14px 12px",
       textAlign: "center",
-      color: "rgba(255,255,255,0.2)",
+      color: "rgba(255,255,255,0.60)",
       fontSize: 11,
       fontFamily: mono,
       lineHeight: 1.8
@@ -2727,7 +2765,7 @@ function PathInspector({
     [k]: v
   });
   const tvCols = {
-    inherit: "rgba(255,255,255,0.2)",
+    inherit: "rgba(255,255,255,0.60)",
     object: C.amber,
     particles: C.cyan
   };
@@ -2763,7 +2801,7 @@ function PathInspector({
   }), React.createElement("span", {
     style: {
       flex: 1,
-      color: isCustom ? C.orange : "rgba(255,255,255,0.3)",
+      color: isCustom ? C.orange : "rgba(255,255,255,0.70)",
       fontSize: 10,
       fontFamily: mono
     }
@@ -2774,7 +2812,7 @@ function PathInspector({
     title: "Reset this edge to global settings"
   }, "\u21BA global"), !isCustom && React.createElement("span", {
     style: {
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       fontSize: 9,
       fontFamily: mono
     }
@@ -2826,7 +2864,7 @@ function PathInspector({
     }
   }, "\xB7 ", ltv.type) : "")), tab === "path" && React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 4
@@ -2846,7 +2884,7 @@ function PathInspector({
     onClick: () => upd("shape")(s)
   }, s))), React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 4
@@ -2910,7 +2948,7 @@ function PathInspector({
     style: {
       fontSize: 10,
       fontFamily: mono,
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       lineHeight: 2
     }
   }, React.createElement("div", null, "t ", React.createElement("span", {
@@ -2947,7 +2985,7 @@ function PathInspector({
       border: "1px solid rgba(255,255,255,0.05)",
       borderRadius: 5,
       padding: "8px",
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 10,
       fontFamily: mono
     }
@@ -3052,7 +3090,7 @@ function AnchorInspector({
     }
   }, React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 4,
@@ -3071,7 +3109,7 @@ function AnchorInspector({
     }
   }, React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       fontSize: 9,
       fontFamily: mono,
       marginBottom: 2
@@ -3084,7 +3122,7 @@ function AnchorInspector({
     }
   }, anchor.pos[ax].toFixed(2))))), React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       fontSize: 9,
       fontFamily: mono,
       marginTop: 4,
@@ -3484,6 +3522,8 @@ function App() {
           }));
           hitMesh.userData.anchorId = a.id;
           g.add(hitMesh);
+          const labelSprite = makeLabelSprite(a.name);
+          g.add(labelSprite);
           scene.add(g);
           anchorMeshMap.set(a.id, {
             group: g,
@@ -3492,11 +3532,19 @@ function App() {
             selRing,
             selRingMat,
             hitMesh,
+            labelSprite,
             lastState: ""
           });
-        } else anchorMeshMap.get(a.id).group.position.set(a.pos.x, a.pos.y, a.pos.z);
+        } else {
+          const existing = anchorMeshMap.get(a.id);
+          existing.group.position.set(a.pos.x, a.pos.y, a.pos.z);
+          // Update label sprite if name changed
+          if (existing.labelSprite && existing.lastLabelName !== a.name) {
+            updateLabelSprite(existing.labelSprite, a.name);
+            existing.lastLabelName = a.name;
+          }
+        }
       });
-      refreshLabels(anchors);
     }
     function rebuildPath(edge, cfg, time, isSel, isHov, isCust) {
       if (pathMeshMap.has(edge.key)) {
@@ -3615,18 +3663,7 @@ function App() {
       hlGroup.add(fd);
       hlGroup.userData.curve = curve;
     }
-    function refreshLabels(anchors) {
-      labelElsRef.current.forEach(el => el.remove());
-      labelElsRef.current = [];
-      anchors.forEach(a => {
-        const el = document.createElement("div");
-        el.style.cssText = "position:absolute;pointer-events:none;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%)";
-        el.dataset.anchorId = a.id;
-        el.innerHTML = `<div style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.28);color:#00e5ff;padding:3px 10px;border-radius:4px;font:11px 'JetBrains Mono',monospace;white-space:nowrap">${a.name}</div><div style="width:1px;height:9px;background:rgba(0,229,255,0.25)"></div>`;
-        overlay.appendChild(el);
-        labelElsRef.current.push(el);
-      });
-    }
+
     function rebuildTvMesh() {
       const {
         globalTv
@@ -3783,7 +3820,7 @@ function App() {
         dy = e.clientY - cam.ly;
       if (cam.mode === "orbit") {
         cam.theta -= dx * .013;
-        cam.phi = Math.max(.06, Math.min(1.28, cam.phi - dy * .006));
+        cam.phi = Math.max(.06, Math.min(1.28, cam.phi + dy * .006));
       } else {
         cam.flYaw -= dx * .004;
         cam.flPitch = Math.max(-1.2, Math.min(1.2, cam.flPitch - dy * .004));
@@ -4053,27 +4090,7 @@ function App() {
           obj.lastState = ts;
         }
       }
-      const rect = mount.getBoundingClientRect();
-      labelElsRef.current.forEach(el => {
-        const id = el.dataset.anchorId,
-          obj = anchorMeshMap.get(id);
-        if (!obj) return;
-        const wp = obj.group.position.clone().add(new THREE.Vector3(0, 1.1, 0));
-        wp.project(camera);
-        if (wp.z < 1) {
-          // Integer pixels + GPU-composited transform instead of left/top.
-          // Fractional CSS coords combined with OrbitControls damping's tiny
-          // continuous updates were causing sub-pixel jitter on label text
-          // and borders as the camera rotated. translate3d promotes the
-          // overlay to its own compositor layer so the browser doesn't
-          // re-layout or re-rasterize the label content each frame —
-          // just recomposes the already-rasterized layer at a new offset.
-          const x = Math.round((wp.x * .5 + .5) * rect.width);
-          const y = Math.round((-wp.y * .5 + .5) * rect.height);
-          el.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -100%)`;
-          el.style.display = "flex";
-        } else el.style.display = "none";
-      });
+
       renderer.render(scene, camera);
     }
     tick();
@@ -4098,7 +4115,7 @@ function App() {
       window.removeEventListener("keydown", onKD);
       window.removeEventListener("keyup", onKU);
       window.removeEventListener("resize", onResize);
-      labelElsRef.current.forEach(el => el.remove());
+
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
       renderer.dispose();
     };
@@ -4241,7 +4258,7 @@ function App() {
     }
   }, "4E SPATIAL"), React.createElement("span", {
     style: {
-      color: "rgba(255,255,255,0.12)",
+      color: "rgba(255,255,255,0.78)",
       fontFamily: mono,
       fontSize: 10
     }
@@ -4284,7 +4301,7 @@ function App() {
     }
   }), React.createElement("span", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontFamily: mono,
       fontSize: 10
     }
@@ -4340,7 +4357,7 @@ function App() {
       style: {
         background: connectMode ? "rgba(255,196,0,0.15)" : "rgba(255,255,255,0.05)",
         border: `1px solid ${connectMode ? "rgba(255,196,0,0.45)" : "rgba(255,255,255,0.1)"}`,
-        color: connectMode ? C.amber : "rgba(255,255,255,0.18)",
+        color: connectMode ? C.amber : "rgba(255,255,255,0.55)",
         padding: "2px 7px",
         borderRadius: 4,
         fontSize: 9,
@@ -4414,7 +4431,7 @@ function App() {
       }
     }, React.createElement("span", {
       style: {
-        color: "rgba(255,255,255,0.18)",
+        color: "rgba(255,255,255,0.55)",
         fontSize: 9,
         fontFamily: mono,
         width: 12
@@ -4425,12 +4442,12 @@ function App() {
         height: 5,
         borderRadius: "50%",
         flexShrink: 0,
-        background: a != null && (_a$it = a.it) != null && _a$it.assigned ? C.green : isSelA ? C.cyan : "rgba(255,255,255,0.18)"
+        background: a != null && (_a$it = a.it) != null && _a$it.assigned ? C.green : isSelA ? C.cyan : "rgba(255,255,255,0.55)"
       }
     }), React.createElement("span", {
       style: {
         flex: 1,
-        color: isSelA ? "rgba(255,255,255,.85)" : "rgba(255,255,255,0.22)",
+        color: isSelA ? "rgba(255,255,255,.85)" : "rgba(255,255,255,0.65)",
         fontSize: 11,
         fontFamily: mono,
         overflow: "hidden",
@@ -4485,7 +4502,7 @@ function App() {
       }
     }), React.createElement("span", {
       style: {
-        color: isSelP ? C.amber : isCust ? C.orange : "rgba(255,255,255,0.18)",
+        color: isSelP ? C.amber : isCust ? C.orange : "rgba(255,255,255,0.55)",
         fontSize: 10,
         fontFamily: mono,
         flex: 1
@@ -4499,7 +4516,7 @@ function App() {
     }, "\u2605")));
   }), journey.length === 0 && React.createElement("div", {
     style: {
-      color: "rgba(255,255,255,0.18)",
+      color: "rgba(255,255,255,0.55)",
       fontSize: 10,
       fontFamily: mono,
       fontStyle: "italic",
@@ -4517,7 +4534,7 @@ function App() {
       width: "100%",
       background: "rgba(255,255,255,0.05)",
       border: "1px solid rgba(255,255,255,0.1)",
-      color: "rgba(255,255,255,0.45)",
+      color: "rgba(255,255,255,0.78)",
       padding: "4px 7px",
       borderRadius: 4,
       fontSize: 11,
