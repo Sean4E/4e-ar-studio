@@ -79,6 +79,15 @@ Studio.Inspector = {
       content.appendChild(this._buildComponentCategory(catKey, comps, obj));
     });
 
+    // Hider Contents — if this object is a hider, give the user a
+    // direct picker for "what's inside me" instead of making them hop
+    // into each child's inspector to set parentId. Matches the way
+    // you'd think about it: "this cube is my occluder, put these
+    // objects inside it."
+    if (obj.xrComponents?.['xrextras-hider-material']) {
+      content.appendChild(this._buildHiderContentsSection(obj));
+    }
+
     // Scene Settings
     content.appendChild(this._buildSceneSection());
 
@@ -542,6 +551,72 @@ Studio.Inspector = {
     obj.parentId = parentId || null;
     Studio.Project.markDirty();
     Studio.EventBus.emit('object:parented', { id: obj.id, parentId: obj.parentId });
+  },
+
+  // ─── Hider Contents Picker ─────────────────────────────
+  // When the selected object is a hider, show a list of which
+  // objects are currently occluded by it and a "+ Add" dropdown
+  // for the rest. Manipulates the children's parentId to nest them
+  // under the hider on publish. Much more discoverable than asking
+  // the user to select each child and dig through its inspector.
+  _buildHiderContentsSection(hider) {
+    const all = Studio.Project.state.objects;
+    const children = all.filter(o => o.parentId === hider.id);
+    // Can't nest: the hider itself, existing children, or another hider.
+    const available = all.filter(o =>
+      o.id !== hider.id &&
+      o.parentId !== hider.id &&
+      !o.xrComponents?.['xrextras-hider-material']
+    );
+
+    let childRows = '';
+    if (children.length === 0) {
+      childRows = `<div style="padding:8px;font-size:11px;color:var(--faint);text-align:center;border:1px dashed var(--border);border-radius:5px">Nothing inside yet — add objects below.</div>`;
+    } else {
+      childRows = children.map(c =>
+        `<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;margin-bottom:4px">
+          <span style="flex:1;font-size:11px">${this._esc(c.name || '(unnamed)')}</span>
+          <button style="background:none;border:1px solid var(--border);color:var(--faint);width:22px;height:22px;border-radius:3px;cursor:pointer;font-size:11px;padding:0" onclick="Studio.Inspector._removeFromHider('${c.id}')" title="Remove from hider">✕</button>
+        </div>`
+      ).join('');
+    }
+
+    const addOpts = available.map(o =>
+      `<option value="${o.id}">${this._esc(o.name || '(unnamed)')}</option>`
+    ).join('');
+    const addControl = available.length > 0
+      ? `<select class="insp-select" onchange="Studio.Inspector._addToHider(this.value);this.value=''">
+          <option value="">+ Add object to hider…</option>
+          ${addOpts}
+        </select>`
+      : `<div style="padding:6px 8px;font-size:10px;color:var(--faint);text-align:center">All objects already inside, or none available.</div>`;
+
+    return this._buildSection('🎭 Contents (inside this hider)', `
+      <div style="margin-bottom:8px">${childRows}</div>
+      ${addControl}
+      <div style="font-size:9px;color:var(--faint);margin-top:6px">
+        Objects listed here get nested inside this hider's DOM entity on publish.
+        The hider's depth writes occlude them reliably in AR — matches 8th Wall's
+        dunnasifairy1 reference project pattern.
+      </div>
+    `);
+  },
+
+  _addToHider(objId) {
+    if (!objId || !this.currentId) return;
+    const child = Studio.Project.getObject(objId);
+    if (!child) return;
+    child.parentId = this.currentId;
+    Studio.Project.markDirty();
+    this.render(this.currentId);  // refresh so the picker moves the object into the list
+  },
+
+  _removeFromHider(objId) {
+    const child = Studio.Project.getObject(objId);
+    if (!child) return;
+    child.parentId = null;
+    Studio.Project.markDirty();
+    this.render(this.currentId);
   },
 
   // ─── Target Assignment ─────────────────────────────────
