@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.11.0">
+<meta name="version" content="3.11.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1514,14 +1514,44 @@ const PRIMITIVE_TAG = {
   plane: 'a-plane', cone: 'a-cone', torus: 'a-torus',
 };
 
-function buildEntity(obj, i) {
+// Recursively emit an object AND any objects parented to it, with
+// children nested as DOM children of the parent's <a-entity>. That's
+// the scene-graph pattern 8th Wall's ECS uses (see dunnasifairy1
+// reference project): the hider is the parent entity, everything
+// visible inside it is a DOM child. Scene-graph traversal order
+// then guarantees correct depth occlusion in AR.
+function buildEntityTree(obj, i, allObjects, parentObj) {
+  // Build HTML for my children first — so they can be injected inside
+  // my opening/closing tags.
+  const children = allObjects.filter(o => o.parentId === obj.id);
+  let childHtml = '';
+  if (children.length) {
+    childHtml = children.map(c =>
+      buildEntityTree(c, allObjects.indexOf(c), allObjects, obj)
+    ).join('\n');
+  }
+  return buildEntity(obj, i, childHtml, parentObj);
+}
+
+function buildEntity(obj, i, childHtml = '', parentObj = null) {
   // Single path for everything — primitives, empties, and GLBs all flow
   // through here so they all pick up presets, interactions, xrComponents,
   // image-to-slam, etc. The final element type is chosen at the end
   // based on obj.type / obj.primitiveType / obj.glbUrl.
 
   const t = obj.transform || {position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}};
-  const pos = `${t.position.x} ${t.position.y} ${t.position.z}`;
+  // If this entity is a DOM child of another, convert its world-space
+  // position into parent-relative. A-Frame will then compose the
+  // transforms naturally. We only subtract position here — rotation
+  // and scale are passed through as-is, which matches the common case
+  // of hider and child at the same rotation / scale. If a user needs
+  // exotic nested rotations we can add full matrix composition later.
+  const p = parentObj ? {
+    x: t.position.x - parentObj.transform.position.x,
+    y: t.position.y - parentObj.transform.position.y,
+    z: t.position.z - parentObj.transform.position.z,
+  } : t.position;
+  const pos = `${p.x} ${p.y} ${p.z}`;
   const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
   const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
   const color = obj.primitiveColor || '#8b5cf6';
@@ -1619,14 +1649,31 @@ function buildEntity(obj, i) {
     // control the full lifecycle so no external dependency can
     // regress behaviour.
     if (key === 'xrextras-hider-material') {
-      // Only forward the player-relevant props. Studio-only preview
-      // fields (if any existed) are meaningless here.
+      // Two implementations available, selected by APP.hiderImpl:
+      //   'stock'  — emit `xrextras-hider-material` as-is. 8th Wall's
+      //              canonical implementation. Relies on scene-graph
+      //              parenting (which our buildEntityTree now sets up)
+      //              and ignores our side/invertNormals hints. This is
+      //              the config 8th Wall's own reference (dunnasifairy1)
+      //              uses. Recommended once parenting is verified.
+      //   'custom' — our ar-hider-material component (added in v3.10.x).
+      //              Supports side + invertNormals, renderOrder=-5,
+      //              strips A-Frame's material component to avoid
+      //              races. Works without parenting thanks to
+      //              renderOrder. Default until stock is proven out.
+      // Toggle at runtime in the studio via Scene Settings, or by
+      // setting APP.hiderImpl = 'stock' in the project JSON.
+      const impl = (APP && APP.hiderImpl) || 'custom';
+      if (impl === 'stock') {
+        // Stock 8th Wall xrextras hider has no config — just emit.
+        attrs += ` xrextras-hider-material`;
+        return;
+      }
+      // Custom path (default) — forward side + invertNormals.
       const cfg = (config && typeof config === 'object') ? config : {};
       const side = cfg.side || 'front';
       const invert = !!cfg.invertNormals;
       const parts = [];
-      // Skip side when it matches the component's own default so the
-      // serialised attribute stays minimal.
       if (side && side !== 'front')        parts.push('side: ' + side);
       if (invert)                          parts.push('invertNormals: true');
       attrs += parts.length
@@ -1679,12 +1726,12 @@ function buildEntity(obj, i) {
   // Plane primitive + video-on-target: render as <a-plane> so the video
   // component can apply its texture directly to the host mesh.
   if (isPlaneWithVideo) {
-    return `<a-plane id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}" width="1" height="1"${attrs}></a-plane>`;
+    return `<a-plane id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}" width="1" height="1"${attrs}>${childHtml}</a-plane>`;
   }
 
   // Empty primitive → invisible <a-entity> container for components
   if (isEmpty) {
-    return `<a-entity id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-entity>`;
+    return `<a-entity id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}>${childHtml}</a-entity>`;
   }
 
   // Other primitives → emit <a-box>/<a-sphere>/etc. with full attrs
@@ -1701,13 +1748,13 @@ function buildEntity(obj, i) {
       // themselves, so skipping color here leaves them uncontested.
       const hasOwnMaterial = attrs.includes('ar-hider-material') || attrs.includes('ar-material');
       const colorAttr = hasOwnMaterial ? '' : ` color="${color}"`;
-      return `<${tag} id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${colorAttr}${geom}${attrs}></${tag}>`;
+      return `<${tag} id="ent-${i}" class="cantap" position="${pos}" rotation="${rot}" scale="${sc}"${colorAttr}${geom}${attrs}>${childHtml}</${tag}>`;
     }
     return '';
   }
 
   // GLB model
-  return `<a-gltf-model id="gltf-${i}" class="cantap" src="#m${i}" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}></a-gltf-model>`;
+  return `<a-gltf-model id="gltf-${i}" class="cantap" src="#m${i}" position="${pos}" rotation="${rot}" scale="${sc}"${attrs}>${childHtml}</a-gltf-model>`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1734,7 +1781,12 @@ function buildSLAM() {
     ? ' tap-to-spawn="surface: ground"'
     : '';
 
-  const entities = objects.map((o,i) => buildEntity(o,i)).join('\n');
+  // Emit only ROOT objects (no parent, or parent missing). Children
+  // are injected inside their parent's <a-entity> by buildEntityTree.
+  // Matches 8th Wall's ECS scene-graph pattern so the hider's depth
+  // occludes its children reliably in AR.
+  const rootObjs = objects.filter(o => !o.parentId || !objects.find(p => p.id === o.parentId));
+  const entities = rootObjs.map(o => buildEntityTree(o, objects.indexOf(o), objects, null)).join('\n');
 
   const html = `
     <a-scene
@@ -1898,14 +1950,22 @@ function buildImageNative(objects) {
     const slamObjs = useObjs.filter(o => o.imageToSlam);
 
     if (trackedObjs.length > 0) {
-      const ents = trackedObjs.map(o => buildEntity(o, objects.indexOf(o))).join('\n');
+      // Only emit ROOTS inside the target. Children are nested under
+      // their parent's entity by buildEntityTree. Keep roots to those
+      // whose parent isn't also in this target — cross-target nesting
+      // is not supported (we'd lose the tracking attachment).
+      const trackedRoots = trackedObjs.filter(o => !o.parentId || !trackedObjs.find(p => p.id === o.parentId));
+      const ents = trackedRoots.map(o => buildEntityTree(o, objects.indexOf(o), trackedObjs, null)).join('\n');
       targetEntities += `
         <xrextras-named-image-target name="${target.name}">
           ${ents}
         </xrextras-named-image-target>`;
     }
     slamObjs.forEach(o => {
-      slamRootEntities += '\n      ' + buildEntity(o, objects.indexOf(o));
+      // SLAM anchors stay at scene root; children under a slam object
+      // still get nested via buildEntityTree.
+      if (o.parentId && slamObjs.find(p => p.id === o.parentId)) return;  // skip children — emitted inside their parent
+      slamRootEntities += '\n      ' + buildEntityTree(o, objects.indexOf(o), slamObjs, null);
     });
   });
 
@@ -2003,7 +2063,8 @@ async function loadMindAR(objects, mindUrl) {
     await new Promise((res,rej) => { s.onload=res; s.onerror=rej; });
   } catch(e) { showError('Load failed', 'Could not load MindAR.'); return; }
 
-  const entities = objects.map((o,i) => buildEntity(o,i)).join('\n');
+  const rootObjs2 = objects.filter(o => !o.parentId || !objects.find(p => p.id === o.parentId));
+  const entities = rootObjs2.map(o => buildEntityTree(o, objects.indexOf(o), objects, null)).join('\n');
 
   const html = `
     <a-scene
@@ -2051,9 +2112,13 @@ function buildFace() {
   const objects = getObjects();
   if (!objects.length) { showError('Empty', 'No models.'); return; }
 
-  const entities = objects.map((o,i) => {
+  // Face mode: each root object is wrapped in its own face-attachment
+  // entity. Children emitted nested via buildEntityTree so hider
+  // children still get DOM-nested inside their parents.
+  const rootObjs3 = objects.filter(o => !o.parentId || !objects.find(p => p.id === o.parentId));
+  const entities = rootObjs3.map(o => {
     const facePoint = o.interactions?.facePoint || 'forehead';
-    return `<a-entity xrextras-face-attachment="point: ${facePoint}">${buildEntity(o,i)}</a-entity>`;
+    return `<a-entity xrextras-face-attachment="point: ${facePoint}">${buildEntityTree(o, objects.indexOf(o), objects, null)}</a-entity>`;
   }).join('\n');
 
   const html = `

@@ -66,6 +66,9 @@ Studio.Inspector = {
       content.appendChild(this._buildTargetAssignSection(obj));
     }
 
+    // Parent (for occlusion via hider)
+    content.appendChild(this._buildParentSection(obj));
+
     // xrextras Components — grouped by category, filtered by tracking mode
     const cats = Studio.Components.categories;
     Object.keys(cats).sort((a, b) => cats[a].order - cats[b].order).forEach(catKey => {
@@ -274,6 +277,7 @@ Studio.Inspector = {
       </div>` : '';
 
     const bg = sc.viewportBg || '#080c16';
+    const hiderImpl = Studio.Project.state.hiderImpl || 'custom';
     return this._buildSection('🌍 AR Scene', `
       <label class="insp-check"><input type="checkbox" ${sc.shadowCatcher?'checked':''} onchange="Studio.Project.state.scene.shadowCatcher=this.checked;Studio.Project.markDirty()"> Shadow catcher</label>
       <div class="insp-row" style="margin-top:4px"><label style="font-size:9px;color:var(--muted);width:50px">Ambient</label><input type="range" min="0" max="2" step="0.1" value="${sc.ambientIntensity}" oninput="Studio.Project.state.scene.ambientIntensity=+this.value;Studio.Project.markDirty()" style="flex:1"><span style="font-size:9px;width:20px">${sc.ambientIntensity}</span></div>
@@ -283,8 +287,21 @@ Studio.Inspector = {
         <input type="color" value="${bg}" oninput="Studio.Inspector._setViewportBg(this.value)" style="width:32px;height:20px;border:none;background:none">
         <span style="font-size:9px;color:var(--faint);margin-left:6px">Editor bg colour</span>
       </div>
+      <div style="margin-top:10px" title="Which hider material implementation to emit in the published player. Use 'Stock' to match 8th Wall's canonical ECS hider (requires object parenting, see Parent dropdown). 'Custom' is our renderOrder-based implementation that works without parenting.">
+        <label style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:3px">Hider impl (published)</label>
+        <select class="insp-select" onchange="Studio.Inspector._setHiderImpl(this.value)">
+          <option value="custom" ${hiderImpl==='custom'?'selected':''}>Custom (ar-hider-material)</option>
+          <option value="stock"  ${hiderImpl==='stock'?'selected':''}>Stock (xrextras-hider-material)</option>
+        </select>
+        <div style="font-size:9px;color:var(--faint);margin-top:3px">Switch to Stock once you've set up scene-graph parenting — matches 8th Wall's own reference project. Custom is fine for simple cases.</div>
+      </div>
       ${spawnRow}
     `);
+  },
+
+  _setHiderImpl(val) {
+    Studio.Project.state.hiderImpl = val;
+    Studio.Project.markDirty();
   },
 
   _setViewportBg(hex) {
@@ -478,6 +495,53 @@ Studio.Inspector = {
     ['px','py','pz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.position[k[1]]; });
     ['rx','ry','rz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.rotation[k[1]]; });
     ['sx','sy','sz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.scale[k[1]]; });
+  },
+
+  // ─── Parent (for hider occlusion) ──────────────────────
+  // 8th Wall's reference project (dunnasifairy1) parents all visible
+  // content UNDER the hider entity — that's how the hider's depth
+  // writes end up occluding the children reliably (scene-graph order).
+  // Our renderOrder hack works in the studio viewport but not in AR.
+  // This dropdown lets the user mark an object as "lives inside this
+  // hider", and on publish it gets emitted as a DOM child of that
+  // hider's <a-entity> so the scene graph matches 8th Wall's pattern.
+  _buildParentSection(obj) {
+    // Candidates: any OTHER object that has the hider material component
+    // (user likely wants to nest content under a hider).
+    const candidates = Studio.Project.state.objects.filter(o =>
+      o.id !== obj.id &&
+      o.xrComponents &&
+      o.xrComponents['xrextras-hider-material']
+    );
+
+    if (candidates.length === 0 && !obj.parentId) {
+      // No hiders exist yet and this object isn't currently nested —
+      // skip rendering the section so it doesn't clutter the inspector.
+      return document.createComment('no parent candidates');
+    }
+
+    const opts = candidates.map(c =>
+      `<option value="${c.id}" ${obj.parentId === c.id ? 'selected' : ''}>${this._esc(c.name || '(unnamed)')}</option>`
+    ).join('');
+    return this._buildSection('Parent (for occlusion)', `
+      <select class="insp-select" onchange="Studio.Inspector._setParent(this.value)">
+        <option value="">— None (root) —</option>
+        ${opts}
+      </select>
+      <div style="font-size:9px;color:var(--faint);margin-top:3px">
+        Nest this object as a child of a hider so its depth occludes this content in AR.
+        Matches the 8th Wall hider pattern. Position is preserved — at publish we convert
+        to parent-relative coordinates automatically.
+      </div>
+    `);
+  },
+
+  _setParent(parentId) {
+    const obj = Studio.Project.getObject(this.currentId);
+    if (!obj) return;
+    obj.parentId = parentId || null;
+    Studio.Project.markDirty();
+    Studio.EventBus.emit('object:parented', { id: obj.id, parentId: obj.parentId });
   },
 
   // ─── Target Assignment ─────────────────────────────────

@@ -231,6 +231,11 @@ Studio.Project = {
       name: s.name,
       version: s.version,
       trackingMode: s.trackingMode,
+      // Which hider implementation the player should emit. 'custom'
+      // (default) = our ar-hider-material. 'stock' = 8th Wall's
+      // canonical xrextras-hider-material. See inspector Scene
+      // Settings for the toggle.
+      hiderImpl: s.hiderImpl || 'custom',
       target: { mindUrl: s.target.mindUrl, imageUrl: s.target.imageUrl },
       // 8th Wall native image targets
       targets: (s.targets || []).map(t => ({
@@ -283,6 +288,7 @@ Studio.Project = {
     s.name = data.name || 'Untitled';
     s.version = data.version || 1;
     s.trackingMode = data.trackingMode || 'image';
+    s.hiderImpl = data.hiderImpl || 'custom';  // which hider emitter the player uses
     s.target.mindUrl = data.target?.mindUrl || data.mindUrl || '';
     s.target.imageUrl = data.target?.imageUrl || '';
     s.target.mindBuffer = null;
