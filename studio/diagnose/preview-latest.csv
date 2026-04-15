@@ -1,19 +1,19 @@
 # 4E Player Preview Diagnose,
-# Generated,2026-04-15T01:28:32.049Z
-# Player version,3.11.5
+# Generated,2026-04-15T01:37:24.853Z
+# Player version,3.11.6
 # Preview mode,true
 # Renderer autoClear,true
 # Renderer sortObjects,false
 # Renderer shadowMap,true
 ,
 index,name,type,uuid,visible,renderOrder,frustumCulled,castShadow,receiveShadow,depth,parentChain,parentElTag,parentElId,parentElClass,posX,posY,posZ,scaleX,scaleY,scaleZ,matType,colorWrite,depthWrite,depthTest,transparent,opacity,side
-0,(unnamed),Mesh,659C16BC,true,0,true,true,true,2,Group > Scene,a-box,ground,cantap,0.000,0.000,0.000,1.000,1.000,1.000,ShadowMaterial,true,true,true,true,0.4,Front
-1,(unnamed),Mesh,9E5178EA,true,0,true,true,true,3,Group > Group > Scene,a-sphere,ent-0,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
-2,(unnamed),Mesh,C70C9632,true,0,true,true,true,3,Group > Group > Scene,a-cylinder,ent-1,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
-3,(unnamed),Mesh,975331F1,true,0,true,true,true,3,Group > Group > Scene,a-cone,ent-3,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
-4,(unnamed),Mesh,3D323664,true,0,true,true,true,4,Group > Group > Group > Scene,a-torus,ent-2,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
-5,(unnamed),Mesh,D605E8EF,true,0,true,true,true,4,Group > Group > Group > Scene,a-torus,ent-5,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
-6,(unnamed),Mesh,E46A39F5,true,0,true,true,true,3,Group > Group > Scene,a-box,ent-4,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,false,true,true,false,1,Front
-7,(unnamed),Mesh,D9423AA6,false,0,true,false,false,1,Scene,,,,0.000,0.000,0.000,1.000,1.000,1.000,RawShaderMaterial,true,true,true,false,1,Double
-8,(unnamed),Mesh,80F5B509,true,0,true,false,false,2,Group:xrweb-background > Scene,,,,0.000,0.000,0.000,4900.000,4900.000,4900.000,ShaderMaterial,true,true,true,false,1,Front
-9,(unnamed),Mesh,E165A8CD,true,0,true,false,false,2,Group:xrweb-background > Scene,,,,0.000,-0.010,0.000,160.000,160.000,160.000,MeshBasicMaterial,true,true,true,false,1,Front
+0,(unnamed),Mesh,5F6773EA,true,0,true,true,true,2,Group > Scene,a-box,ground,cantap,0.000,0.000,0.000,1.000,1.000,1.000,ShadowMaterial,true,true,true,true,0.4,Front
+1,(unnamed),Mesh,45F07E00,true,0,true,true,true,3,Group > Group > Scene,a-sphere,ent-0,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+2,(unnamed),Mesh,E18285FD,true,0,true,true,true,3,Group > Group > Scene,a-cylinder,ent-1,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+3,(unnamed),Mesh,BA046DEC,true,0,true,true,true,3,Group > Group > Scene,a-cone,ent-3,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+4,(unnamed),Mesh,B1555CF4,true,0,true,true,true,4,Group > Group > Group > Scene,a-torus,ent-2,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+5,(unnamed),Mesh,A26E3F6E,true,0,true,true,true,4,Group > Group > Group > Scene,a-torus,ent-5,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+6,(unnamed),Mesh,4D68C85A,true,-5,true,false,false,3,Group > Group > Scene,a-box,ent-4,cantap,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,false,true,true,false,1,Front
+7,(unnamed),Mesh,7BEFD532,false,0,true,false,false,1,Scene,,,,0.000,0.000,0.000,1.000,1.000,1.000,RawShaderMaterial,true,true,true,false,1,Double
+8,(unnamed),Mesh,EFDFEC9A,true,0,true,false,false,2,Group:xrweb-background > Scene,,,,0.000,0.000,0.000,4900.000,4900.000,4900.000,ShaderMaterial,true,true,true,false,1,Front
+9,(unnamed),Mesh,878961CD,true,0,true,false,false,2,Group:xrweb-background > Scene,,,,0.000,-0.010,0.000,160.000,160.000,160.000,MeshBasicMaterial,true,true,true,false,1,Front
