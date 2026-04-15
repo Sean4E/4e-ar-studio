@@ -110,6 +110,34 @@ a { color: var(--cyan); }
 .ws-tab:hover { color: var(--text2); }
 .ws-tab.active { color: var(--purple2); border-bottom-color: var(--purple); }
 
+/* Spacer pushes the fullscreen toggle to the right edge of the
+   workspace-tabs row, matching the studio's existing flex pattern. */
+.ws-spacer { flex: 1; }
+.ws-fs {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 14px; padding: 4px 10px; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  align-self: flex-end; line-height: 1;
+  transition: color 0.12s;
+}
+.ws-fs:hover { color: var(--text2); }
+.ws-fs.active { color: var(--purple2); }
+
+/* Fullscreen workspace — toggled by Studio.toggleFullscreen().
+   Hides toolbar, hierarchy, inspector, bottom panel and reflows the
+   workspace + tabs to fill the viewport. Pure CSS, no JS resize. */
+body.studio-fullscreen #app {
+  grid-template-rows: var(--tabs-h) 1fr;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "tabs"
+    "workspace";
+}
+body.studio-fullscreen #toolbar,
+body.studio-fullscreen #hierarchy,
+body.studio-fullscreen #inspector,
+body.studio-fullscreen #bottom-panel { display: none; }
+
 /* ─── Panels (shared) ───────────────────────────────────── */
 .panel {
   background: var(--bg2);

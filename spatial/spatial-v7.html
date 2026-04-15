@@ -3163,14 +3163,14 @@ function AnchorInspector({
     onChange: v => ui("assigned", v),
     label: "Image target assigned"
   }), anchor.it.assigned && React.createElement(React.Fragment, null,
-  // "From project" dropdown — only renders when the studio has pushed
-  // a list of image targets via postMessage. Picking one fills in
-  // Target ID + Width m in one step, saving the user from retyping
-  // ids by hand. Falls through silently on the standalone page
-  // (studioTargets is always [] there).
-  studioTargets.length > 0 && React.createElement(FR, {
+  // "From project" dropdown — ALWAYS rendered so the user can see
+  // the hook exists. When the studio has no image targets the
+  // dropdown is disabled with a hint pointing them at the Targets
+  // tab. Picking a target auto-fills both Target ID and Width m.
+  React.createElement(FR, {
     label: "From project"
   }, React.createElement("select", {
+    disabled: studioTargets.length === 0,
     value: studioTargets.some(t => t.id === anchor.it.id) ? anchor.it.id : "",
     onChange: e => {
       const picked = studioTargets.find(t => t.id === e.target.value);
@@ -3182,20 +3182,25 @@ function AnchorInspector({
     style: {
       background: "rgba(255,255,255,0.05)",
       border: "1px solid rgba(255,255,255,0.1)",
-      color: "rgba(255,255,255,0.8)",
+      color: studioTargets.length === 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.8)",
       padding: "3px 7px",
       borderRadius: 4,
       fontSize: 11,
       fontFamily: mono,
-      flex: 1
+      flex: 1,
+      cursor: studioTargets.length === 0 ? "not-allowed" : "pointer"
     }
   },
-    React.createElement("option", { value: "" }, "— Pick target —"),
-    ...studioTargets.map(t => React.createElement("option", {
-      key: t.id,
-      value: t.id
-    }, t.name ? (t.name + " (" + t.id.slice(-6) + ")") : t.id))
-  )), React.createElement(FR, {
+    studioTargets.length === 0
+      ? React.createElement("option", { value: "" }, "— No project targets (add in Targets tab) —")
+      : React.createElement(React.Fragment, null,
+          React.createElement("option", { value: "" }, "— Pick target —"),
+          ...studioTargets.map(t => React.createElement("option", {
+            key: t.id,
+            value: t.id
+          }, t.name ? (t.name + " (" + t.id.slice(-6) + ")") : t.id))
+        )
+  ), React.createElement(FR, {
     label: "Target ID"
   }, React.createElement("input", {
     value: anchor.it.id,

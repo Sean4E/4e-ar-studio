@@ -36,6 +36,28 @@ Studio.switchTab = function(tab) {
   if (tab === 'scene') Studio.Viewport._resize();
 };
 
+// Fullscreen the active workspace tab — hides toolbar, hierarchy,
+// inspector and bottom panel so the content fills the viewport.
+// Same button toggles back. Useful for the Spatial tab in particular
+// (the embedded editor uses every pixel) but works on all tabs.
+Studio.toggleFullscreen = function() {
+  const on = !document.body.classList.contains('studio-fullscreen');
+  document.body.classList.toggle('studio-fullscreen', on);
+  const btn = document.getElementById('ws-fs-btn');
+  if (btn) {
+    btn.textContent = on ? '⛶' : '⛶';
+    btn.title = on
+      ? 'Exit fullscreen (restore toolbar + side panels)'
+      : 'Fullscreen workspace (hide toolbar + side panels). Same button to exit.';
+    btn.classList.toggle('active', on);
+  }
+  // Trigger viewport resize after layout settles so the 3D scene
+  // redraws at the new canvas size.
+  setTimeout(() => {
+    if (Studio.Viewport?._resize) Studio.Viewport._resize();
+  }, 50);
+};
+
 Studio.showBottomTab = function(tab) {
   document.querySelectorAll('.bp-tab').forEach(t => t.classList.toggle('active', t.dataset.bp === tab));
   document.querySelectorAll('.bp-content').forEach(c => c.classList.toggle('active', c.dataset.bp === tab));
