@@ -66,8 +66,6 @@ Studio.Inspector = {
       content.appendChild(this._buildTargetAssignSection(obj));
     }
 
-    // Parent (for occlusion via hider)
-    content.appendChild(this._buildParentSection(obj));
 
     // xrextras Components — grouped by category, filtered by tracking mode
     const cats = Studio.Components.categories;
@@ -79,14 +77,10 @@ Studio.Inspector = {
       content.appendChild(this._buildComponentCategory(catKey, comps, obj));
     });
 
-    // Hider Contents — if this object is a hider, give the user a
-    // direct picker for "what's inside me" instead of making them hop
-    // into each child's inspector to set parentId. Matches the way
-    // you'd think about it: "this cube is my occluder, put these
-    // objects inside it."
-    if (obj.xrComponents?.['xrextras-hider-material']) {
-      content.appendChild(this._buildHiderContentsSection(obj));
-    }
+    // Hider-specific UI is now injected inside the Hider Material
+    // section itself (see _buildComponentCategory's hider branch).
+    // Keeping all hider settings together + only rendering them when
+    // the hider is toggled on.
 
     // Scene Settings
     content.appendChild(this._buildSceneSection());
@@ -206,6 +200,13 @@ Studio.Inspector = {
             const val = obj.xrComponents?.[comp.key]?.[propKey] ?? propDef.default;
             inner += this._buildPropertyInput(comp.key, propKey, propDef, val);
           });
+          // Hider-specific settings (the Contents picker) live inside
+          // the hider's own component group, right under its properties
+          // and only when it's enabled. Keeps everything to do with a
+          // hider in one place instead of scattered across the inspector.
+          if (comp.key === 'xrextras-hider-material') {
+            inner += this._buildHiderContentsHTML(obj);
+          }
           inner += '</div>';
         }
         inner += '</div>';
@@ -506,63 +507,17 @@ Studio.Inspector = {
     ['sx','sy','sz'].forEach(k => { const el = document.getElementById('ip-'+k); if (el) el.value = obj.transform.scale[k[1]]; });
   },
 
-  // ─── Parent (for hider occlusion) ──────────────────────
-  // 8th Wall's reference project (dunnasifairy1) parents all visible
-  // content UNDER the hider entity — that's how the hider's depth
-  // writes end up occluding the children reliably (scene-graph order).
-  // Our renderOrder hack works in the studio viewport but not in AR.
-  // This dropdown lets the user mark an object as "lives inside this
-  // hider", and on publish it gets emitted as a DOM child of that
-  // hider's <a-entity> so the scene graph matches 8th Wall's pattern.
-  _buildParentSection(obj) {
-    // Candidates: any OTHER object that has the hider material component
-    // (user likely wants to nest content under a hider).
-    const candidates = Studio.Project.state.objects.filter(o =>
-      o.id !== obj.id &&
-      o.xrComponents &&
-      o.xrComponents['xrextras-hider-material']
-    );
-
-    if (candidates.length === 0 && !obj.parentId) {
-      // No hiders exist yet and this object isn't currently nested —
-      // skip rendering the section so it doesn't clutter the inspector.
-      return document.createComment('no parent candidates');
-    }
-
-    const opts = candidates.map(c =>
-      `<option value="${c.id}" ${obj.parentId === c.id ? 'selected' : ''}>${this._esc(c.name || '(unnamed)')}</option>`
-    ).join('');
-    return this._buildSection('Parent (for occlusion)', `
-      <select class="insp-select" onchange="Studio.Inspector._setParent(this.value)">
-        <option value="">— None (root) —</option>
-        ${opts}
-      </select>
-      <div style="font-size:9px;color:var(--faint);margin-top:3px">
-        Nest this object as a child of a hider so its depth occludes this content in AR.
-        Matches the 8th Wall hider pattern. Position is preserved — at publish we convert
-        to parent-relative coordinates automatically.
-      </div>
-    `);
-  },
-
-  _setParent(parentId) {
-    const obj = Studio.Project.getObject(this.currentId);
-    if (!obj) return;
-    obj.parentId = parentId || null;
-    Studio.Project.markDirty();
-    Studio.EventBus.emit('object:parented', { id: obj.id, parentId: obj.parentId });
-  },
-
-  // ─── Hider Contents Picker ─────────────────────────────
-  // When the selected object is a hider, show a list of which
-  // objects are currently occluded by it and a "+ Add" dropdown
-  // for the rest. Manipulates the children's parentId to nest them
-  // under the hider on publish. Much more discoverable than asking
-  // the user to select each child and dig through its inspector.
-  _buildHiderContentsSection(hider) {
+  // ─── Hider Contents Picker (inline inside hider component body) ──
+  // Returns raw HTML (no outer section wrapper) so it can be embedded
+  // in the hider component's body — keeping all hider-related UI in
+  // one place. Lets the user pick which other objects are occluded
+  // by this hider. Manipulates the children's parentId to nest them
+  // under the hider on publish.
+  _buildHiderContentsHTML(hider) {
     const all = Studio.Project.state.objects;
     const children = all.filter(o => o.parentId === hider.id);
-    // Can't nest: the hider itself, existing children, or another hider.
+    // Candidates to ADD: anything that isn't this hider, isn't already
+    // a child of it, and isn't itself a hider.
     const available = all.filter(o =>
       o.id !== hider.id &&
       o.parentId !== hider.id &&
@@ -591,15 +546,18 @@ Studio.Inspector = {
         </select>`
       : `<div style="padding:6px 8px;font-size:10px;color:var(--faint);text-align:center">All objects already inside, or none available.</div>`;
 
-    return this._buildSection('🎭 Contents (inside this hider)', `
-      <div style="margin-bottom:8px">${childRows}</div>
-      ${addControl}
-      <div style="font-size:9px;color:var(--faint);margin-top:6px">
-        Objects listed here get nested inside this hider's DOM entity on publish.
-        The hider's depth writes occlude them reliably in AR — matches 8th Wall's
-        dunnasifairy1 reference project pattern.
+    return `
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Contents (inside this hider)</div>
+        <div style="margin-bottom:8px">${childRows}</div>
+        ${addControl}
+        <div style="font-size:9px;color:var(--faint);margin-top:6px">
+          Objects listed here get nested inside this hider's DOM entity on publish.
+          The hider's depth occludes them reliably in AR — matches 8th Wall's
+          dunnasifairy1 reference.
+        </div>
       </div>
-    `);
+    `;
   },
 
   _addToHider(objId) {

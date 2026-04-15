@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.11.2">
+<meta name="version" content="3.11.3">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1531,12 +1531,13 @@ function buildEntity(obj, i, childHtml = '', parentObj = null) {
   // and scale are passed through as-is, which matches the common case
   // of hider and child at the same rotation / scale. If a user needs
   // exotic nested rotations we can add full matrix composition later.
-  const p = parentObj ? {
+  // (Named `relPos`, not `p`, because `p` is re-used below for presets.)
+  const relPos = parentObj ? {
     x: t.position.x - parentObj.transform.position.x,
     y: t.position.y - parentObj.transform.position.y,
     z: t.position.z - parentObj.transform.position.z,
   } : t.position;
-  const pos = `${p.x} ${p.y} ${p.z}`;
+  const pos = `${relPos.x} ${relPos.y} ${relPos.z}`;
   const rot = `${t.rotation.x} ${t.rotation.y} ${t.rotation.z}`;
   const sc = `${t.scale.x} ${t.scale.y} ${t.scale.z}`;
   const color = obj.primitiveColor || '#8b5cf6';
