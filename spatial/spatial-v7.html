@@ -4923,7 +4923,16 @@ function App() {
   }, React.createElement("div", {
     ref: mountRef,
     style: {
-      flex: 1
+      flex: 1,
+      // Allow the flex item to shrink below the canvas's explicit
+      // style.height. Without these, an oversized canvas (e.g. one
+      // sized during host fullscreen) holds the mount open after exit
+      // so ResizeObserver never sees a shrink and onResize never
+      // fires, leaving the canvas clipped. See v3.12.14 fix.
+      minHeight: 0,
+      minWidth: 0,
+      overflow: "hidden",
+      position: "relative"
     }
   }), React.createElement("div", {
     ref: overlayRef,
