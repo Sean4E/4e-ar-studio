@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.10.30">
+<meta name="version" content="3.11.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -152,6 +152,10 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
     <button class="ar-close" onclick="location.reload()">✕</button>
   </div>
   <div id="scan-hint">Point camera at target</div>
+  <!-- Preview-only diagnose button. Hidden on real AR devices (PREVIEW_MODE
+       flips it on after first render). Dumps scene state to a CSV and posts
+       to the parent studio window when running in the preview iframe. -->
+  <button id="preview-diagnose-btn" style="position:fixed;bottom:12px;right:12px;padding:6px 10px;background:rgba(15,20,36,0.85);color:#d4daf0;border:1px solid #2a3456;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;pointer-events:auto;z-index:20;display:none" onclick="diagnosePreview()" title="Dump scene diagnostic CSV">🔍 Diagnose</button>
   <div id="anim-bar"></div>
 </div>
 
@@ -206,6 +210,176 @@ if (window.parent && window.parent !== window) {
   if (b) b.textContent = 'Powered by 4E AR Studio v' + PLAYER_VERSION;
 })();
 let APP = null, arScene = null;
+
+// ═══════════════════════════════════════════════════════════
+// Preview / desktop camera controls
+// ═══════════════════════════════════════════════════════════
+// When the player runs on desktop or inside the studio's preview
+// iframe (where 8th Wall's xrweb can't access a camera), swap A-Frame's
+// default wasd + look controls for THREE.OrbitControls — same mouse-
+// only orbit/pan/zoom behaviour as the studio's 3D viewport. Matches
+// muscle memory: LMB orbit, RMB pan, scroll zoom.
+//
+// On real AR devices xrweb takes over the camera pose regardless —
+// this code path just sits dormant there, no impact on AR tracking.
+const PREVIEW_MODE = (() => {
+  try {
+    if (window.self !== window.top) return true;  // running in iframe
+  } catch (_) { return true; }  // cross-origin iframe throws on self/top comparison
+  // Desktop detection — no touch primary pointer = use mouse orbit.
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  return !isMobile;
+})();
+
+// Load OrbitControls on first need, then cache the promise so we
+// don't request the script twice across scene rebuilds. Pinned to
+// three@0.137.0 — the version A-Frame 1.3.0 ships with internally
+// so `THREE` references resolve to the same constructor.
+let _orbitControlsLoading = null;
+function _ensureOrbitControls() {
+  if (window.THREE && window.THREE.OrbitControls) return Promise.resolve();
+  if (_orbitControlsLoading) return _orbitControlsLoading;
+  _orbitControlsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js';
+    s.onload = () => resolve();
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return _orbitControlsLoading;
+}
+
+// Attach OrbitControls to the given A-Frame scene's camera. No-op on
+// mobile / real AR sessions. Safe to call multiple times — tracks
+// attachment on the scene element so we don't stack controls.
+async function attachPreviewCamera(sceneEl) {
+  if (!PREVIEW_MODE || !sceneEl || sceneEl._previewControlsAttached) return;
+  sceneEl._previewControlsAttached = true;
+  try {
+    await _ensureOrbitControls();
+  } catch (e) {
+    console.warn('[preview] OrbitControls failed to load:', e);
+    return;
+  }
+  const cameraEl = sceneEl.querySelector('[camera]') || sceneEl.querySelector('a-camera');
+  if (!cameraEl) return;
+  // Remove A-Frame's default look/wasd so they don't fight OrbitControls.
+  cameraEl.removeAttribute('wasd-controls');
+  cameraEl.removeAttribute('look-controls');
+  const threeCam = cameraEl.getObject3D('camera');
+  const canvas = sceneEl.canvas || sceneEl.renderer?.domElement;
+  if (!threeCam || !canvas) return;
+  const controls = new THREE.OrbitControls(threeCam, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0, 0);     // orbit around scene origin by default
+  controls.minDistance = 0.1;
+  controls.maxDistance = 50;
+  sceneEl._orbitControls = controls;
+  // Drive controls on RAF — independent of A-Frame's tick so damping
+  // stays smooth even if the scene isn't animating anything else.
+  (function tick() {
+    if (!sceneEl.isConnected) return;  // stop when the scene is torn down
+    controls.update();
+    requestAnimationFrame(tick);
+  })();
+}
+
+// ═══════════════════════════════════════════════════════════
+// Preview / desktop diagnostic dump
+// ═══════════════════════════════════════════════════════════
+// Produces the same kind of scene-dump CSV as Studio.Viewport.
+// diagnoseScene() but for the A-Frame / Three.js scene in the player.
+// Downloads locally AND (if running in the studio iframe) posts the
+// CSV back to the parent window so the studio can upload it to
+// studio/diagnose/preview-latest.csv for easy debugging.
+function diagnosePreview() {
+  const scene = arScene;
+  if (!scene) { alert('No scene loaded yet'); return; }
+  const threeScene = scene.object3D;
+  const renderer = scene.renderer;
+  const meta = [
+    ['# 4E Player Preview Diagnose', ''],
+    ['# Generated', new Date().toISOString()],
+    ['# Player version', PLAYER_VERSION],
+    ['# Preview mode', String(PREVIEW_MODE)],
+    ['# Renderer autoClear', renderer?.autoClear],
+    ['# Renderer sortObjects', renderer?.sortObjects],
+    ['# Renderer shadowMap', renderer?.shadowMap?.enabled],
+    ['', ''],
+  ];
+  const header = [
+    'index','name','type','uuid','visible','renderOrder','frustumCulled',
+    'castShadow','receiveShadow','parentName','parentType',
+    'posX','posY','posZ','scaleX','scaleY','scaleZ',
+    'matType','colorWrite','depthWrite','depthTest','transparent','opacity','side'
+  ];
+  const rows = [];
+  let i = 0;
+  threeScene.traverse(o => {
+    if (!o.isMesh) return;
+    const m = o.material || {};
+    const p = o.position, s = o.scale;
+    rows.push([
+      i++,
+      o.name || '(unnamed)',
+      o.type,
+      o.uuid.slice(0, 8),
+      o.visible,
+      o.renderOrder,
+      o.frustumCulled,
+      o.castShadow,
+      o.receiveShadow,
+      o.parent?.name || '(root)',
+      o.parent?.type || '',
+      p.x.toFixed(3), p.y.toFixed(3), p.z.toFixed(3),
+      s.x.toFixed(3), s.y.toFixed(3), s.z.toFixed(3),
+      m.type || '',
+      m.colorWrite, m.depthWrite, m.depthTest, m.transparent,
+      m.opacity != null ? m.opacity : '',
+      m.side != null ? (['Front','Back','Double'][m.side] || m.side) : '',
+    ]);
+  });
+  const esc = v => {
+    const str = String(v == null ? '' : v);
+    return /[,"\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+  const csv = [
+    ...meta.map(r => r.map(esc).join(',')),
+    header.map(esc).join(','),
+    ...rows.map(r => r.map(esc).join(',')),
+  ].join('\n');
+
+  // Local download.
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '4e-preview-diagnose-' + Date.now() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  // If we're in the studio iframe, post the CSV to the parent so it
+  // can upload it via the existing Studio.GitHub.upload() to
+  // studio/diagnose/preview-latest.csv — same flow as the studio's
+  // own diagnose button, retrievable at:
+  //   studio/diagnose/preview-latest.csv
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: '4e-preview-diagnose',
+        csv,
+        meshes: rows.length,
+      }, '*');
+    }
+  } catch (_) {}
+
+  console.log('[4E preview diagnose]', rows.length, 'meshes dumped');
+}
+// Expose so a toolbar button can invoke.
+window.diagnosePreview = diagnosePreview;
 
 // Direct audio control — simple <audio> elements, controlled by image targets
 // or as global ambient. Pauses/plays based on 8th Wall xrimagefound/xrimagelost
@@ -967,7 +1141,16 @@ function showAudioButton() {
   updateBtn();
 }
 function showError(t, m) { el('err-title').textContent = t; el('err-msg').textContent = m; el('error-screen').classList.add('show'); hideSplash(); }
-function showARUI() { el('ar-ui').classList.add('show'); }
+function showARUI() {
+  el('ar-ui').classList.add('show');
+  // Surface the diagnose button when running in preview / desktop mode
+  // so we can dump scene state for hider-in-AR debugging. Hidden on
+  // real AR sessions where users shouldn't see it.
+  if (PREVIEW_MODE) {
+    const btn = document.getElementById('preview-diagnose-btn');
+    if (btn) btn.style.display = 'block';
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -1776,6 +1959,7 @@ function buildImageNative(objects) {
 
   arScene.addEventListener('loaded', () => {
     hideSplash(); showARUI(); buildAnimBar(objects);
+    attachPreviewCamera(arScene);
     // Wire target-audio-control on entities marked with data-audio-on-target
     arScene.querySelectorAll('[data-audio-on-target]').forEach(el => {
       const targetEl = el.closest('xrextras-named-image-target');
@@ -1851,7 +2035,7 @@ async function loadMindAR(objects, mindUrl) {
   document.body.appendChild(container);
   arScene = container.querySelector('a-scene');
 
-  arScene.addEventListener('loaded', () => { hideSplash(); showARUI(); buildAnimBar(objects); });
+  arScene.addEventListener('loaded', () => { hideSplash(); showARUI(); buildAnimBar(objects); attachPreviewCamera(arScene); });
 
   const target = arScene.querySelector('#ar-target');
   if (target) {
@@ -1909,6 +2093,7 @@ function mountScene(html, objects, hint) {
     hideSplash();
     showARUI();
     buildAnimBar(objects);
+    attachPreviewCamera(arScene);
   });
 }
 

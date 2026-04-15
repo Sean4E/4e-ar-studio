@@ -23,6 +23,22 @@ Studio.Preview = {
       if (!d || typeof d !== 'object') return;
       if (d.type === '4e-player-error')  Studio.log('[Player ERROR] ' + d.message);
       if (d.type === '4e-player-log')    Studio.log('[Player] ' + d.message);
+      // Preview's diagnose button posts its CSV up here. Upload to
+      // GitHub at studio/diagnose/preview-latest.csv so Claude (or
+      // anyone debugging) can read the live preview scene state
+      // without dragging files around.
+      if (d.type === '4e-preview-diagnose' && d.csv) {
+        Studio.log('[Preview] diagnose CSV — ' + d.meshes + ' meshes');
+        const gh = Studio.GitHub?.getConfig();
+        if (!gh?.token) {
+          Studio.log('[Preview] GitHub token not set — CSV downloaded locally only');
+          return;
+        }
+        const b64 = btoa(unescape(encodeURIComponent(d.csv)));
+        Studio.GitHub.upload('studio/diagnose/preview-latest.csv', b64)
+          .then(() => Studio.log('[Preview] uploaded to studio/diagnose/preview-latest.csv'))
+          .catch(err => Studio.log('[Preview] upload failed: ' + err.message));
+      }
     });
 
     Studio.log('Preview module ready');
