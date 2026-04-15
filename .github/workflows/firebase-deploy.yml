@@ -27,6 +27,9 @@ on:
       # click would publish a new studio version and waste Firebase
       # hosting's daily deploy budget.
       - '!studio/diagnose/**'
+      # Standalone spatial editor (duplicated from spatial/4e-spatial-v6.html).
+      # Served alongside the studio so it can be iframed as a new tab.
+      - 'spatial/**'
       - 'projects.html'
       - 'firebase.json'
       - 'firestore.rules'

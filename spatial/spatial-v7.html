@@ -1,0 +1,4705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E Spatial v6</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body,#root{width:100%;height:100%;overflow:hidden;background:#060810;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:rgba(0,0,0,0.2);}
+::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,229,255,0.4);}
+select option{background:#0a1020;color:#ccc;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const {
+  useState,
+  useEffect,
+  useRef,
+  useCallback
+} = React;
+const lerp = (a, b, t) => a + (b - a) * t,
+  clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
+  rand = (lo, hi) => lo + Math.random() * (hi - lo);
+function hexToRgb(h) {
+  return {
+    r: parseInt(h.slice(1, 3), 16) / 255,
+    g: parseInt(h.slice(3, 5), 16) / 255,
+    b: parseInt(h.slice(5, 7), 16) / 255
+  };
+}
+function sNoise(x, y, z) {
+  return Math.sin(x * 1.4 + y * 2.1) * Math.cos(y * 1.7 + z * 1.3) * Math.sin(z * 2.3 + x * 1.1);
+}
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000),
+    f = Math.floor(ms % 1000 / 10);
+  return `${String(s).padStart(2, "0")}:${String(f).padStart(2, "0")}`;
+}
+const VERT = `attribute float aSize;attribute vec4 aColor;varying vec4 vColor;void main(){vColor=aColor;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=aSize*(320.0/-mv.z);gl_Position=projectionMatrix*mv;}`;
+const FRAG = `varying vec4 vColor;void main(){vec2 c=gl_PointCoord-vec2(0.5);float r=length(c)*2.0;if(r>1.0)discard;float a=1.0-smoothstep(0.5,1.0,r);gl_FragColor=vec4(vColor.rgb,vColor.a*a);}`;
+const DEF_P = {
+  count: 60,
+  emissionRate: 20,
+  burstCount: 0,
+  continuousEmit: true,
+  emitShape: "sphere",
+  emitRadius: .35,
+  emitAngle: 30,
+  spread3D: true,
+  lifetimeMin: 1.5,
+  lifetimeMax: 2.8,
+  speedMin: .5,
+  speedMax: 1.5,
+  spread: 90,
+  sizeStart: .1,
+  sizeEnd: .04,
+  sizeCurve: "linear",
+  colorStart: "#ffc400",
+  colorMid: null,
+  colorEnd: "#ff6600",
+  opacityStart: 1,
+  opacityEnd: 0,
+  opacityCurve: "linear",
+  gravity: 0,
+  drag: .98,
+  turbulence: .5,
+  turbulenceFreq: 1,
+  turbulenceSpeed: 1,
+  swirl: 0,
+  attract: 0,
+  blending: "additive"
+};
+const P = o => ({
+  ...DEF_P,
+  ...o
+});
+const PPRESETS = {
+  swarm: {
+    name: "Swarm",
+    col: "#ffcc00",
+    cat: "organic",
+    desc: "Swarming insects",
+    c: P({
+      count: 90,
+      emissionRate: 45,
+      emitShape: "sphere",
+      emitRadius: .6,
+      lifetimeMin: 1.2,
+      lifetimeMax: 2.2,
+      speedMin: 1.8,
+      speedMax: 3.5,
+      spread: 360,
+      spread3D: true,
+      sizeStart: .055,
+      sizeEnd: .03,
+      colorStart: "#ffee44",
+      colorEnd: "#ff8800",
+      opacityStart: .9,
+      opacityEnd: 0,
+      drag: .90,
+      turbulence: 4,
+      turbulenceFreq: 2.5,
+      turbulenceSpeed: 2.5,
+      swirl: 2
+    })
+  },
+  smoke: {
+    name: "Smoke",
+    col: "#aaaaaa",
+    cat: "gas",
+    desc: "Rising smoke",
+    c: P({
+      count: 38,
+      emissionRate: 9,
+      emitShape: "cone",
+      emitRadius: .28,
+      lifetimeMin: 3.5,
+      lifetimeMax: 6,
+      speedMin: .2,
+      speedMax: .65,
+      spread: 28,
+      spread3D: false,
+      sizeStart: .18,
+      sizeEnd: 1.1,
+      sizeCurve: "easeIn",
+      colorStart: "#999999",
+      colorEnd: "#333333",
+      opacityStart: .55,
+      opacityEnd: 0,
+      opacityCurve: "easeIn",
+      gravity: .28,
+      drag: .995,
+      turbulence: .5,
+      turbulenceFreq: .4,
+      turbulenceSpeed: .3,
+      blending: "normal"
+    })
+  },
+  fire: {
+    name: "Fire",
+    col: "#ff4400",
+    cat: "heat",
+    desc: "Flickering flames",
+    c: P({
+      count: 70,
+      emissionRate: 35,
+      emitShape: "cone",
+      emitRadius: .32,
+      lifetimeMin: .7,
+      lifetimeMax: 1.7,
+      speedMin: .9,
+      speedMax: 2.2,
+      spread: 32,
+      spread3D: false,
+      sizeStart: .24,
+      sizeEnd: .03,
+      sizeCurve: "easeOut",
+      colorStart: "#ffffff",
+      colorMid: "#ff7700",
+      colorEnd: "#990000",
+      opacityStart: .9,
+      opacityEnd: 0,
+      opacityCurve: "fadeInOut",
+      gravity: 1.1,
+      drag: .97,
+      turbulence: 1.5,
+      turbulenceFreq: 3.5,
+      turbulenceSpeed: 3
+    })
+  },
+  liquid: {
+    name: "Liquid",
+    col: "#00aaff",
+    cat: "fluid",
+    desc: "Water droplets",
+    c: P({
+      count: 50,
+      emissionRate: 24,
+      emitShape: "sphere",
+      emitRadius: .22,
+      lifetimeMin: 1,
+      lifetimeMax: 2.2,
+      speedMin: .6,
+      speedMax: 2,
+      spread: 75,
+      spread3D: true,
+      sizeStart: .1,
+      sizeEnd: .02,
+      sizeCurve: "easeOut",
+      colorStart: "#99ddff",
+      colorEnd: "#0055cc",
+      opacityStart: .85,
+      opacityEnd: 0,
+      gravity: -2.2,
+      drag: .97,
+      turbulence: .3,
+      turbulenceFreq: 1.2
+    })
+  },
+  sparkle: {
+    name: "Sparkle",
+    col: "#ffffff",
+    cat: "magic",
+    desc: "Magic twinkles",
+    c: P({
+      count: 55,
+      emissionRate: 28,
+      emitShape: "sphere",
+      emitRadius: .45,
+      lifetimeMin: .5,
+      lifetimeMax: 1.3,
+      speedMin: .2,
+      speedMax: 1,
+      spread: 180,
+      spread3D: true,
+      sizeStart: .03,
+      sizeEnd: .18,
+      sizeCurve: "peak",
+      colorStart: "#ffffff",
+      colorEnd: "#ffccaa",
+      opacityStart: 0,
+      opacityEnd: 0,
+      opacityCurve: "peak",
+      drag: .97,
+      turbulence: .4
+    })
+  },
+  dust: {
+    name: "Dust",
+    col: "#c8a882",
+    cat: "ambient",
+    desc: "Drifting dust",
+    c: P({
+      count: 70,
+      emissionRate: 16,
+      emitShape: "box",
+      emitRadius: .9,
+      lifetimeMin: 3,
+      lifetimeMax: 6,
+      speedMin: .04,
+      speedMax: .22,
+      spread: 180,
+      spread3D: true,
+      sizeStart: .04,
+      sizeEnd: .02,
+      colorStart: "#d4b896",
+      colorEnd: "#9a7a58",
+      opacityStart: .4,
+      opacityEnd: 0,
+      gravity: -.04,
+      drag: .998,
+      turbulence: .35,
+      turbulenceFreq: .4,
+      turbulenceSpeed: .3,
+      blending: "normal"
+    })
+  },
+  electric: {
+    name: "Electric",
+    col: "#88ccff",
+    cat: "energy",
+    desc: "Plasma discharge",
+    c: P({
+      count: 45,
+      emissionRate: 40,
+      emitShape: "ring",
+      emitRadius: .28,
+      lifetimeMin: .1,
+      lifetimeMax: .35,
+      speedMin: 2.5,
+      speedMax: 6,
+      spread: 170,
+      spread3D: true,
+      sizeStart: .05,
+      sizeEnd: .015,
+      colorStart: "#cceeff",
+      colorEnd: "#0033ff",
+      opacityStart: 1,
+      opacityEnd: 0,
+      drag: .85,
+      turbulence: 9,
+      turbulenceFreq: 7,
+      turbulenceSpeed: 9
+    })
+  },
+  snow: {
+    name: "Snow",
+    col: "#ddeeff",
+    cat: "ambient",
+    desc: "Falling snowflakes",
+    c: P({
+      count: 85,
+      emissionRate: 20,
+      emitShape: "box",
+      emitRadius: 1.4,
+      lifetimeMin: 3,
+      lifetimeMax: 7,
+      speedMin: .08,
+      speedMax: .35,
+      spread: 25,
+      spread3D: false,
+      sizeStart: .065,
+      sizeEnd: .065,
+      colorStart: "#eeeeff",
+      colorEnd: "#bbccee",
+      opacityStart: .82,
+      opacityEnd: .1,
+      gravity: -.45,
+      drag: .997,
+      turbulence: .5,
+      turbulenceFreq: .5,
+      turbulenceSpeed: .3,
+      swirl: .4,
+      blending: "normal"
+    })
+  },
+  explosion: {
+    name: "Explode",
+    col: "#ff6600",
+    cat: "force",
+    desc: "Outward burst",
+    c: P({
+      count: 110,
+      emissionRate: 0,
+      burstCount: 110,
+      continuousEmit: false,
+      emitShape: "point",
+      lifetimeMin: .4,
+      lifetimeMax: 1.6,
+      speedMin: 2.5,
+      speedMax: 7,
+      spread: 180,
+      spread3D: true,
+      sizeStart: .2,
+      sizeEnd: .03,
+      sizeCurve: "easeOut",
+      colorStart: "#ffffff",
+      colorMid: "#ffaa00",
+      colorEnd: "#aa1100",
+      opacityStart: 1,
+      opacityEnd: 0,
+      opacityCurve: "easeIn",
+      gravity: -.6,
+      drag: .93,
+      turbulence: .9
+    })
+  },
+  fireflies: {
+    name: "Fireflies",
+    col: "#99ff44",
+    cat: "organic",
+    desc: "Glowing fireflies",
+    c: P({
+      count: 22,
+      emissionRate: 4,
+      emitShape: "sphere",
+      emitRadius: 1.1,
+      lifetimeMin: 3.5,
+      lifetimeMax: 7,
+      speedMin: .04,
+      speedMax: .28,
+      spread: 180,
+      spread3D: true,
+      sizeStart: .04,
+      sizeEnd: .14,
+      sizeCurve: "peak",
+      colorStart: "#99ff44",
+      colorEnd: "#44ff88",
+      opacityStart: 0,
+      opacityEnd: 0,
+      opacityCurve: "peak",
+      drag: .997,
+      turbulence: 1.2,
+      turbulenceFreq: .4,
+      turbulenceSpeed: .4
+    })
+  },
+  nebula: {
+    name: "Nebula",
+    col: "#cc44ff",
+    cat: "cosmic",
+    desc: "Cosmic gas cloud",
+    c: P({
+      count: 130,
+      emissionRate: 22,
+      emitShape: "sphere",
+      emitRadius: 1.3,
+      lifetimeMin: 5,
+      lifetimeMax: 10,
+      speedMin: .08,
+      speedMax: .45,
+      spread: 180,
+      spread3D: true,
+      sizeStart: .22,
+      sizeEnd: .5,
+      sizeCurve: "easeIn",
+      colorStart: "#cc44ff",
+      colorMid: "#ff44aa",
+      colorEnd: "#4444ff",
+      opacityStart: .28,
+      opacityEnd: 0,
+      drag: .999,
+      turbulence: .9,
+      turbulenceFreq: .25,
+      turbulenceSpeed: .18,
+      swirl: 3.5
+    })
+  },
+  rain: {
+    name: "Rain",
+    col: "#8888cc",
+    cat: "fluid",
+    desc: "Driving rainfall",
+    c: P({
+      count: 110,
+      emissionRate: 55,
+      emitShape: "box",
+      emitRadius: 1.6,
+      lifetimeMin: .5,
+      lifetimeMax: 1.1,
+      speedMin: 3.5,
+      speedMax: 6,
+      spread: 8,
+      spread3D: false,
+      sizeStart: .035,
+      sizeEnd: .02,
+      colorStart: "#aaaadd",
+      colorEnd: "#6666aa",
+      opacityStart: .65,
+      opacityEnd: .08,
+      gravity: -5.5,
+      drag: .99,
+      turbulence: .2,
+      blending: "normal"
+    })
+  },
+  confetti: {
+    name: "Confetti",
+    col: "#ff44aa",
+    cat: "force",
+    desc: "Celebration burst",
+    c: P({
+      count: 65,
+      emissionRate: 0,
+      burstCount: 65,
+      continuousEmit: false,
+      emitShape: "cone",
+      emitRadius: .35,
+      emitAngle: 40,
+      lifetimeMin: 2.5,
+      lifetimeMax: 5,
+      speedMin: 1.2,
+      speedMax: 3.2,
+      spread: 80,
+      spread3D: false,
+      sizeStart: .11,
+      sizeEnd: .08,
+      colorStart: "#ff44aa",
+      colorMid: "#ffcc00",
+      colorEnd: "#44ffaa",
+      opacityStart: 1,
+      opacityEnd: .35,
+      opacityCurve: "easeIn",
+      gravity: -1.5,
+      drag: .975,
+      turbulence: 1,
+      turbulenceFreq: 2,
+      turbulenceSpeed: 2,
+      blending: "normal"
+    })
+  },
+  void: {
+    name: "Void",
+    col: "#440066",
+    cat: "energy",
+    desc: "Dark vortex",
+    c: P({
+      count: 75,
+      emissionRate: 22,
+      emitShape: "ring",
+      emitRadius: 1.6,
+      lifetimeMin: 1.8,
+      lifetimeMax: 3.5,
+      speedMin: .2,
+      speedMax: .7,
+      spread: 25,
+      spread3D: false,
+      sizeStart: .07,
+      sizeEnd: .015,
+      sizeCurve: "easeIn",
+      colorStart: "#9900cc",
+      colorEnd: "#110018",
+      opacityStart: .85,
+      opacityEnd: 0,
+      opacityCurve: "easeIn",
+      drag: .975,
+      turbulence: .4,
+      swirl: -6,
+      attract: 2.8
+    })
+  },
+  embers: {
+    name: "Embers",
+    col: "#ff8800",
+    cat: "heat",
+    desc: "Fire embers drift",
+    c: P({
+      count: 42,
+      emissionRate: 14,
+      emitShape: "cone",
+      emitRadius: .42,
+      lifetimeMin: 2.2,
+      lifetimeMax: 5,
+      speedMin: .3,
+      speedMax: 1.1,
+      spread: 55,
+      spread3D: false,
+      sizeStart: .075,
+      sizeEnd: .012,
+      sizeCurve: "easeOut",
+      colorStart: "#ffee44",
+      colorMid: "#ff5500",
+      colorEnd: "#550000",
+      opacityStart: 1,
+      opacityEnd: 0,
+      opacityCurve: "fadeInOut",
+      gravity: .6,
+      drag: .993,
+      turbulence: 1.8,
+      turbulenceFreq: 1.8,
+      turbulenceSpeed: 1.8
+    })
+  },
+  bubbles: {
+    name: "Bubbles",
+    col: "#88ddff",
+    cat: "fluid",
+    desc: "Soap bubbles",
+    c: P({
+      count: 28,
+      emissionRate: 7,
+      emitShape: "sphere",
+      emitRadius: .55,
+      lifetimeMin: 2.5,
+      lifetimeMax: 5,
+      speedMin: .18,
+      speedMax: .55,
+      spread: 22,
+      spread3D: false,
+      sizeStart: .05,
+      sizeEnd: .18,
+      sizeCurve: "easeIn",
+      colorStart: "#aaeeff",
+      colorEnd: "#ffffff",
+      opacityStart: .12,
+      opacityEnd: .04,
+      gravity: .55,
+      drag: .993,
+      turbulence: .5,
+      turbulenceFreq: .8
+    })
+  },
+  aurora: {
+    name: "Aurora",
+    col: "#00ffcc",
+    cat: "cosmic",
+    desc: "Northern lights",
+    c: P({
+      count: 95,
+      emissionRate: 18,
+      emitShape: "box",
+      emitRadius: 1.6,
+      lifetimeMin: 5,
+      lifetimeMax: 9,
+      speedMin: .08,
+      speedMax: .38,
+      spread: 22,
+      spread3D: false,
+      sizeStart: .28,
+      sizeEnd: .55,
+      sizeCurve: "peak",
+      colorStart: "#00ffcc",
+      colorMid: "#88ff00",
+      colorEnd: "#0033ff",
+      opacityStart: 0,
+      opacityEnd: 0,
+      opacityCurve: "peak",
+      gravity: .12,
+      drag: .999,
+      turbulence: .65,
+      turbulenceFreq: .28,
+      turbulenceSpeed: .45,
+      swirl: .9
+    })
+  },
+  portal: {
+    name: "Portal",
+    col: "#00e5ff",
+    cat: "energy",
+    desc: "Dimensional rift",
+    c: P({
+      count: 70,
+      emissionRate: 32,
+      emitShape: "ring",
+      emitRadius: 1.05,
+      lifetimeMin: .9,
+      lifetimeMax: 2,
+      speedMin: .15,
+      speedMax: .85,
+      spread: 12,
+      spread3D: false,
+      sizeStart: .09,
+      sizeEnd: .02,
+      colorStart: "#00ffff",
+      colorEnd: "#0000cc",
+      opacityStart: .95,
+      opacityEnd: 0,
+      drag: .972,
+      turbulence: .55,
+      swirl: 9,
+      attract: 1.8
+    })
+  },
+  plasma: {
+    name: "Plasma",
+    col: "#ff44ff",
+    cat: "energy",
+    desc: "Plasma arcs",
+    c: P({
+      count: 55,
+      emissionRate: 38,
+      emitShape: "sphere",
+      emitRadius: .3,
+      lifetimeMin: .3,
+      lifetimeMax: .8,
+      speedMin: 1.5,
+      speedMax: 4.5,
+      spread: 90,
+      spread3D: true,
+      sizeStart: .12,
+      sizeEnd: .03,
+      sizeCurve: "easeOut",
+      colorStart: "#ffffff",
+      colorMid: "#ff88ff",
+      colorEnd: "#4400cc",
+      opacityStart: 1,
+      opacityEnd: 0,
+      opacityCurve: "easeIn",
+      drag: .91,
+      turbulence: 5,
+      turbulenceFreq: 5,
+      turbulenceSpeed: 6
+    })
+  },
+  comet: {
+    name: "Comet",
+    col: "#ffddaa",
+    cat: "cosmic",
+    desc: "Comet tail",
+    c: P({
+      count: 60,
+      emissionRate: 35,
+      emitShape: "point",
+      lifetimeMin: .4,
+      lifetimeMax: .9,
+      speedMin: .05,
+      speedMax: .2,
+      spread: 160,
+      spread3D: true,
+      sizeStart: .14,
+      sizeEnd: .02,
+      sizeCurve: "easeOut",
+      colorStart: "#ffffff",
+      colorMid: "#ffcc44",
+      colorEnd: "#ff4400",
+      opacityStart: .95,
+      opacityEnd: 0,
+      opacityCurve: "easeIn",
+      gravity: -.1,
+      drag: .93,
+      turbulence: .3
+    })
+  }
+};
+const JP = [{
+  id: "drift",
+  name: "Drift",
+  col: "#00ffcc",
+  pp: "aurora",
+  shape: "arc",
+  easing: "easeInOut",
+  dur: 4500,
+  desc: "Slow arcs, aurora clouds"
+}, {
+  id: "storm",
+  name: "Storm",
+  col: "#88ccff",
+  pp: "electric",
+  shape: "noise",
+  easing: "linear",
+  dur: 680,
+  desc: "Fast noise, crackle"
+}, {
+  id: "cascade",
+  name: "Cascade",
+  col: "#00aaff",
+  pp: "liquid",
+  shape: "bezier",
+  easing: "easeOut",
+  dur: 2100,
+  desc: "Bezier curves, droplets"
+}, {
+  id: "inferno",
+  name: "Inferno",
+  col: "#ff4400",
+  pp: "fire",
+  shape: "arc",
+  easing: "easeIn",
+  dur: 1350,
+  desc: "Hot arcs, fire trail"
+}, {
+  id: "phantom",
+  name: "Phantom",
+  col: "#99ff44",
+  pp: "fireflies",
+  shape: "noise",
+  easing: "spring",
+  dur: 3400,
+  desc: "Noise paths, fireflies"
+}, {
+  id: "warp",
+  name: "Warp",
+  col: "#00ffff",
+  pp: "portal",
+  shape: "straight",
+  easing: "easeIn",
+  dur: 520,
+  desc: "Instant dash, portal"
+}, {
+  id: "nebula",
+  name: "Nebula",
+  col: "#cc44ff",
+  pp: "nebula",
+  shape: "bezier",
+  easing: "easeInOut",
+  dur: 5500,
+  desc: "Cosmic slow swirl"
+}, {
+  id: "comet",
+  name: "Comet",
+  col: "#ffddaa",
+  pp: "comet",
+  shape: "straight",
+  easing: "easeIn",
+  dur: 820,
+  desc: "Straight fast, comet tail"
+}, {
+  id: "tide",
+  name: "Tide",
+  col: "#88ddff",
+  pp: "bubbles",
+  shape: "arc",
+  easing: "easeInOut",
+  dur: 3100,
+  desc: "Gentle arcs, bubbles"
+}, {
+  id: "spring",
+  name: "Spring",
+  col: "#ff44aa",
+  pp: "confetti",
+  shape: "arc",
+  easing: "bounce",
+  dur: 1800,
+  desc: "Bounce arcs, confetti"
+}, {
+  id: "abyss",
+  name: "Abyss",
+  col: "#4400cc",
+  pp: "void",
+  shape: "bezier",
+  easing: "easeIn",
+  dur: 2600,
+  desc: "Bezier spiral, vortex"
+}, {
+  id: "swarm",
+  name: "Swarm",
+  col: "#ffcc00",
+  pp: "swarm",
+  shape: "noise",
+  easing: "linear",
+  dur: 1050,
+  desc: "Noisy fast, insects"
+}, {
+  id: "ember",
+  name: "Embers",
+  col: "#ff8800",
+  pp: "embers",
+  shape: "arc",
+  easing: "easeOut",
+  dur: 2200,
+  desc: "Rising arcs, embers"
+}, {
+  id: "aurora2",
+  name: "Aurora",
+  col: "#00ff88",
+  pp: "aurora",
+  shape: "noise",
+  easing: "easeInOut",
+  dur: 4000,
+  desc: "Noise drifts, aurora"
+}, {
+  id: "plasma",
+  name: "Plasma",
+  col: "#ff44ff",
+  pp: "plasma",
+  shape: "bezier",
+  easing: "spring",
+  dur: 900,
+  desc: "Spring bezier, plasma"
+}, {
+  id: "blizzrd",
+  name: "Blizzard",
+  col: "#ddeeff",
+  pp: "snow",
+  shape: "noise",
+  easing: "linear",
+  dur: 3000,
+  desc: "Noise slow, snowfall"
+}];
+const mkPt = () => ({
+  alive: false,
+  px: 0,
+  py: 0,
+  pz: 0,
+  vx: 0,
+  vy: 0,
+  vz: 0,
+  life: 0,
+  maxLife: 1,
+  r1: 1,
+  g1: 1,
+  b1: 1,
+  r2: 0,
+  g2: 0,
+  b2: 0,
+  rm: .5,
+  gm: .5,
+  bm: .5,
+  hasMid: false,
+  sStart: .1,
+  sEnd: .05,
+  nx: 0,
+  ny: 0,
+  nz: 0
+});
+function emitP(ps, o) {
+  let s = -1;
+  for (let i = 0; i < ps.p.length; i++) {
+    if (!ps.p[i].alive) {
+      s = i;
+      break;
+    }
+  }
+  if (s === -1) return;
+  const p = ps.p[s],
+    c = ps.cfg,
+    R = c.emitRadius;
+  let ox = 0,
+    oy = 0,
+    oz = 0;
+  if (c.emitShape === "sphere") {
+    const th = Math.random() * Math.PI * 2,
+      ph = Math.acos(2 * Math.random() - 1),
+      r = R * Math.cbrt(Math.random());
+    ox = r * Math.sin(ph) * Math.cos(th);
+    oy = r * Math.cos(ph);
+    oz = r * Math.sin(ph) * Math.sin(th);
+  } else if (c.emitShape === "ring") {
+    const a = Math.random() * Math.PI * 2;
+    ox = Math.cos(a) * R;
+    oz = Math.sin(a) * R;
+    oy = (Math.random() - .5) * .08;
+  } else if (c.emitShape === "cone") {
+    const a = Math.random() * Math.PI * 2,
+      r2 = Math.random() * R;
+    ox = Math.cos(a) * r2;
+    oz = Math.sin(a) * r2;
+  } else if (c.emitShape === "box") {
+    ox = (Math.random() - .5) * R * 2;
+    oy = (Math.random() - .5) * R * 2;
+    oz = (Math.random() - .5) * R * 2;
+  }
+  p.px = o.x + ox;
+  p.py = o.y + oy;
+  p.pz = o.z + oz;
+  const spd = rand(c.speedMin, c.speedMax),
+    spr = c.spread / 180 * Math.PI;
+  if (c.spread3D) {
+    const th = Math.random() * Math.PI * 2,
+      ph = Math.random() * spr;
+    p.vx = Math.sin(ph) * Math.cos(th) * spd;
+    p.vy = Math.sin(ph) * Math.sin(th) * spd;
+    p.vz = Math.cos(ph) * spd;
+  } else {
+    const th = Math.random() * Math.PI * 2,
+      ph = Math.random() * spr;
+    p.vx = Math.sin(ph) * Math.cos(th) * spd;
+    p.vz = Math.sin(ph) * Math.sin(th) * spd;
+    p.vy = Math.cos(ph) * spd;
+  }
+  if (c.gravity < -1.5) p.vy = -Math.abs(p.vy);
+  p.maxLife = rand(c.lifetimeMin, c.lifetimeMax);
+  p.life = p.maxLife;
+  const c1 = hexToRgb(c.colorStart),
+    c2 = hexToRgb(c.colorEnd);
+  p.r1 = c1.r;
+  p.g1 = c1.g;
+  p.b1 = c1.b;
+  p.r2 = c2.r;
+  p.g2 = c2.g;
+  p.b2 = c2.b;
+  if (c.colorMid) {
+    const cm = hexToRgb(c.colorMid);
+    p.rm = cm.r;
+    p.gm = cm.g;
+    p.bm = cm.b;
+    p.hasMid = true;
+  } else p.hasMid = false;
+  p.sStart = c.sizeStart;
+  p.sEnd = c.sizeEnd;
+  p.nx = Math.random() * 200;
+  p.ny = Math.random() * 200;
+  p.nz = Math.random() * 200;
+  p.alive = true;
+}
+function tickPS(ps, dt, o, time) {
+  const c = ps.cfg;
+  if (c.continuousEmit && c.emissionRate > 0) {
+    ps.acc += c.emissionRate * dt;
+    while (ps.acc >= 1) {
+      ps.acc--;
+      emitP(ps, o);
+    }
+  }
+  if (!ps.burst && c.burstCount > 0) {
+    for (let i = 0; i < c.burstCount; i++) emitP(ps, o);
+    ps.burst = true;
+  }
+  const {
+    pos,
+    col,
+    sz
+  } = ps.bufs;
+  for (let i = 0; i < c.count; i++) {
+    const p = ps.p[i];
+    if (!p.alive) {
+      sz[i] = 0;
+      col[i * 4 + 3] = 0;
+      pos[i * 3] = o.x;
+      pos[i * 3 + 1] = o.y;
+      pos[i * 3 + 2] = o.z;
+      continue;
+    }
+    p.life -= dt;
+    if (p.life <= 0) {
+      p.alive = false;
+      sz[i] = 0;
+      col[i * 4 + 3] = 0;
+      continue;
+    }
+    const t = clamp(1 - p.life / p.maxLife, 0, 1),
+      tf = c.turbulence * dt;
+    const tx = p.nx + time * c.turbulenceSpeed,
+      ty = p.ny + time * c.turbulenceSpeed,
+      tz = p.nz + time * c.turbulenceSpeed;
+    p.vx += sNoise(p.px * c.turbulenceFreq + tx, p.py * c.turbulenceFreq, p.pz * c.turbulenceFreq) * tf;
+    p.vy += sNoise(p.px * c.turbulenceFreq, p.py * c.turbulenceFreq + ty, p.pz * c.turbulenceFreq) * tf;
+    p.vz += sNoise(p.px * c.turbulenceFreq, p.py * c.turbulenceFreq, p.pz * c.turbulenceFreq + tz) * tf;
+    p.vy += c.gravity * dt;
+    if (c.swirl !== 0) {
+      const sa = c.swirl * dt,
+        cs = Math.cos(sa),
+        sn = Math.sin(sa);
+      const nx2 = p.vx * cs - p.vz * sn,
+        nz2 = p.vx * sn + p.vz * cs;
+      p.vx = nx2;
+      p.vz = nz2;
+    }
+    if (c.attract !== 0) {
+      const dx = o.x - p.px,
+        dy = o.y - p.py,
+        dz = o.z - p.pz;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + .01;
+      const af = c.attract * dt / dist;
+      p.vx += dx * af;
+      p.vy += dy * af;
+      p.vz += dz * af;
+    }
+    const d = Math.pow(c.drag, dt * 60);
+    p.vx *= d;
+    p.vy *= d;
+    p.vz *= d;
+    p.px += p.vx * dt;
+    p.py += p.vy * dt;
+    p.pz += p.vz * dt;
+    let r, g, b;
+    if (p.hasMid) {
+      if (t < .5) {
+        const tt = t * 2;
+        r = lerp(p.r1, p.rm, tt);
+        g = lerp(p.g1, p.gm, tt);
+        b = lerp(p.b1, p.bm, tt);
+      } else {
+        const tt = (t - .5) * 2;
+        r = lerp(p.rm, p.r2, tt);
+        g = lerp(p.gm, p.g2, tt);
+        b = lerp(p.bm, p.b2, tt);
+      }
+    } else {
+      r = lerp(p.r1, p.r2, t);
+      g = lerp(p.g1, p.g2, t);
+      b = lerp(p.b1, p.b2, t);
+    }
+    let a;
+    switch (c.opacityCurve) {
+      case "easeIn":
+        a = lerp(c.opacityStart, c.opacityEnd, t * t);
+        break;
+      case "easeOut":
+        a = lerp(c.opacityStart, c.opacityEnd, 1 - (1 - t) * (1 - t));
+        break;
+      case "fadeInOut":
+        a = Math.sin(t * Math.PI) * Math.max(c.opacityStart, c.opacityEnd, .01);
+        break;
+      case "peak":
+        a = Math.sin(t * Math.PI);
+        break;
+      case "flicker":
+        a = lerp(c.opacityStart, c.opacityEnd, t) * (.7 + .3 * Math.sin(time * 30 + p.nx));
+        break;
+      default:
+        a = lerp(c.opacityStart, c.opacityEnd, t);
+    }
+    let s;
+    switch (c.sizeCurve) {
+      case "easeIn":
+        s = lerp(p.sStart, p.sEnd, t * t);
+        break;
+      case "easeOut":
+        s = lerp(p.sStart, p.sEnd, 1 - (1 - t) * (1 - t));
+        break;
+      case "peak":
+        s = Math.sin(t * Math.PI) * Math.max(p.sStart, p.sEnd, .001);
+        break;
+      default:
+        s = lerp(p.sStart, p.sEnd, t);
+    }
+    pos[i * 3] = p.px;
+    pos[i * 3 + 1] = p.py;
+    pos[i * 3 + 2] = p.pz;
+    col[i * 4] = r;
+    col[i * 4 + 1] = g;
+    col[i * 4 + 2] = b;
+    col[i * 4 + 3] = clamp(a, 0, 1);
+    sz[i] = Math.max(0, s);
+  }
+  ps.geo.attributes.position.needsUpdate = true;
+  ps.geo.attributes.aColor.needsUpdate = true;
+  ps.geo.attributes.aSize.needsUpdate = true;
+}
+function mkPS(cfg, scene) {
+  const c = {
+      ...DEF_P,
+      ...cfg
+    },
+    N = c.count;
+  const pos = new Float32Array(N * 3),
+    col = new Float32Array(N * 4),
+    sz = new Float32Array(N);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("aColor", new THREE.BufferAttribute(col, 4));
+  geo.setAttribute("aSize", new THREE.BufferAttribute(sz, 1));
+  const bl = c.blending === "additive" ? THREE.AdditiveBlending : THREE.NormalBlending;
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: VERT,
+    fragmentShader: FRAG,
+    transparent: true,
+    blending: bl,
+    depthWrite: false,
+    uniforms: {}
+  });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  return {
+    cfg: c,
+    p: Array.from({
+      length: N
+    }, mkPt),
+    bufs: {
+      pos,
+      col,
+      sz
+    },
+    geo,
+    mat,
+    pts,
+    acc: 0,
+    burst: false
+  };
+}
+function rmPS(ps, scene) {
+  if (!ps) return;
+  scene.remove(ps.pts);
+  ps.geo.dispose();
+  ps.mat.dispose();
+}
+const EASINGS = {
+  linear: t => t,
+  easeIn: t => t * t * t,
+  easeOut: t => 1 - (1 - t) ** 3,
+  easeInOut: t => t < .5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2,
+  bounce: t => {
+    if (t < 1 / 2.75) return 7.5625 * t * t;
+    if (t < 2 / 2.75) return 7.5625 * (t -= 1.5 / 2.75) * t + .75;
+    if (t < 2.5 / 2.75) return 7.5625 * (t -= 2.25 / 2.75) * t + .9375;
+    return 7.5625 * (t -= 2.625 / 2.75) * t + .984375;
+  },
+  spring: t => t === 0 ? 0 : t === 1 ? 1 : 2 ** (-10 * t) * Math.sin((t * 10 - .75) * (2 * Math.PI / 3)) + 1
+};
+const DEF_PATH = {
+  shape: "arc",
+  easing: "easeInOut",
+  duration: 2200
+};
+const DEF_TV = {
+  type: "sphere",
+  color: "#ffc400",
+  scale: 1,
+  trail: true,
+  trailLen: 45
+};
+const MESH_TYPES = ["sphere", "cube", "torus", "cone", "diamond", "ring"];
+const DWELL_S = 0.35;
+let _aid = 4;
+const newId = () => "a" + _aid++;
+const C = {
+  bg: "#060810",
+  panel: "rgba(4,8,18,0.97)",
+  border: "rgba(0,229,255,0.08)",
+  cyan: "#00e5ff",
+  amber: "#ffc400",
+  green: "#69ff7d",
+  purple: "#b388ff",
+  red: "#ff6b6b",
+  orange: "#ff9d7d",
+  dim: "rgba(255,255,255,0.22)",
+  dimmer: "rgba(255,255,255,0.12)"
+};
+const mono = "'JetBrains Mono','Fira Code',monospace";
+function neatPos(n) {
+  const r = Math.max(3, 2.4 + n * .28);
+  return Array.from({
+    length: n
+  }, (_, i) => {
+    const a = i / n * Math.PI * 2 - Math.PI / 2;
+    return {
+      x: +(r * Math.cos(a)).toFixed(2),
+      y: +(Math.sin(a * 2) * 1.1 + Math.cos(a) * .3).toFixed(2),
+      z: +(r * Math.sin(a)).toFixed(2)
+    };
+  });
+}
+const IP = neatPos(4);
+const INIT_A = ["Anchor 0", "Anchor 1", "Anchor 2", "Anchor 3"].map((name, i) => ({
+  id: `a${i}`,
+  name,
+  pos: IP[i],
+  it: {
+    id: "",
+    name: "",
+    widthM: .1,
+    assigned: false
+  },
+  slam: {
+    persist: true,
+    frames: 30
+  }
+}));
+function getEdges(journey, loop) {
+  const e = [];
+  for (let i = 0; i < journey.length - 1; i++) e.push({
+    from: journey[i],
+    to: journey[i + 1],
+    key: `${journey[i]}→${journey[i + 1]}`
+  });
+  if (loop && journey.length > 1) {
+    const f = journey[0],
+      l = journey[journey.length - 1];
+    if (f !== l) e.push({
+      from: l,
+      to: f,
+      key: `${l}→${f}`
+    });
+  }
+  return e;
+}
+const getPCfg = (cfgs, key) => ({
+  ...DEF_PATH,
+  ...(cfgs[key] || {})
+});
+const getLTV = (cfgs, key) => {
+  const c = cfgs[key] || {};
+  return {
+    type: c.legTvType || "inherit",
+    object: {
+      ...{
+        meshType: "sphere",
+        color: "#ffc400",
+        scale: 1
+      },
+      ...(c.legTvObject || {})
+    },
+    particleConfig: {
+      ...DEF_P,
+      ...(c.legTvParticles || {})
+    }
+  };
+};
+function edgeToScrub(ei, t, edges, pCfgs) {
+  var _edges$ei;
+  const tot = edges.reduce((s, e) => s + getPCfg(pCfgs, e.key).duration, 0);
+  if (!tot) return 0;
+  let el = 0;
+  for (let i = 0; i < ei; i++) el += getPCfg(pCfgs, edges[i].key).duration;
+  el += t * (getPCfg(pCfgs, ((_edges$ei = edges[ei]) == null ? void 0 : _edges$ei.key) || "").duration || 0);
+  return el / tot;
+}
+function scrubToEdge(pos, edges, pCfgs) {
+  if (!edges.length) return {
+    ei: 0,
+    t: 0
+  };
+  const tot = edges.reduce((s, e) => s + getPCfg(pCfgs, e.key).duration, 0);
+  let tgt = pos * tot;
+  for (let i = 0; i < edges.length; i++) {
+    const d = getPCfg(pCfgs, edges[i].key).duration;
+    if (tgt <= d || i === edges.length - 1) return {
+      ei: i,
+      t: clamp(tgt / d, 0, 1)
+    };
+    tgt -= d;
+  }
+  return {
+    ei: edges.length - 1,
+    t: 1
+  };
+}
+function buildCurve(from, to, shape, time = 0) {
+  const mid = new THREE.Vector3().lerpVectors(from, to, .5),
+    d = from.distanceTo(to);
+  if (shape === "arc") return new THREE.CatmullRomCurve3([from.clone(), mid.clone().add(new THREE.Vector3(0, d * .38, 0)), to.clone()]);
+  if (shape === "bezier") {
+    const dir = to.clone().sub(from).normalize(),
+      perp = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+    return new THREE.CatmullRomCurve3([from.clone(), from.clone().lerp(mid, .5).addScaledVector(perp, d * .42).add(new THREE.Vector3(0, d * .32, 0)), to.clone().lerp(mid, .5).addScaledVector(perp, -d * .28).add(new THREE.Vector3(0, d * .12, 0)), to.clone()]);
+  }
+  if (shape === "noise") {
+    const pts = [];
+    for (let i = 0; i <= 14; i++) {
+      const t = i / 14,
+        p = new THREE.Vector3().lerpVectors(from, to, t),
+        env = Math.sin(t * Math.PI);
+      if (i > 0 && i < 14) {
+        p.y += Math.sin(t * 9 + time * 2) * .48 * env;
+        p.x += Math.cos(t * 6 + time * 1.5) * .32 * env;
+        p.z += Math.sin(t * 5 + time * 1.2) * .26 * env;
+      }
+      pts.push(p);
+    }
+    return new THREE.CatmullRomCurve3(pts);
+  }
+  return new THREE.CatmullRomCurve3([from.clone(), to.clone()]);
+}
+function mkTex(state) {
+  const S = 256,
+    cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const ctx = cv.getContext("2d");
+  const col = {
+    assigned: "#69ff7d",
+    active: "#ffc400",
+    selected: "#ffffff",
+    drag: "#ff9d7d",
+    idle: "#00e5ff"
+  }[state] || "#00e5ff";
+  ctx.fillStyle = "rgba(0,10,18,0.92)";
+  ctx.fillRect(0, 0, S, S);
+  ctx.strokeStyle = col + "22";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(4, 4, S - 8, S - 8);
+  const m = 18,
+    l = 50;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = state === "selected" || state === "drag" ? 9 : 6;
+  [[m, m, 1, 1], [S - m, m, -1, 1], [m, S - m, 1, -1], [S - m, S - m, -1, -1]].forEach(([x, y, dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y + dy * l);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + dx * l, y);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(S / 2, S / 2, 24, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = col + "70";
+  ctx.beginPath();
+  ctx.arc(S / 2, S / 2, 5, 0, Math.PI * 2);
+  ctx.fill();
+  return new THREE.CanvasTexture(cv);
+}
+function mkMesh(type, color, scale = 1) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(color),
+    emissive: new THREE.Color(color),
+    emissiveIntensity: 1.5,
+    roughness: .18,
+    metalness: .5
+  });
+  const G = {
+    sphere: new THREE.SphereGeometry(.18, 24, 24),
+    cube: new THREE.BoxGeometry(.28, .28, .28),
+    torus: new THREE.TorusGeometry(.16, .06, 10, 28),
+    cone: new THREE.ConeGeometry(.16, .3, 14),
+    diamond: new THREE.OctahedronGeometry(.2),
+    ring: new THREE.TorusGeometry(.2, .035, 8, 32)
+  };
+  const m = new THREE.Mesh(G[type] || G.sphere, mat);
+  m.scale.setScalar(scale);
+  return m;
+}
+function buildEdgeCfg(gj) {
+  return {
+    shape: gj.shape,
+    easing: gj.easing,
+    duration: gj.duration,
+    legTvType: gj.tvType,
+    legTvParticles: gj.tvType === "particles" ? {
+      ...gj.particleConfig
+    } : undefined,
+    legTvObject: gj.tvType === "object" ? {
+      ...gj.tvObject
+    } : undefined
+  };
+}
+const Btn = ({
+  active,
+  col = "#00e5ff",
+  onClick,
+  children,
+  small,
+  title
+}) => React.createElement("button", {
+  title: title,
+  onClick: onClick,
+  style: {
+    background: active ? `${col}18` : "rgba(255,255,255,0.04)",
+    border: `1px solid ${active ? col + "55" : "rgba(255,255,255,0.09)"}`,
+    color: active ? col : "rgba(255,255,255,0.22)",
+    padding: small ? "2px 6px" : "4px 9px",
+    borderRadius: 4,
+    fontSize: small ? 10 : 11,
+    cursor: "pointer",
+    fontFamily: mono,
+    whiteSpace: "nowrap"
+  }
+}, children);
+const IBtn = ({
+  onClick,
+  title,
+  children,
+  col,
+  small
+}) => React.createElement("button", {
+  title: title,
+  onClick: onClick,
+  style: {
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: col || "rgba(255,255,255,0.22)",
+    padding: small ? "2px 5px" : "3px 6px",
+    borderRadius: 4,
+    fontSize: small ? 10 : 11,
+    cursor: "pointer",
+    fontFamily: mono,
+    lineHeight: 1
+  }
+}, children);
+const SecL = ({
+  children,
+  action,
+  col
+}) => React.createElement("div", {
+  style: {
+    display: "flex",
+    alignItems: "center",
+    color: col || "rgba(255,255,255,0.18)",
+    fontSize: 9,
+    fontFamily: mono,
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    marginBottom: 7,
+    borderTop: "1px solid rgba(255,255,255,0.05)",
+    paddingTop: 9
+  }
+}, React.createElement("span", {
+  style: {
+    flex: 1
+  }
+}, children), action);
+const FR = ({
+  label,
+  children
+}) => React.createElement("div", {
+  style: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 5
+  }
+}, React.createElement("span", {
+  style: {
+    color: "rgba(255,255,255,0.12)",
+    fontSize: 10,
+    fontFamily: mono,
+    width: 56,
+    flexShrink: 0
+  }
+}, label), children);
+const Tog = ({
+  value,
+  onChange,
+  label
+}) => React.createElement("label", {
+  style: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    cursor: "pointer",
+    marginBottom: 5
+  }
+}, React.createElement("div", {
+  onClick: () => onChange(!value),
+  style: {
+    width: 26,
+    height: 14,
+    borderRadius: 7,
+    background: value ? C.cyan : "rgba(255,255,255,0.1)",
+    border: `1px solid ${value ? C.cyan + "80" : "rgba(255,255,255,0.14)"}`,
+    position: "relative",
+    transition: "all .2s",
+    cursor: "pointer",
+    flexShrink: 0
+  }
+}, React.createElement("div", {
+  style: {
+    position: "absolute",
+    top: 2,
+    left: value ? 13 : 2,
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: value ? "#fff" : "rgba(255,255,255,0.22)",
+    transition: "left .2s"
+  }
+})), React.createElement("span", {
+  style: {
+    color: "rgba(255,255,255,0.22)",
+    fontSize: 11,
+    fontFamily: mono
+  }
+}, label));
+const Sld = ({
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  col = C.amber,
+  fmt
+}) => React.createElement(FR, {
+  label: label
+}, React.createElement("input", {
+  type: "range",
+  min: min,
+  max: max,
+  step: step,
+  value: value,
+  onChange: e => onChange(+e.target.value),
+  style: {
+    flex: 1,
+    accentColor: col
+  }
+}), React.createElement("span", {
+  style: {
+    color: col,
+    fontSize: 10,
+    fontFamily: mono,
+    width: 52,
+    textAlign: "right"
+  }
+}, fmt ? fmt(value) : value));
+const Cpk = ({
+  label,
+  value,
+  onChange
+}) => React.createElement(FR, {
+  label: label
+}, React.createElement("input", {
+  type: "color",
+  value: value,
+  onChange: e => onChange(e.target.value),
+  style: {
+    width: 30,
+    height: 20,
+    border: "1px solid rgba(255,255,255,0.1)",
+    background: "none",
+    cursor: "pointer",
+    padding: 1,
+    borderRadius: 3
+  }
+}), React.createElement("span", {
+  style: {
+    color: "rgba(255,255,255,0.22)",
+    fontSize: 10,
+    fontFamily: mono
+  }
+}, value));
+function NodeGraph({
+  anchors,
+  edges,
+  selected,
+  journey,
+  connectMode,
+  connectSrc,
+  animEdgeIdx,
+  animT,
+  customEdges,
+  onSelectPath,
+  onNodeClick
+}) {
+  const W = 210,
+    H = 148,
+    PAD = 22;
+  const xs = anchors.map(a => a.pos.x),
+    zs = anchors.map(a => a.pos.z);
+  const rx = Math.max(...xs, 0) - Math.min(...xs, 0) || 1,
+    rz = Math.max(...zs, 0) - Math.min(...zs, 0) || 1;
+  const minX = Math.min(...xs, 0),
+    minZ = Math.min(...zs, 0);
+  const pr = pos => ({
+    sx: PAD + (pos.x - minX) / rx * (W - PAD * 2),
+    sy: PAD + (pos.z - minZ) / rz * (H - PAD * 2)
+  });
+  const sn = {};
+  journey.forEach((id, i) => {
+    if (!sn[id]) sn[id] = [];
+    sn[id].push(i + 1);
+  });
+  const ae = edges[animEdgeIdx];
+  return React.createElement("div", {
+    style: {
+      background: "rgba(0,0,0,0.3)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 7,
+      overflow: "hidden",
+      marginBottom: 10
+    }
+  }, React.createElement("svg", {
+    width: W,
+    height: H,
+    style: {
+      display: "block",
+      cursor: connectMode ? "crosshair" : "default"
+    }
+  }, Array.from({
+    length: 5
+  }, (_, r) => Array.from({
+    length: 6
+  }, (_, c) => React.createElement("circle", {
+    key: `${r}-${c}`,
+    cx: PAD + c * (W - PAD * 2) / 5,
+    cy: PAD + r * (H - PAD * 2) / 4,
+    r: 1,
+    fill: "rgba(255,255,255,0.05)"
+  }))), edges.map(e => {
+    const fa = anchors.find(a => a.id === e.from),
+      ta = anchors.find(a => a.id === e.to);
+    if (!fa || !ta) return null;
+    const fp = pr(fa.pos),
+      tp = pr(ta.pos),
+      isSel = selected.type === "path" && selected.id === e.key,
+      isAct = (ae == null ? void 0 : ae.key) === e.key,
+      isCust = customEdges.has(e.key);
+    const mx = (fp.sx + tp.sx) / 2,
+      my = (fp.sy + tp.sy) / 2,
+      ang = Math.atan2(tp.sy - fp.sy, tp.sx - fp.sx);
+    const ax = mx + Math.cos(ang) * 6,
+      ay = my + Math.sin(ang) * 6,
+      lx = mx - Math.cos(ang) * 6,
+      ly = my - Math.sin(ang) * 6,
+      px = -Math.sin(ang) * 4,
+      py = Math.cos(ang) * 4;
+    return React.createElement("g", {
+      key: e.key,
+      onClick: () => onSelectPath(e.key),
+      style: {
+        cursor: "pointer"
+      }
+    }, React.createElement("line", {
+      x1: fp.sx,
+      y1: fp.sy,
+      x2: tp.sx,
+      y2: tp.sy,
+      stroke: "transparent",
+      strokeWidth: 10
+    }), React.createElement("line", {
+      x1: fp.sx,
+      y1: fp.sy,
+      x2: tp.sx,
+      y2: tp.sy,
+      stroke: isSel ? C.amber : isAct ? C.amber : isCust ? C.orange : "rgba(0,229,255,0.45)",
+      strokeWidth: isSel ? 2.5 : isAct ? 2 : 1.5,
+      strokeDasharray: isCust && !isSel ? "4,2" : undefined,
+      opacity: isSel || isAct ? 1 : .7
+    }), React.createElement("polygon", {
+      points: `${ax},${ay} ${lx + px},${ly + py} ${lx - px},${ly - py}`,
+      fill: isSel ? C.amber : isAct ? C.amber : isCust ? C.orange : "rgba(0,229,255,0.55)"
+    }), isAct && React.createElement("circle", {
+      cx: fp.sx + (tp.sx - fp.sx) * EASINGS.easeInOut(clamp(animT, 0, 1)),
+      cy: fp.sy + (tp.sy - fp.sy) * EASINGS.easeInOut(clamp(animT, 0, 1)),
+      r: 3.5,
+      fill: C.amber
+    }));
+  }), anchors.map(a => {
+    const {
+      sx,
+      sy
+    } = pr(a.pos);
+    const isSel = selected.type === "anchor" && selected.id === a.id,
+      isCS = connectSrc === a.id;
+    const col = isCS ? C.amber : isSel ? "#fff" : a.it.assigned ? C.green : C.cyan,
+      r = isSel || isCS ? 7 : 5.5,
+      nums = sn[a.id];
+    return React.createElement("g", {
+      key: a.id,
+      onClick: () => onNodeClick(a.id),
+      style: {
+        cursor: "pointer"
+      }
+    }, React.createElement("circle", {
+      cx: sx,
+      cy: sy,
+      r: r + 4,
+      fill: "transparent"
+    }), isSel && React.createElement("circle", {
+      cx: sx,
+      cy: sy,
+      r: r + 7,
+      fill: "none",
+      stroke: "#ffffff",
+      strokeWidth: 1,
+      strokeDasharray: "3,2",
+      opacity: .4
+    }), React.createElement("circle", {
+      cx: sx,
+      cy: sy,
+      r: r,
+      fill: `${col}22`,
+      stroke: col,
+      strokeWidth: isSel || isCS ? 2 : 1.5
+    }), nums && React.createElement("text", {
+      x: sx,
+      y: sy + .4,
+      textAnchor: "middle",
+      dominantBaseline: "middle",
+      fill: col,
+      fontSize: r > 6 ? 6.5 : 5.5,
+      fontFamily: mono,
+      fontWeight: 700
+    }, nums.join(",")), React.createElement("text", {
+      x: sx,
+      y: sy - r - 4,
+      textAnchor: "middle",
+      fill: "rgba(255,255,255,0.5)",
+      fontSize: 7,
+      fontFamily: mono
+    }, a.name.replace("Anchor ", "A")));
+  })));
+}
+function Timeline({
+  edges,
+  pathConfigs,
+  animUi,
+  isLive,
+  onToggleLive,
+  onScrub,
+  selected,
+  onSelectPath,
+  customEdges
+}) {
+  const trackRef = useRef(null),
+    scrubbingRef = useRef(false);
+  const totalMs = edges.reduce((s, e) => s + getPCfg(pathConfigs, e.key).duration, 0) || 1;
+  const segs = [];
+  let cum = 0;
+  edges.forEach((e, i) => {
+    const d = getPCfg(pathConfigs, e.key).duration;
+    const isCust = customEdges.has(e.key);
+    segs.push({
+      start: cum / totalMs,
+      w: d / totalMs,
+      key: e.key,
+      idx: i,
+      d,
+      isCust
+    });
+    cum += d;
+  });
+  const ph = clamp(edgeToScrub(animUi.edgeIdx, animUi.phase === "travelling" ? animUi.t : 1, edges, pathConfigs), 0, 1);
+  const handleDown = e => {
+    e.preventDefault();
+    scrubbingRef.current = true;
+    const rect = trackRef.current.getBoundingClientRect();
+    onScrub(clamp((e.clientX - rect.left) / rect.width, 0, 1));
+  };
+  useEffect(() => {
+    const mv = e => {
+      if (!scrubbingRef.current || !trackRef.current) return;
+      const rect = trackRef.current.getBoundingClientRect();
+      onScrub(clamp((e.clientX - rect.left) / rect.width, 0, 1));
+    };
+    const up = () => {
+      scrubbingRef.current = false;
+    };
+    window.addEventListener("mousemove", mv);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", mv);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [onScrub]);
+  return React.createElement("div", {
+    style: {
+      height: 52,
+      background: "rgba(2,6,14,0.98)",
+      borderTop: "1px solid rgba(0,229,255,0.08)",
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "0 14px",
+      flexShrink: 0
+    }
+  }, React.createElement("button", {
+    onClick: onToggleLive,
+    style: {
+      background: isLive ? "rgba(255,196,0,0.12)" : "rgba(105,255,125,0.12)",
+      border: `1px solid ${isLive ? "rgba(255,196,0,0.4)" : "rgba(105,255,125,0.4)"}`,
+      color: isLive ? C.amber : C.green,
+      width: 32,
+      height: 32,
+      borderRadius: 6,
+      fontSize: 14,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0
+    }
+  }, isLive ? "⏸" : "▶"), React.createElement("div", {
+    ref: trackRef,
+    onMouseDown: handleDown,
+    style: {
+      flex: 1,
+      height: 34,
+      position: "relative",
+      cursor: "pointer",
+      borderRadius: 5,
+      overflow: "hidden",
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.07)"
+    }
+  }, segs.map(seg => {
+    const isSel = selected.type === "path" && selected.id === seg.key,
+      isAct = animUi.edgeIdx === seg.idx;
+    const segCol = seg.isCust ? C.orange : C.cyan;
+    return React.createElement("div", {
+      key: seg.key,
+      onClick: e => {
+        e.stopPropagation();
+        onSelectPath(seg.key);
+      },
+      style: {
+        position: "absolute",
+        left: `${seg.start * 100}%`,
+        width: `${seg.w * 100}%`,
+        top: 0,
+        bottom: 0,
+        background: isSel ? `${C.amber}28` : isAct ? `${segCol}22` : `${segCol}0a`,
+        borderRight: "1px solid rgba(0,0,0,0.35)",
+        cursor: "pointer"
+      }
+    }, React.createElement("div", {
+      style: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 2,
+        background: seg.isCust ? `${C.orange}60` : isSel ? C.amber : isAct ? `${segCol}80` : "transparent"
+      }
+    }), React.createElement("div", {
+      style: {
+        position: "absolute",
+        top: 3,
+        left: 4,
+        color: `${segCol}80`,
+        fontSize: 7,
+        fontFamily: mono
+      }
+    }, seg.idx + 1, seg.isCust ? React.createElement("span", {
+      style: {
+        color: C.orange,
+        marginLeft: 2
+      }
+    }, "\u2605") : ""), React.createElement("div", {
+      style: {
+        position: "absolute",
+        bottom: 3,
+        left: 4,
+        color: `${segCol}55`,
+        fontSize: 7,
+        fontFamily: mono
+      }
+    }, (seg.d / 1000).toFixed(1), "s"));
+  }), React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: `${ph * 100}%`,
+      width: 2,
+      background: C.amber,
+      transform: "translateX(-50%)",
+      pointerEvents: "none",
+      zIndex: 2
+    }
+  }, React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: -3,
+      left: -4,
+      width: 10,
+      height: 10,
+      borderRadius: "50%",
+      background: C.amber,
+      border: "2px solid rgba(0,0,0,0.5)"
+    }
+  }))), React.createElement("div", {
+    style: {
+      fontFamily: mono,
+      fontSize: 10,
+      color: "rgba(255,255,255,0.35)",
+      minWidth: 68,
+      textAlign: "right",
+      lineHeight: 1.5
+    }
+  }, React.createElement("div", {
+    style: {
+      color: C.amber
+    }
+  }, fmtMs(ph * totalMs)), React.createElement("div", null, fmtMs(totalMs))));
+}
+function ParticleEditor({
+  config,
+  onChange,
+  compact
+}) {
+  const [tab, setTab] = useState("presets");
+  const [cat, setCat] = useState("all");
+  const cfg = {
+    ...DEF_P,
+    ...config
+  };
+  const set = (k, v) => onChange({
+    ...cfg,
+    [k]: v
+  });
+  const CATS = ["all", "organic", "fluid", "gas", "heat", "energy", "cosmic", "force", "ambient", "magic"];
+  const tabCols = {
+    presets: C.cyan,
+    emit: C.green,
+    motion: C.orange,
+    visual: C.purple
+  };
+  return React.createElement("div", {
+    style: compact ? {
+      background: "rgba(255,255,255,0.025)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 6,
+      padding: "10px 8px"
+    } : {}
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 3,
+      marginBottom: 8,
+      flexWrap: "wrap"
+    }
+  }, ["presets", "emit", "motion", "visual"].map(t => React.createElement(Btn, {
+    key: t,
+    active: tab === t,
+    col: tabCols[t],
+    small: true,
+    onClick: () => setTab(t)
+  }, t))), tab === "presets" && React.createElement("div", null, React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 3,
+      marginBottom: 8
+    }
+  }, CATS.map(c => React.createElement(Btn, {
+    key: c,
+    active: cat === c,
+    col: "rgba(255,255,255,0.3)",
+    small: true,
+    onClick: () => setCat(c)
+  }, c))), React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr",
+      gap: 4
+    }
+  }, Object.entries(PPRESETS).filter(([, v]) => cat === "all" || v.cat === cat).map(([k, pr]) => React.createElement("div", {
+    key: k,
+    onClick: () => onChange({
+      ...DEF_P,
+      ...pr.c
+    }),
+    style: {
+      background: "rgba(255,255,255,0.03)",
+      border: `1px solid rgba(255,255,255,0.07)`,
+      borderRadius: 5,
+      padding: "5px 6px",
+      cursor: "pointer"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      alignItems: "center",
+      marginBottom: 1
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 6,
+      height: 6,
+      borderRadius: "50%",
+      background: pr.col,
+      flexShrink: 0
+    }
+  }), React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.6)",
+      fontSize: 9,
+      fontFamily: mono,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, pr.name)), React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 8,
+      fontFamily: mono,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, pr.desc))))), tab === "emit" && React.createElement("div", null, React.createElement(Sld, {
+    label: "Count",
+    min: 5,
+    max: 200,
+    step: 5,
+    value: cfg.count,
+    onChange: v => set("count", v),
+    col: C.green
+  }), React.createElement(Sld, {
+    label: "Rate/s",
+    min: 0,
+    max: 100,
+    step: 1,
+    value: cfg.emissionRate,
+    onChange: v => set("emissionRate", v),
+    col: C.green
+  }), React.createElement(Sld, {
+    label: "Burst",
+    min: 0,
+    max: 200,
+    step: 5,
+    value: cfg.burstCount,
+    onChange: v => set("burstCount", v),
+    col: C.green
+  }), React.createElement(Tog, {
+    value: cfg.continuousEmit,
+    onChange: v => set("continuousEmit", v),
+    label: "Continuous emit"
+  }), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 3,
+      marginBottom: 6
+    }
+  }, ["point", "sphere", "ring", "cone", "box"].map(s => React.createElement(Btn, {
+    key: s,
+    active: cfg.emitShape === s,
+    col: C.green,
+    small: true,
+    onClick: () => set("emitShape", s)
+  }, s))), React.createElement(Sld, {
+    label: "Radius",
+    min: 0,
+    max: 3,
+    step: .05,
+    value: cfg.emitRadius,
+    onChange: v => set("emitRadius", v),
+    col: C.green,
+    fmt: v => v.toFixed(2) + "m"
+  }), React.createElement(Sld, {
+    label: "Life min",
+    min: .1,
+    max: 12,
+    step: .1,
+    value: cfg.lifetimeMin,
+    onChange: v => set("lifetimeMin", v),
+    col: C.green,
+    fmt: v => v.toFixed(1) + "s"
+  }), React.createElement(Sld, {
+    label: "Life max",
+    min: .1,
+    max: 12,
+    step: .1,
+    value: cfg.lifetimeMax,
+    onChange: v => set("lifetimeMax", v),
+    col: C.green,
+    fmt: v => v.toFixed(1) + "s"
+  })), tab === "motion" && React.createElement("div", null, React.createElement(Sld, {
+    label: "Speed min",
+    min: 0,
+    max: 10,
+    step: .1,
+    value: cfg.speedMin,
+    onChange: v => set("speedMin", v),
+    col: C.orange,
+    fmt: v => v.toFixed(1)
+  }), React.createElement(Sld, {
+    label: "Speed max",
+    min: 0,
+    max: 10,
+    step: .1,
+    value: cfg.speedMax,
+    onChange: v => set("speedMax", v),
+    col: C.orange,
+    fmt: v => v.toFixed(1)
+  }), React.createElement(Sld, {
+    label: "Spread\xB0",
+    min: 0,
+    max: 180,
+    step: 5,
+    value: cfg.spread,
+    onChange: v => set("spread", v),
+    col: C.orange,
+    unit: "\xB0"
+  }), React.createElement(Tog, {
+    value: cfg.spread3D,
+    onChange: v => set("spread3D", v),
+    label: "3D spread"
+  }), React.createElement(Sld, {
+    label: "Gravity",
+    min: -8,
+    max: 4,
+    step: .1,
+    value: cfg.gravity,
+    onChange: v => set("gravity", v),
+    col: C.orange,
+    fmt: v => (v >= 0 ? "+" : "") + v.toFixed(1)
+  }), React.createElement(Sld, {
+    label: "Drag",
+    min: .8,
+    max: 1,
+    step: .001,
+    value: cfg.drag,
+    onChange: v => set("drag", v),
+    col: C.orange,
+    fmt: v => v.toFixed(3)
+  }), React.createElement(Sld, {
+    label: "Turb.",
+    min: 0,
+    max: 12,
+    step: .1,
+    value: cfg.turbulence,
+    onChange: v => set("turbulence", v),
+    col: C.orange,
+    fmt: v => v.toFixed(1)
+  }), React.createElement(Sld, {
+    label: "T.Freq",
+    min: .1,
+    max: 10,
+    step: .1,
+    value: cfg.turbulenceFreq,
+    onChange: v => set("turbulenceFreq", v),
+    col: C.orange,
+    fmt: v => v.toFixed(1)
+  }), React.createElement(Sld, {
+    label: "Swirl",
+    min: -12,
+    max: 12,
+    step: .25,
+    value: cfg.swirl,
+    onChange: v => set("swirl", v),
+    col: C.orange,
+    fmt: v => (v >= 0 ? "+" : "") + v.toFixed(2)
+  }), React.createElement(Sld, {
+    label: "Attract",
+    min: -3,
+    max: 5,
+    step: .1,
+    value: cfg.attract,
+    onChange: v => set("attract", v),
+    col: C.orange,
+    fmt: v => (v >= 0 ? "+" : "") + v.toFixed(1)
+  })), tab === "visual" && React.createElement("div", null, React.createElement(Sld, {
+    label: "Size start",
+    min: .01,
+    max: .8,
+    step: .01,
+    value: cfg.sizeStart,
+    onChange: v => set("sizeStart", v),
+    col: C.purple,
+    fmt: v => v.toFixed(2)
+  }), React.createElement(Sld, {
+    label: "Size end",
+    min: .01,
+    max: .8,
+    step: .01,
+    value: cfg.sizeEnd,
+    onChange: v => set("sizeEnd", v),
+    col: C.purple,
+    fmt: v => v.toFixed(2)
+  }), React.createElement(FR, {
+    label: "Sz curve"
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 3,
+      flexWrap: "wrap"
+    }
+  }, ["linear", "easeIn", "easeOut", "peak", "inv-peak"].map(s => React.createElement(Btn, {
+    key: s,
+    active: cfg.sizeCurve === s,
+    col: C.purple,
+    small: true,
+    onClick: () => set("sizeCurve", s)
+  }, s)))), React.createElement(Cpk, {
+    label: "Col start",
+    value: cfg.colorStart,
+    onChange: v => set("colorStart", v)
+  }), React.createElement("div", {
+    style: {
+      marginBottom: 5
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6
+    }
+  }, React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.12)",
+      fontSize: 10,
+      fontFamily: mono,
+      width: 56
+    }
+  }, "Col mid"), React.createElement(Tog, {
+    value: !!cfg.colorMid,
+    onChange: v => set("colorMid", v ? cfg.colorStart : null),
+    label: "Enable"
+  })), cfg.colorMid && React.createElement(Cpk, {
+    label: "",
+    value: cfg.colorMid,
+    onChange: v => set("colorMid", v)
+  })), React.createElement(Cpk, {
+    label: "Col end",
+    value: cfg.colorEnd,
+    onChange: v => set("colorEnd", v)
+  }), React.createElement(Sld, {
+    label: "Opacity \u2191",
+    min: 0,
+    max: 1,
+    step: .01,
+    value: cfg.opacityStart,
+    onChange: v => set("opacityStart", v),
+    col: C.purple,
+    fmt: v => v.toFixed(2)
+  }), React.createElement(Sld, {
+    label: "Opacity \u2193",
+    min: 0,
+    max: 1,
+    step: .01,
+    value: cfg.opacityEnd,
+    onChange: v => set("opacityEnd", v),
+    col: C.purple,
+    fmt: v => v.toFixed(2)
+  }), React.createElement(FR, {
+    label: "Op curve"
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 3,
+      flexWrap: "wrap"
+    }
+  }, ["linear", "easeIn", "easeOut", "fadeInOut", "peak", "flicker"].map(s => React.createElement(Btn, {
+    key: s,
+    active: cfg.opacityCurve === s,
+    col: C.purple,
+    small: true,
+    onClick: () => set("opacityCurve", s)
+  }, s)))), React.createElement(FR, {
+    label: "Blending"
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 3
+    }
+  }, ["additive", "normal", "screen"].map(b => React.createElement(Btn, {
+    key: b,
+    active: cfg.blending === b,
+    col: C.purple,
+    small: true,
+    onClick: () => set("blending", b)
+  }, b))))));
+}
+function GlobalJourneyEditor({
+  gj,
+  onUpdate,
+  edges,
+  customEdges,
+  onApplyJP,
+  onSyncEdge,
+  onSyncAll,
+  anchors
+}) {
+  const [showPTune, setShowPTune] = useState(false);
+  const [showPresets, setShowPresets] = useState(!gj.presetId);
+  const hasPreset = !!gj.presetId;
+  const col = gj.presetCol || C.cyan;
+  const multActive = m => Math.abs(gj.duration / (gj.baseDuration || gj.duration) - m) < 0.05;
+  return React.createElement("div", null, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 8
+    }
+  }, React.createElement("span", {
+    style: {
+      color: C.cyan,
+      fontFamily: mono,
+      fontWeight: 700,
+      fontSize: 12,
+      flex: 1
+    }
+  }, "JOURNEY PRESETS"), React.createElement(IBtn, {
+    small: true,
+    onClick: () => setShowPresets(s => !s)
+  }, showPresets ? "▲" : "▼")), showPresets && React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr 1fr",
+      gap: 3,
+      marginBottom: 10
+    }
+  }, JP.map(jp => React.createElement("div", {
+    key: jp.id,
+    onClick: () => {
+      onApplyJP(jp);
+      setShowPresets(false);
+    },
+    title: jp.desc,
+    style: {
+      background: gj.presetId === jp.id ? `${jp.col}18` : "rgba(255,255,255,0.03)",
+      border: `1px solid ${gj.presetId === jp.id ? jp.col + "55" : "rgba(255,255,255,0.07)"}`,
+      borderRadius: 5,
+      padding: "5px 4px",
+      cursor: "pointer",
+      textAlign: "center"
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 6,
+      height: 6,
+      borderRadius: "50%",
+      background: jp.col,
+      margin: "0 auto 3px"
+    }
+  }), React.createElement("div", {
+    style: {
+      color: gj.presetId === jp.id ? jp.col : "rgba(255,255,255,0.5)",
+      fontSize: 8,
+      fontFamily: mono,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, jp.name)))), hasPreset && React.createElement("div", null, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12,
+      background: `${col}0e`,
+      border: `1px solid ${col}30`,
+      borderRadius: 6,
+      padding: "7px 10px"
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: "50%",
+      background: col,
+      boxShadow: `0 0 6px ${col}`,
+      flexShrink: 0
+    }
+  }), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, React.createElement("div", {
+    style: {
+      color: col,
+      fontFamily: mono,
+      fontSize: 11,
+      fontWeight: 700
+    }
+  }, gj.presetName), React.createElement("div", {
+    style: {
+      color: gj.modified ? "rgba(255,157,125,0.8)" : "rgba(255,255,255,0.22)",
+      fontSize: 9,
+      fontFamily: mono
+    }
+  }, gj.modified ? "modified from preset" : "using preset defaults")), gj.modified && React.createElement(IBtn, {
+    small: true,
+    col: C.orange,
+    onClick: () => onApplyJP(JP.find(j => j.id === gj.presetId)),
+    title: "Reset to preset defaults"
+  }, "\u21BA")), React.createElement(SecL, {
+    col: "rgba(255,255,255,0.25)"
+  }, "Path"), React.createElement("div", {
+    style: {
+      marginBottom: 7
+    }
+  }, React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 4
+    }
+  }, "SHAPE"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4
+    }
+  }, ["straight", "arc", "bezier", "noise"].map(s => React.createElement(Btn, {
+    key: s,
+    active: gj.shape === s,
+    col: C.cyan,
+    small: true,
+    onClick: () => onUpdate({
+      shape: s
+    })
+  }, s)))), React.createElement("div", {
+    style: {
+      marginBottom: 7
+    }
+  }, React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 4
+    }
+  }, "EASING"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 3
+    }
+  }, Object.keys(EASINGS).map(e => React.createElement(Btn, {
+    key: e,
+    active: gj.easing === e,
+    col: C.purple,
+    small: true,
+    onClick: () => onUpdate({
+      easing: e
+    })
+  }, e)))), React.createElement("div", {
+    style: {
+      marginBottom: 4
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 4
+    }
+  }, React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 9,
+      fontFamily: mono
+    }
+  }, "DURATION"), React.createElement("span", {
+    style: {
+      color: C.amber,
+      fontSize: 11,
+      fontFamily: mono,
+      fontWeight: 700
+    }
+  }, gj.duration, "ms")), React.createElement("input", {
+    type: "range",
+    min: 100,
+    max: 8000,
+    step: 50,
+    value: gj.duration,
+    onChange: e => onUpdate({
+      duration: +e.target.value
+    }),
+    style: {
+      width: "100%",
+      accentColor: C.amber,
+      marginBottom: 6
+    }
+  }), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 3
+    }
+  }, [.25, .5, 1, 2, 4].map(m => React.createElement("button", {
+    key: m,
+    onClick: () => onUpdate({
+      duration: Math.round((gj.baseDuration || 2200) * m)
+    }),
+    style: {
+      flex: 1,
+      background: multActive(m) ? "rgba(255,196,0,0.15)" : "rgba(255,255,255,0.04)",
+      border: `1px solid ${multActive(m) ? "rgba(255,196,0,0.4)" : "rgba(255,255,255,0.08)"}`,
+      color: multActive(m) ? C.amber : "rgba(255,255,255,0.3)",
+      padding: "3px 0",
+      borderRadius: 4,
+      fontSize: 9,
+      cursor: "pointer",
+      fontFamily: mono
+    }
+  }, "\xD7", m)))), React.createElement(SecL, {
+    col: "rgba(255,255,255,0.25)"
+  }, "Traveller"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      marginBottom: 10
+    }
+  }, ["inherit", "object", "particles"].map(t => {
+    const tCols = {
+      inherit: "rgba(255,255,255,0.22)",
+      object: C.amber,
+      particles: C.cyan
+    };
+    return React.createElement(Btn, {
+      key: t,
+      active: gj.tvType === t,
+      col: tCols[t],
+      onClick: () => onUpdate({
+        tvType: t
+      })
+    }, t);
+  })), gj.tvType === "particles" && React.createElement("div", null, React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 6
+    }
+  }, "PARTICLE PRESET"), React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr",
+      gap: 3,
+      marginBottom: 8
+    }
+  }, Object.entries(PPRESETS).map(([k, pr]) => React.createElement("div", {
+    key: k,
+    onClick: () => onUpdate({
+      particlePreset: k,
+      particleConfig: {
+        ...DEF_P,
+        ...pr.c
+      }
+    }),
+    style: {
+      background: gj.particlePreset === k ? `${pr.col}18` : "rgba(255,255,255,0.02)",
+      border: `1px solid ${gj.particlePreset === k ? pr.col + "55" : "rgba(255,255,255,0.06)"}`,
+      borderRadius: 4,
+      padding: "4px 5px",
+      cursor: "pointer"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 3
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 5,
+      height: 5,
+      borderRadius: "50%",
+      background: pr.col,
+      flexShrink: 0
+    }
+  }), React.createElement("span", {
+    style: {
+      color: gj.particlePreset === k ? pr.col : "rgba(255,255,255,0.5)",
+      fontSize: 8,
+      fontFamily: mono,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, pr.name))))), React.createElement("button", {
+    onClick: () => setShowPTune(s => !s),
+    style: {
+      width: "100%",
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      color: showPTune ? C.cyan : "rgba(255,255,255,0.35)",
+      padding: "6px 10px",
+      borderRadius: 5,
+      cursor: "pointer",
+      fontFamily: mono,
+      fontSize: 11,
+      textAlign: "left",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: showPTune ? 8 : 0
+    }
+  }, React.createElement("span", null, "Fine-tune particles"), React.createElement("span", null, showPTune ? "▲" : "▼")), showPTune && React.createElement(ParticleEditor, {
+    compact: true,
+    config: gj.particleConfig,
+    onChange: pc => onUpdate({
+      particleConfig: pc,
+      particlePreset: "custom",
+      modified: true
+    })
+  })), gj.tvType === "object" && React.createElement("div", null, React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 3,
+      marginBottom: 6
+    }
+  }, MESH_TYPES.map(t => React.createElement(Btn, {
+    key: t,
+    active: (gj.tvObject || {}).meshType === t,
+    col: C.amber,
+    small: true,
+    onClick: () => onUpdate({
+      tvObject: {
+        ...(gj.tvObject || {}),
+        meshType: t
+      }
+    })
+  }, t))), React.createElement(Cpk, {
+    label: "Color",
+    value: (gj.tvObject || {}).color || "#ffc400",
+    onChange: v => onUpdate({
+      tvObject: {
+        ...(gj.tvObject || {}),
+        color: v
+      }
+    })
+  }), React.createElement(Sld, {
+    label: "Scale",
+    min: .3,
+    max: 2.5,
+    step: .1,
+    value: (gj.tvObject || {}).scale || 1,
+    onChange: v => onUpdate({
+      tvObject: {
+        ...(gj.tvObject || {}),
+        scale: v
+      }
+    }),
+    col: C.amber,
+    fmt: v => v.toFixed(1) + "×"
+  })), customEdges.size > 0 && React.createElement("div", {
+    style: {
+      marginTop: 6
+    }
+  }, React.createElement(SecL, {
+    col: "rgba(255,157,125,0.5)",
+    action: React.createElement(IBtn, {
+      small: true,
+      col: C.orange,
+      onClick: onSyncAll,
+      title: "Reset all custom edges to global settings"
+    }, "\u21BA all")
+  }, customEdges.size, " custom override", customEdges.size > 1 ? "s" : ""), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 3
+    }
+  }, [...customEdges].map(ek => {
+    const [f, t] = ek.split("→");
+    const fa = anchors.find(a => a.id === f),
+      ta = anchors.find(a => a.id === t);
+    return React.createElement("div", {
+      key: ek,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "4px 7px",
+        background: "rgba(255,157,125,0.06)",
+        border: "1px solid rgba(255,157,125,0.18)",
+        borderRadius: 4
+      }
+    }, React.createElement("div", {
+      style: {
+        width: 4,
+        height: 4,
+        borderRadius: "50%",
+        background: C.orange,
+        flexShrink: 0
+      }
+    }), React.createElement("span", {
+      style: {
+        flex: 1,
+        color: C.orange,
+        fontSize: 10,
+        fontFamily: mono,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, (fa == null ? void 0 : fa.name) || f, " \u2192 ", (ta == null ? void 0 : ta.name) || t), React.createElement(IBtn, {
+      small: true,
+      col: C.orange,
+      onClick: () => onSyncEdge(ek),
+      title: "Reset to global"
+    }, "\u21BA"));
+  })))), !hasPreset && React.createElement("div", {
+    style: {
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      borderRadius: 8,
+      padding: "14px 12px",
+      textAlign: "center",
+      color: "rgba(255,255,255,0.2)",
+      fontSize: 11,
+      fontFamily: mono,
+      lineHeight: 1.8
+    }
+  }, "Pick a preset above", React.createElement("br", null), "to begin tuning globally."));
+}
+function PathInspector({
+  edgeKey,
+  anchors,
+  pathConfigs,
+  onUpdate,
+  animT,
+  isCustom,
+  onSyncToGlobal,
+  gj
+}) {
+  const cfg = getPCfg(pathConfigs, edgeKey);
+  const ltv = getLTV(pathConfigs, edgeKey);
+  const [from, to] = edgeKey.split("→");
+  const fa = anchors.find(a => a.id === from),
+    ta = anchors.find(a => a.id === to);
+  const fn = EASINGS[cfg.easing] || EASINGS.linear;
+  const upd = k => v => onUpdate(edgeKey, {
+    ...cfg,
+    [k]: v
+  });
+  const [tab, setTab] = useState("path");
+  const updLTV = (k, v) => onUpdate(edgeKey, {
+    ...(pathConfigs[edgeKey] || {}),
+    [k]: v
+  });
+  const tvCols = {
+    inherit: "rgba(255,255,255,0.2)",
+    object: C.amber,
+    particles: C.cyan
+  };
+  const et = clamp(animT || 0, 0, 1);
+  const ex = et * 66,
+    ey = 66 - clamp(fn(et), -0.18, 1.18) * 66;
+  const easePts = Array.from({
+    length: 45
+  }, (_, i) => {
+    const t = i / 44,
+      S = 66;
+    return `${(t * S).toFixed(1)},${(S - clamp(fn(t), -0.18, 1.18) * S).toFixed(1)}`;
+  }).join(" ");
+  return React.createElement("div", null, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "6px 8px",
+      marginBottom: 10,
+      background: isCustom ? "rgba(255,157,125,0.08)" : "rgba(0,0,0,0.15)",
+      border: `1px solid ${isCustom ? "rgba(255,157,125,0.25)" : "rgba(255,255,255,0.06)"}`,
+      borderRadius: 5
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 6,
+      height: 6,
+      borderRadius: "50%",
+      background: isCustom ? C.orange : C.cyan,
+      flexShrink: 0
+    }
+  }), React.createElement("span", {
+    style: {
+      flex: 1,
+      color: isCustom ? C.orange : "rgba(255,255,255,0.3)",
+      fontSize: 10,
+      fontFamily: mono
+    }
+  }, isCustom ? "Custom override" : "Using global settings"), isCustom && React.createElement(IBtn, {
+    small: true,
+    col: C.orange,
+    onClick: onSyncToGlobal,
+    title: "Reset this edge to global settings"
+  }, "\u21BA global"), !isCustom && React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.12)",
+      fontSize: 9,
+      fontFamily: mono
+    }
+  }, "Edit to override")), React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: "50%",
+      background: C.amber,
+      boxShadow: `0 0 6px ${C.amber}`
+    }
+  }), React.createElement("div", {
+    style: {
+      color: C.amber,
+      fontFamily: mono,
+      fontWeight: 700,
+      fontSize: 11
+    }
+  }, (fa == null ? void 0 : fa.name) || from, " ", React.createElement("span", {
+    style: {
+      opacity: .4
+    }
+  }, "\u2192"), " ", (ta == null ? void 0 : ta.name) || to)), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      marginBottom: 10
+    }
+  }, React.createElement(Btn, {
+    active: tab === "path",
+    col: C.amber,
+    onClick: () => setTab("path")
+  }, "Path"), React.createElement(Btn, {
+    active: tab === "traveller",
+    col: tvCols[ltv.type],
+    onClick: () => setTab("traveller")
+  }, "Traveller", ltv.type !== "inherit" ? React.createElement("span", {
+    style: {
+      fontSize: 9,
+      opacity: .55,
+      marginLeft: 3
+    }
+  }, "\xB7 ", ltv.type) : "")), tab === "path" && React.createElement(React.Fragment, null, React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 4
+    }
+  }, "SHAPE"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 4,
+      marginBottom: 8
+    }
+  }, ["straight", "arc", "bezier", "noise"].map(s => React.createElement(Btn, {
+    key: s,
+    active: cfg.shape === s,
+    col: C.cyan,
+    small: true,
+    onClick: () => upd("shape")(s)
+  }, s))), React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 4
+    }
+  }, "EASING"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 4,
+      marginBottom: 8
+    }
+  }, Object.keys(EASINGS).map(e => React.createElement(Btn, {
+    key: e,
+    active: cfg.easing === e,
+    col: C.purple,
+    small: true,
+    onClick: () => upd("easing")(e)
+  }, e))), React.createElement("div", {
+    style: {
+      background: "rgba(255,255,255,0.02)",
+      borderRadius: 6,
+      padding: "8px 10px",
+      border: "1px solid rgba(255,255,255,0.05)",
+      marginBottom: 8,
+      display: "flex",
+      alignItems: "flex-end",
+      gap: 10
+    }
+  }, React.createElement("svg", {
+    width: 67,
+    height: 67,
+    style: {
+      overflow: "visible"
+    }
+  }, React.createElement("line", {
+    x1: 0,
+    y1: 66,
+    x2: 66,
+    y2: 66,
+    stroke: "rgba(255,255,255,0.07)",
+    strokeWidth: 1
+  }), React.createElement("line", {
+    x1: 0,
+    y1: 0,
+    x2: 0,
+    y2: 66,
+    stroke: "rgba(255,255,255,0.07)",
+    strokeWidth: 1
+  }), React.createElement("polyline", {
+    points: easePts,
+    fill: "none",
+    stroke: C.purple,
+    strokeWidth: 2,
+    opacity: .85
+  }), React.createElement("circle", {
+    cx: ex,
+    cy: ey,
+    r: 3,
+    fill: C.amber
+  })), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontFamily: mono,
+      color: "rgba(255,255,255,0.12)",
+      lineHeight: 2
+    }
+  }, React.createElement("div", null, "t ", React.createElement("span", {
+    style: {
+      color: C.amber
+    }
+  }, (et * 100).toFixed(0), "%")), React.createElement("div", null, "out ", React.createElement("span", {
+    style: {
+      color: C.purple
+    }
+  }, (clamp(fn(et), 0, 1.15) * 100).toFixed(0), "%")))), React.createElement(Sld, {
+    label: "Duration",
+    min: 200,
+    max: 7000,
+    step: 50,
+    value: cfg.duration,
+    onChange: upd("duration"),
+    col: C.amber,
+    fmt: v => `${v}ms`
+  })), tab === "traveller" && React.createElement(React.Fragment, null, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      marginBottom: 10
+    }
+  }, ["inherit", "object", "particles"].map(t => React.createElement(Btn, {
+    key: t,
+    active: ltv.type === t,
+    col: tvCols[t],
+    onClick: () => updLTV("legTvType", t)
+  }, t))), ltv.type === "inherit" && React.createElement("div", {
+    style: {
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      borderRadius: 5,
+      padding: "8px",
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 10,
+      fontFamily: mono
+    }
+  }, "Uses global traveller."), ltv.type === "object" && React.createElement(React.Fragment, null, React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 3,
+      marginBottom: 6
+    }
+  }, MESH_TYPES.map(t => React.createElement(Btn, {
+    key: t,
+    active: ltv.object.meshType === t,
+    col: C.amber,
+    small: true,
+    onClick: () => updLTV("legTvObject", {
+      ...ltv.object,
+      meshType: t
+    })
+  }, t))), React.createElement(Cpk, {
+    label: "Color",
+    value: ltv.object.color,
+    onChange: v => updLTV("legTvObject", {
+      ...ltv.object,
+      color: v
+    })
+  }), React.createElement(Sld, {
+    label: "Scale",
+    min: .3,
+    max: 2.5,
+    step: .1,
+    value: ltv.object.scale,
+    onChange: v => updLTV("legTvObject", {
+      ...ltv.object,
+      scale: v
+    }),
+    col: C.amber,
+    fmt: v => v.toFixed(1) + "×"
+  })), ltv.type === "particles" && React.createElement(ParticleEditor, {
+    config: ltv.particleConfig,
+    onChange: pc => updLTV("legTvParticles", pc)
+  })));
+}
+function AnchorInspector({
+  anchor,
+  onUpdate
+}) {
+  const u = (f, v) => onUpdate(anchor.id, f, v),
+    ui = (f, v) => onUpdate(anchor.id, "it", {
+      ...anchor.it,
+      [f]: v
+    }),
+    us = (f, v) => onUpdate(anchor.id, "slam", {
+      ...anchor.slam,
+      [f]: v
+    });
+  const sc = anchor.it.assigned ? C.green : C.cyan;
+  return React.createElement("div", null, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 8,
+      height: 8,
+      borderRadius: "50%",
+      background: sc,
+      boxShadow: `0 0 6px ${sc}`
+    }
+  }), React.createElement("div", {
+    style: {
+      color: sc,
+      fontFamily: mono,
+      fontWeight: 700,
+      fontSize: 11
+    }
+  }, anchor.name)), React.createElement(SecL, null, "Identity"), React.createElement(FR, {
+    label: "Name"
+  }, React.createElement("input", {
+    value: anchor.name,
+    onChange: e => u("name", e.target.value),
+    style: {
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.8)",
+      padding: "3px 7px",
+      borderRadius: 4,
+      fontSize: 11,
+      fontFamily: mono,
+      flex: 1
+    }
+  })), React.createElement("div", {
+    style: {
+      background: "rgba(255,255,255,0.025)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 5,
+      padding: "6px 9px",
+      marginBottom: 8
+    }
+  }, React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.12)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 4,
+      letterSpacing: 1
+    }
+  }, "WORLD POSITION"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, ["x", "y", "z"].map(ax => React.createElement("div", {
+    key: ax,
+    style: {
+      flex: 1,
+      textAlign: "center"
+    }
+  }, React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.12)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginBottom: 2
+    }
+  }, ax.toUpperCase()), React.createElement("div", {
+    style: {
+      color: C.cyan,
+      fontSize: 11,
+      fontFamily: mono
+    }
+  }, anchor.pos[ax].toFixed(2))))), React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.12)",
+      fontSize: 9,
+      fontFamily: mono,
+      marginTop: 4,
+      textAlign: "center",
+      fontStyle: "italic"
+    }
+  }, "drag in viewport to move")), React.createElement(SecL, null, "AR \xB7 Image Target"), React.createElement(Tog, {
+    value: anchor.it.assigned,
+    onChange: v => ui("assigned", v),
+    label: "Image target assigned"
+  }), anchor.it.assigned && React.createElement(React.Fragment, null, React.createElement(FR, {
+    label: "Target ID"
+  }, React.createElement("input", {
+    value: anchor.it.id,
+    onChange: e => ui("id", e.target.value),
+    placeholder: "marker_0",
+    style: {
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.8)",
+      padding: "3px 7px",
+      borderRadius: 4,
+      fontSize: 11,
+      fontFamily: mono,
+      flex: 1
+    }
+  })), React.createElement(FR, {
+    label: "Width m"
+  }, React.createElement("input", {
+    type: "number",
+    min: .01,
+    max: 2,
+    step: .01,
+    value: anchor.it.widthM,
+    onChange: e => ui("widthM", +e.target.value),
+    style: {
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.8)",
+      padding: "3px 7px",
+      borderRadius: 4,
+      fontSize: 11,
+      fontFamily: mono,
+      width: 60
+    }
+  }))), React.createElement(SecL, null, "SLAM"), React.createElement(Tog, {
+    value: anchor.slam.persist,
+    onChange: v => us("persist", v),
+    label: "Persist without image target"
+  }), React.createElement(FR, {
+    label: "Frames"
+  }, React.createElement("input", {
+    type: "number",
+    min: 1,
+    max: 120,
+    value: anchor.slam.frames,
+    onChange: e => us("frames", +e.target.value),
+    style: {
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.8)",
+      padding: "3px 7px",
+      borderRadius: 4,
+      fontSize: 11,
+      fontFamily: mono,
+      width: 50
+    }
+  })));
+}
+function App() {
+  var _anchors$find;
+  const mountRef = useRef(null),
+    overlayRef = useRef(null);
+  const [anchors, setAnchors] = useState(INIT_A);
+  const [journey, setJourney] = useState(["a0", "a1", "a2", "a3"]);
+  const [loopJ, setLoopJ] = useState(true);
+  const [pathConfigs, setPathConfigs] = useState({});
+  const [globalTv, setGlobalTv] = useState(DEF_TV);
+  const [selected, setSelected] = useState({
+    type: null,
+    id: null
+  });
+  const [animUi, setAnimUi] = useState({
+    phase: "travelling",
+    t: 0,
+    edgeIdx: 0
+  });
+  const [camMode, setCamMode] = useState("orbit");
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectSrc, setConnectSrc] = useState(null);
+  const [isLive, setIsLive] = useState(true);
+  const [gj, setGj] = useState({
+    presetId: null,
+    presetName: null,
+    presetCol: C.cyan,
+    modified: false,
+    shape: "arc",
+    easing: "easeInOut",
+    duration: 2200,
+    baseDuration: 2200,
+    tvType: "particles",
+    particlePreset: null,
+    particleConfig: {
+      ...DEF_P
+    },
+    tvObject: {
+      meshType: "sphere",
+      color: "#ffc400",
+      scale: 1
+    }
+  });
+  const [customEdges, setCustomEdges] = useState(new Set());
+  const stateRef = useRef({
+    anchors,
+    journey,
+    loopJ,
+    pathConfigs,
+    globalTv,
+    selected,
+    isLive,
+    gj
+  });
+  const gjRef = useRef(gj);
+  const customEdgesRef = useRef(new Set());
+  const threeRef = useRef({});
+  const animRef = useRef({
+    phase: "travelling",
+    t: 0,
+    edgeIdx: 0,
+    dwell: 0,
+    total: 0,
+    frame: 0,
+    restart: false,
+    flowT: 0
+  });
+  const dirtyRef = useRef({
+    scene: true,
+    highlight: false
+  });
+  const camRef = useRef({
+    mode: "orbit",
+    theta: .2,
+    phi: .28,
+    radius: 9.5,
+    flPos: new THREE.Vector3(0, 2.5, 9.5),
+    flYaw: Math.PI,
+    flPitch: .15,
+    dragging: false,
+    lx: 0,
+    ly: 0,
+    dragAnchorId: null,
+    dragPlane: new THREE.Plane(),
+    dragInitIntersect: new THREE.Vector3(),
+    dragAnchorOrigPos: new THREE.Vector3()
+  });
+  const keysRef = useRef({
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    q: false,
+    e: false
+  });
+  const labelElsRef = useRef([]);
+  const hoverRef = useRef({
+    anchor: null,
+    path: null
+  });
+  const psRef = useRef(null);
+  const lastEdgeRef = useRef(-1);
+  const scrubFnRef = useRef(null);
+  useEffect(() => {
+    stateRef.current = {
+      anchors,
+      journey,
+      loopJ,
+      pathConfigs,
+      globalTv,
+      selected,
+      isLive,
+      gj
+    };
+  }, [anchors, journey, loopJ, pathConfigs, globalTv, selected, isLive, gj]);
+  useEffect(() => {
+    gjRef.current = gj;
+  }, [gj]);
+  useEffect(() => {
+    dirtyRef.current.scene = true;
+  }, [anchors, journey, loopJ, pathConfigs]);
+  useEffect(() => {
+    animRef.current.restart = true;
+  }, [journey, loopJ]);
+  useEffect(() => {
+    dirtyRef.current.highlight = true;
+  }, [selected]);
+  useEffect(() => {
+    const f = e => {
+      if (e.code === "Space" && e.target === document.body) {
+        e.preventDefault();
+        setIsLive(l => !l);
+      }
+    };
+    window.addEventListener("keydown", f);
+    return () => window.removeEventListener("keydown", f);
+  }, []);
+  const updateGlobalJourney = useCallback(updates => {
+    const newGj = {
+      ...gjRef.current,
+      ...updates,
+      modified: true
+    };
+    gjRef.current = newGj;
+    setGj(newGj);
+    const currentEdges = getEdges(stateRef.current.journey, stateRef.current.loopJ);
+    setPathConfigs(cfgs => {
+      const nc = {
+        ...cfgs
+      };
+      currentEdges.forEach(e => {
+        if (!customEdgesRef.current.has(e.key)) nc[e.key] = buildEdgeCfg(newGj);
+      });
+      return nc;
+    });
+  }, []);
+  const applyJourneyPreset = useCallback(jp => {
+    var _PPRESETS$jp$pp;
+    const pc = {
+      ...DEF_P,
+      ...(((_PPRESETS$jp$pp = PPRESETS[jp.pp]) == null ? void 0 : _PPRESETS$jp$pp.c) || {})
+    };
+    const newGj = {
+      presetId: jp.id,
+      presetName: jp.name,
+      presetCol: jp.col,
+      modified: false,
+      shape: jp.shape,
+      easing: jp.easing,
+      duration: jp.dur,
+      baseDuration: jp.dur,
+      tvType: "particles",
+      particlePreset: jp.pp,
+      particleConfig: pc,
+      tvObject: {
+        meshType: "sphere",
+        color: "#ffc400",
+        scale: 1
+      }
+    };
+    gjRef.current = newGj;
+    setGj(newGj);
+    customEdgesRef.current.clear();
+    setCustomEdges(new Set());
+    const currentEdges = getEdges(stateRef.current.journey, stateRef.current.loopJ);
+    const nc = {};
+    currentEdges.forEach(e => {
+      nc[e.key] = buildEdgeCfg(newGj);
+    });
+    setPathConfigs(nc);
+  }, []);
+  const syncEdgeToGlobal = useCallback(edgeKey => {
+    customEdgesRef.current.delete(edgeKey);
+    setCustomEdges(new Set(customEdgesRef.current));
+    setPathConfigs(cfgs => ({
+      ...cfgs,
+      [edgeKey]: buildEdgeCfg(gjRef.current)
+    }));
+  }, []);
+  const syncAllToGlobal = useCallback(() => {
+    customEdgesRef.current.clear();
+    setCustomEdges(new Set());
+    const currentEdges = getEdges(stateRef.current.journey, stateRef.current.loopJ);
+    const nc = {};
+    currentEdges.forEach(e => {
+      nc[e.key] = buildEdgeCfg(gjRef.current);
+    });
+    setPathConfigs(nc);
+  }, []);
+  const updatePathConfig = useCallback((key, cfg) => {
+    customEdgesRef.current.add(key);
+    setCustomEdges(new Set(customEdgesRef.current));
+    setPathConfigs(p => ({
+      ...p,
+      [key]: cfg
+    }));
+  }, []);
+  useEffect(() => {
+    const mount = mountRef.current,
+      overlay = overlayRef.current;
+    let W = mount.clientWidth,
+      H = mount.clientHeight;
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(W, H);
+    renderer.setClearColor(0x060810, 1);
+    mount.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x060810, .03);
+    const camera = new THREE.PerspectiveCamera(58, W / H, .05, 200);
+    camera.position.set(0, 2.5, 9.5);
+    scene.add(new THREE.AmbientLight(0x1a2d44, 3));
+    const dl = new THREE.DirectionalLight(0xffffff, .6);
+    dl.position.set(5, 10, 5);
+    scene.add(dl);
+    scene.add(new THREE.GridHelper(40, 40, 0x0b1e30, 0x081520).translateY(-3.6));
+    const sPts = [];
+    for (let i = 0; i < 500; i++) sPts.push(new THREE.Vector3((Math.random() - .5) * 70, (Math.random() - .5) * 35, (Math.random() - .5) * 70));
+    scene.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(sPts), new THREE.PointsMaterial({
+      color: 0x2a3d55,
+      size: .04
+    })));
+    const burstMat = new THREE.MeshBasicMaterial({
+      color: 0xffc400,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide
+    });
+    const burstMesh = new THREE.Mesh(new THREE.RingGeometry(.1, .2, 36), burstMat);
+    scene.add(burstMesh);
+    let burstT = 1;
+    const tvContainer = new THREE.Group();
+    scene.add(tvContainer);
+    const tvHalo = new THREE.Mesh(new THREE.SphereGeometry(.38, 16, 16), new THREE.MeshBasicMaterial({
+      color: 0xffc400,
+      transparent: true,
+      opacity: .055,
+      side: THREE.BackSide
+    }));
+    const tvLight = new THREE.PointLight(0xffc400, 3, 5.5);
+    tvContainer.add(tvHalo);
+    tvContainer.add(tvLight);
+    const TLEN = 50,
+      trailArr = new Float32Array(TLEN * 3);
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute("position", new THREE.BufferAttribute(trailArr, 3));
+    scene.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
+      color: 0xff8c00,
+      transparent: true,
+      opacity: .4
+    })));
+    const hlGroup = new THREE.Group();
+    scene.add(hlGroup);
+    const anchorMeshMap = new Map(),
+      pathMeshMap = new Map();
+    function getAWP(id) {
+      const obj = anchorMeshMap.get(id);
+      if (obj) return obj.group.position.clone();
+      const a = stateRef.current.anchors.find(x => x.id === id);
+      return a ? new THREE.Vector3(a.pos.x, a.pos.y, a.pos.z) : new THREE.Vector3();
+    }
+    function rebuildAnchors() {
+      const {
+        anchors
+      } = stateRef.current;
+      for (const [id] of anchorMeshMap) if (!anchors.find(a => a.id === id)) {
+        scene.remove(anchorMeshMap.get(id).group);
+        anchorMeshMap.delete(id);
+      }
+      anchors.forEach(a => {
+        if (!anchorMeshMap.has(a.id)) {
+          const g = new THREE.Group();
+          g.position.set(a.pos.x, a.pos.y, a.pos.z);
+          const planeMat = new THREE.MeshBasicMaterial({
+            map: mkTex(a.it.assigned ? "assigned" : "idle"),
+            transparent: true,
+            opacity: .88,
+            side: THREE.DoubleSide
+          });
+          g.add(new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), planeMat));
+          g.add(new THREE.Mesh(new THREE.BoxGeometry(1.52, 1.52, .06), new THREE.MeshBasicMaterial({
+            color: 0x00e5ff,
+            wireframe: true,
+            transparent: true,
+            opacity: .08
+          })));
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x00e5ff,
+            transparent: true,
+            opacity: .2,
+            side: THREE.DoubleSide
+          });
+          g.add(new THREE.Mesh(new THREE.RingGeometry(.84, .95, 48), ringMat));
+          const selRingMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide
+          });
+          const selRing = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.2, 48), selRingMat);
+          selRing.visible = false;
+          g.add(selRing);
+          const hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), new THREE.MeshBasicMaterial({
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide
+          }));
+          hitMesh.userData.anchorId = a.id;
+          g.add(hitMesh);
+          scene.add(g);
+          anchorMeshMap.set(a.id, {
+            group: g,
+            planeMat,
+            ringMat,
+            selRing,
+            selRingMat,
+            hitMesh,
+            lastState: ""
+          });
+        } else anchorMeshMap.get(a.id).group.position.set(a.pos.x, a.pos.y, a.pos.z);
+      });
+      refreshLabels(anchors);
+    }
+    function rebuildPath(edge, cfg, time, isSel, isHov, isCust) {
+      if (pathMeshMap.has(edge.key)) {
+        scene.remove(pathMeshMap.get(edge.key).group);
+        pathMeshMap.get(edge.key).group.traverse(c => {
+          var _c$geometry;
+          (_c$geometry = c.geometry) == null || _c$geometry.dispose();
+        });
+      }
+      const fp = getAWP(edge.from),
+        tp = getAWP(edge.to);
+      const curve = buildCurve(fp, tp, cfg.shape, time),
+        pts = curve.getPoints(90);
+      const col = isSel ? 0xffc400 : isCust ? 0xff9d7d : isHov ? 0x80f0ff : 0x00e5ff,
+        op = isSel ? .6 : isHov ? .45 : isCust ? .2 : .15;
+      const g = new THREE.Group();
+      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({
+        color: col,
+        transparent: true,
+        opacity: op
+      })));
+      const dp = pts.filter((_, j) => j % 9 === 0);
+      g.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(dp), new THREE.PointsMaterial({
+        color: col,
+        size: .055,
+        transparent: true,
+        opacity: isSel ? .7 : .45
+      })));
+      try {
+        const tg = new THREE.TubeGeometry(curve, 20, .2, 6, false);
+        const hm = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide
+        }));
+        hm.userData.pathKey = edge.key;
+        g.add(hm);
+      } catch (ex) {}
+      scene.add(g);
+      pathMeshMap.set(edge.key, {
+        group: g,
+        curve,
+        cfg: {
+          ...cfg
+        }
+      });
+    }
+    function rebuildPaths(time) {
+      const {
+        journey,
+        loopJ,
+        pathConfigs,
+        selected
+      } = stateRef.current;
+      const edges = getEdges(journey, loopJ);
+      const keys = new Set(edges.map(e => e.key));
+      for (const [k] of pathMeshMap) if (!keys.has(k)) {
+        scene.remove(pathMeshMap.get(k).group);
+        pathMeshMap.get(k).group.traverse(c => {
+          var _c$geometry2;
+          (_c$geometry2 = c.geometry) == null || _c$geometry2.dispose();
+        });
+        pathMeshMap.delete(k);
+      }
+      const sp = selected.type === "path" ? selected.id : null,
+        hp = hoverRef.current.path;
+      edges.forEach(e => rebuildPath(e, getPCfg(pathConfigs, e.key), time, sp === e.key, hp === e.key, customEdgesRef.current.has(e.key)));
+    }
+    function rebuildHighlight() {
+      hlGroup.children.forEach(c => {
+        var _c$geometry3, _c$material;
+        (_c$geometry3 = c.geometry) == null || _c$geometry3.dispose();
+        (_c$material = c.material) == null || _c$material.dispose();
+      });
+      while (hlGroup.children.length) hlGroup.remove(hlGroup.children[0]);
+      const {
+        selected,
+        journey,
+        loopJ,
+        pathConfigs
+      } = stateRef.current;
+      if (selected.type !== "path") return;
+      const edges = getEdges(journey, loopJ);
+      const edge = edges.find(e => e.key === selected.id);
+      if (!edge) return;
+      const cfg = getPCfg(pathConfigs, edge.key);
+      const fp = getAWP(edge.from),
+        tp = getAWP(edge.to);
+      const curve = buildCurve(fp, tp, cfg.shape, animRef.current.total);
+      const pts = curve.getPoints(120);
+      hlGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({
+        color: 0xffc400,
+        transparent: true,
+        opacity: .9
+      })));
+      [.25, .5, .75].forEach(t => {
+        const pos = curve.getPoint(t),
+          tan = curve.getTangent(t).normalize();
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(.07, .22, 6), new THREE.MeshBasicMaterial({
+          color: 0xffc400,
+          transparent: true,
+          opacity: .9
+        }));
+        cone.position.copy(pos);
+        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
+        hlGroup.add(cone);
+      });
+      const fd = new THREE.Points(new THREE.BufferGeometry().setFromPoints(Array.from({
+        length: 8
+      }, (_, i) => curve.getPoint((animRef.current.flowT + i / 8) % 1))), new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: .08,
+        transparent: true,
+        opacity: .8
+      }));
+      hlGroup.add(fd);
+      hlGroup.userData.curve = curve;
+    }
+    function refreshLabels(anchors) {
+      labelElsRef.current.forEach(el => el.remove());
+      labelElsRef.current = [];
+      anchors.forEach(a => {
+        const el = document.createElement("div");
+        el.style.cssText = "position:absolute;pointer-events:none;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%)";
+        el.dataset.anchorId = a.id;
+        el.innerHTML = `<div style="background:rgba(0,229,255,0.07);border:1px solid rgba(0,229,255,0.28);color:#00e5ff;padding:3px 10px;border-radius:4px;font:11px 'JetBrains Mono',monospace;white-space:nowrap">${a.name}</div><div style="width:1px;height:9px;background:rgba(0,229,255,0.25)"></div>`;
+        overlay.appendChild(el);
+        labelElsRef.current.push(el);
+      });
+    }
+    function rebuildTvMesh() {
+      const {
+        globalTv
+      } = stateRef.current;
+      tvContainer.children.filter(c => c.userData.isTvMesh).forEach(c => {
+        var _c$geometry4, _c$material2;
+        tvContainer.remove(c);
+        (_c$geometry4 = c.geometry) == null || _c$geometry4.dispose();
+        (_c$material2 = c.material) == null || _c$material2.dispose();
+      });
+      const m = mkMesh(globalTv.type, globalTv.color, globalTv.scale);
+      m.userData.isTvMesh = true;
+      tvContainer.add(m);
+      tvLight.color.set(new THREE.Color(globalTv.color));
+      tvHalo.material.color.set(new THREE.Color(globalTv.color));
+    }
+    rebuildTvMesh();
+    function switchEdge(edgeKey) {
+      const {
+        pathConfigs,
+        globalTv
+      } = stateRef.current;
+      const ltv = getLTV(pathConfigs, edgeKey);
+      tvContainer.children.filter(c => c.userData.isTvMesh).forEach(c => {
+        var _c$geometry5, _c$material3;
+        tvContainer.remove(c);
+        (_c$geometry5 = c.geometry) == null || _c$geometry5.dispose();
+        (_c$material3 = c.material) == null || _c$material3.dispose();
+      });
+      if (psRef.current) {
+        rmPS(psRef.current, scene);
+        psRef.current = null;
+      }
+      if (ltv.type === "inherit" || ltv.type === "object") {
+        const obj = ltv.type === "inherit" ? {
+          meshType: globalTv.type,
+          color: globalTv.color,
+          scale: globalTv.scale
+        } : ltv.object;
+        const m = mkMesh(obj.meshType, obj.color, obj.scale);
+        m.userData.isTvMesh = true;
+        tvContainer.add(m);
+        tvLight.color.set(new THREE.Color(obj.color));
+        tvHalo.material.color.set(new THREE.Color(obj.color));
+      } else if (ltv.type === "particles") {
+        const lead = mkMesh("sphere", "#ffffff", .001);
+        lead.userData.isTvMesh = true;
+        lead.visible = false;
+        tvContainer.add(lead);
+        psRef.current = mkPS({
+          ...DEF_P,
+          ...ltv.particleConfig
+        }, scene);
+        tvLight.color.set(new THREE.Color((ltv.particleConfig || {}).colorStart || "#00e5ff"));
+        tvHalo.material.color.set(new THREE.Color((ltv.particleConfig || {}).colorStart || "#00e5ff"));
+      }
+    }
+    scrubFnRef.current = pos => {
+      const {
+        journey,
+        loopJ,
+        pathConfigs
+      } = stateRef.current;
+      const edges = getEdges(journey, loopJ);
+      const {
+        ei,
+        t
+      } = scrubToEdge(pos, edges, pathConfigs);
+      animRef.current.edgeIdx = ei;
+      animRef.current.t = t;
+      animRef.current.phase = "travelling";
+      animRef.current.dwell = 0;
+      lastEdgeRef.current = -1;
+    };
+    const raycaster = new THREE.Raycaster(),
+      mouse = new THREE.Vector2();
+    const cam = camRef.current;
+    let mdx = 0,
+      mdy = 0;
+    const getAH = () => [...anchorMeshMap.values()].map(o => o.hitMesh);
+    const getPH = () => {
+      const r = [];
+      for (const [, o] of pathMeshMap) o.group.children.forEach(c => {
+        if (c.userData.pathKey) r.push(c);
+      });
+      return r;
+    };
+    const onMD = e => {
+      mdx = e.clientX;
+      mdy = e.clientY;
+      const rect = mount.getBoundingClientRect();
+      mouse.x = (e.clientX - rect.left) / rect.width * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const ah = raycaster.intersectObjects(getAH());
+      if (ah.length > 0 && !connectMode) {
+        const id = ah[0].object.userData.anchorId;
+        cam.dragAnchorId = id;
+        const ap = anchorMeshMap.get(id).group.position.clone();
+        const cd = new THREE.Vector3();
+        camera.getWorldDirection(cd);
+        cam.dragPlane.setFromNormalAndCoplanarPoint(cd.negate(), ap);
+        const ii = new THREE.Vector3();
+        raycaster.ray.intersectPlane(cam.dragPlane, ii);
+        cam.dragInitIntersect.copy(ii);
+        cam.dragAnchorOrigPos.copy(ap);
+        return;
+      }
+      cam.dragging = true;
+      cam.lx = e.clientX;
+      cam.ly = e.clientY;
+    };
+    const onMM = e => {
+      const rect = mount.getBoundingClientRect();
+      mouse.x = (e.clientX - rect.left) / rect.width * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      if (cam.dragAnchorId) {
+        const ni = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(cam.dragPlane, ni)) {
+          const d = ni.clone().sub(cam.dragInitIntersect),
+            np = cam.dragAnchorOrigPos.clone().add(d);
+          const obj = anchorMeshMap.get(cam.dragAnchorId);
+          if (obj) obj.group.position.copy(np);
+          const {
+            journey,
+            loopJ,
+            pathConfigs,
+            selected
+          } = stateRef.current;
+          const sp = selected.type === "path" ? selected.id : null,
+            hp = hoverRef.current.path;
+          getEdges(journey, loopJ).forEach(edge => {
+            if (edge.from === cam.dragAnchorId || edge.to === cam.dragAnchorId) rebuildPath(edge, getPCfg(pathConfigs, edge.key), animRef.current.total, sp === edge.key, hp === edge.key, customEdgesRef.current.has(edge.key));
+          });
+          if (selected.type === "path") rebuildHighlight();
+        }
+        return;
+      }
+      const ah = raycaster.intersectObjects(getAH()),
+        ph = ah.length === 0 ? raycaster.intersectObjects(getPH()) : [];
+      const ha = ah.length > 0 ? ah[0].object.userData.anchorId : null,
+        hpa = ah.length === 0 && ph.length > 0 ? ph[0].object.userData.pathKey : null;
+      if (ha !== hoverRef.current.anchor || hpa !== hoverRef.current.path) {
+        hoverRef.current = {
+          anchor: ha,
+          path: hpa
+        };
+        mount.style.cursor = ha ? connectMode ? "crosshair" : "grab" : hpa ? "pointer" : "default";
+        dirtyRef.current.scene = true;
+      }
+      if (!cam.dragging) return;
+      const dx = e.clientX - cam.lx,
+        dy = e.clientY - cam.ly;
+      if (cam.mode === "orbit") {
+        cam.theta -= dx * .013;
+        cam.phi = Math.max(.06, Math.min(1.28, cam.phi - dy * .006));
+      } else {
+        cam.flYaw -= dx * .004;
+        cam.flPitch = Math.max(-1.2, Math.min(1.2, cam.flPitch - dy * .004));
+      }
+      cam.lx = e.clientX;
+      cam.ly = e.clientY;
+    };
+    const onMU = e => {
+      if (cam.dragAnchorId) {
+        const id = cam.dragAnchorId;
+        const obj = anchorMeshMap.get(id);
+        if (obj) {
+          const p = obj.group.position;
+          setAnchors(prev => prev.map(a => a.id === id ? {
+            ...a,
+            pos: {
+              x: +p.x.toFixed(2),
+              y: +p.y.toFixed(2),
+              z: +p.z.toFixed(2)
+            }
+          } : a));
+        }
+        cam.dragAnchorId = null;
+        return;
+      }
+      cam.dragging = false;
+      const dist = Math.sqrt((e.clientX - mdx) ** 2 + (e.clientY - mdy) ** 2);
+      if (dist < 6) {
+        const rect = mount.getBoundingClientRect();
+        mouse.x = (e.clientX - rect.left) / rect.width * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const ah = raycaster.intersectObjects(getAH());
+        if (ah.length > 0) {
+          setSelected({
+            type: "anchor",
+            id: ah[0].object.userData.anchorId
+          });
+          return;
+        }
+        const ph = raycaster.intersectObjects(getPH());
+        if (ph.length > 0) {
+          setSelected({
+            type: "path",
+            id: ph[0].object.userData.pathKey
+          });
+          return;
+        }
+        setSelected({
+          type: null,
+          id: null
+        });
+      }
+    };
+    const onWH = e => {
+      if (cam.mode === "orbit") cam.radius = Math.max(2.5, Math.min(24, cam.radius + e.deltaY * .012));else {
+        const dir = new THREE.Vector3(Math.sin(cam.flYaw) * Math.cos(cam.flPitch), Math.sin(cam.flPitch), Math.cos(cam.flYaw) * Math.cos(cam.flPitch)).normalize();
+        cam.flPos.addScaledVector(dir, -e.deltaY * .02);
+      }
+    };
+    const onKD = e => {
+      const k = e.key.toLowerCase();
+      if (k in keysRef.current) {
+        keysRef.current[k] = true;
+        e.preventDefault();
+      }
+      if (k === "escape") {
+        setSelected({
+          type: null,
+          id: null
+        });
+        setConnectMode(false);
+        setConnectSrc(null);
+      }
+    };
+    const onKU = e => {
+      const k = e.key.toLowerCase();
+      if (k in keysRef.current) keysRef.current[k] = false;
+    };
+    mount.addEventListener("mousedown", onMD);
+    window.addEventListener("mousemove", onMM);
+    window.addEventListener("mouseup", onMU);
+    mount.addEventListener("wheel", onWH, {
+      passive: true
+    });
+    window.addEventListener("keydown", onKD);
+    window.addEventListener("keyup", onKU);
+    const clock = new THREE.Clock();
+    let raf;
+    function tick() {
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(clock.getDelta(), .05);
+      const A = animRef.current;
+      A.total += dt;
+      A.frame++;
+      const {
+        isLive: live
+      } = stateRef.current;
+      if (cam.mode === "orbit") {
+        if (!cam.dragging && !cam.dragAnchorId) cam.theta += dt * .09;
+        camera.position.set(Math.sin(cam.theta) * Math.cos(cam.phi) * cam.radius, Math.sin(cam.phi) * cam.radius, Math.cos(cam.theta) * Math.cos(cam.phi) * cam.radius);
+        camera.lookAt(0, 0, 0);
+      } else {
+        const dir = new THREE.Vector3(Math.sin(cam.flYaw) * Math.cos(cam.flPitch), Math.sin(cam.flPitch), Math.cos(cam.flYaw) * Math.cos(cam.flPitch)).normalize();
+        const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+        const sp = 4.5 * dt;
+        const k = keysRef.current;
+        if (k.w) cam.flPos.addScaledVector(dir, sp);
+        if (k.s) cam.flPos.addScaledVector(dir, -sp);
+        if (k.a) cam.flPos.addScaledVector(right, -sp);
+        if (k.d) cam.flPos.addScaledVector(right, sp);
+        if (k.q) cam.flPos.y -= sp;
+        if (k.e) cam.flPos.y += sp;
+        camera.position.copy(cam.flPos);
+        camera.lookAt(cam.flPos.clone().add(dir));
+      }
+      if (dirtyRef.current.scene) {
+        rebuildAnchors();
+        rebuildPaths(A.total);
+        dirtyRef.current.scene = false;
+        dirtyRef.current.highlight = true;
+      } else if (A.frame % 2 === 0) {
+        const {
+          pathConfigs: pc,
+          journey: jj,
+          loopJ: lj,
+          selected: ss
+        } = stateRef.current;
+        const sp = ss.type === "path" ? ss.id : null,
+          hp = hoverRef.current.path;
+        getEdges(jj, lj).forEach(e => {
+          const c = getPCfg(pc, e.key);
+          if (c.shape === "noise") rebuildPath(e, c, A.total, sp === e.key, hp === e.key, customEdgesRef.current.has(e.key));
+        });
+      }
+      if (dirtyRef.current.highlight) {
+        rebuildHighlight();
+        A.flowT = 0;
+        dirtyRef.current.highlight = false;
+      }
+      if (A.restart) {
+        A.edgeIdx = 0;
+        A.t = 0;
+        A.phase = "travelling";
+        A.dwell = 0;
+        A.restart = false;
+        lastEdgeRef.current = -1;
+      }
+      const {
+        selected: sel
+      } = stateRef.current;
+      if (sel.type === "path" && hlGroup.userData.curve) {
+        A.flowT = (A.flowT + dt * .55) % 1;
+        const fd = hlGroup.children[hlGroup.children.length - 1];
+        if (fd != null && fd.isPoints) {
+          const arr = fd.geometry.attributes.position.array;
+          for (let i = 0; i < 8; i++) {
+            const tp2 = hlGroup.userData.curve.getPoint((A.flowT + i / 8) % 1);
+            arr[i * 3] = tp2.x;
+            arr[i * 3 + 1] = tp2.y;
+            arr[i * 3 + 2] = tp2.z;
+          }
+          fd.geometry.attributes.position.needsUpdate = true;
+        }
+      }
+      const {
+        journey: jj,
+        loopJ: lj,
+        pathConfigs: pc,
+        globalTv: gtv
+      } = stateRef.current;
+      const edges = getEdges(jj, lj);
+      if (edges.length > 0) {
+        const ei = Math.min(A.edgeIdx, edges.length - 1);
+        const edge = edges[ei];
+        if (ei !== lastEdgeRef.current) {
+          lastEdgeRef.current = ei;
+          switchEdge(edge.key);
+        }
+        const cfg = getPCfg(pc, edge.key);
+        const pObj = pathMeshMap.get(edge.key);
+        const easeFn = EASINGS[cfg.easing] || EASINGS.linear;
+        if (live) {
+          if (A.phase === "travelling") {
+            A.t = Math.min(1, A.t + dt / (cfg.duration / 1000));
+            if (pObj != null && pObj.curve) {
+              const et = clamp(easeFn(A.t), 0, 1);
+              const pos = pObj.curve.getPoint(et);
+              tvContainer.position.copy(pos);
+              if (gtv.trail) {
+                const pa = trailArr,
+                  tl = Math.min(gtv.trailLen, TLEN);
+                for (let i = tl - 1; i > 0; i--) {
+                  pa[i * 3] = pa[(i - 1) * 3];
+                  pa[i * 3 + 1] = pa[(i - 1) * 3 + 1];
+                  pa[i * 3 + 2] = pa[(i - 1) * 3 + 2];
+                }
+                pa[0] = pos.x;
+                pa[1] = pos.y;
+                pa[2] = pos.z;
+                trailGeo.attributes.position.needsUpdate = true;
+              }
+              if (psRef.current) tickPS(psRef.current, dt, pos, A.total);
+            }
+            if (A.t >= 1) {
+              A.phase = "dwelling";
+              A.dwell = DWELL_S;
+              burstMesh.position.copy(tvContainer.position);
+              burstT = 0;
+            }
+          } else {
+            A.dwell -= dt;
+            if (psRef.current) tickPS(psRef.current, dt, tvContainer.position, A.total);
+            if (A.dwell <= 0) {
+              A.phase = "travelling";
+              A.t = 0;
+              A.edgeIdx = (A.edgeIdx + 1) % edges.length;
+            }
+          }
+        } else {
+          if (pObj != null && pObj.curve) {
+            const et = clamp(easeFn(A.t), 0, 1);
+            const pos = pObj.curve.getPoint(et);
+            tvContainer.position.copy(pos);
+          }
+        }
+        if (A.frame % 3 === 0) setAnimUi({
+          phase: A.phase,
+          t: A.t,
+          edgeIdx: ei
+        });
+      }
+      if (burstT < 1) {
+        burstT = Math.min(1, burstT + dt * 2.4);
+        burstMesh.scale.setScalar(1 + burstT * 5);
+        burstMat.opacity = Math.max(0, (1 - burstT) * .85);
+        burstMesh.lookAt(camera.position);
+      }
+      const {
+        anchors: ancs,
+        selected: ss2
+      } = stateRef.current;
+      const hov = hoverRef.current.anchor,
+        dragId = cam.dragAnchorId;
+      for (const [id, obj] of anchorMeshMap) {
+        const a = ancs.find(x => x.id === id);
+        if (!a) continue;
+        const isDrag = dragId === id,
+          isHov = hov === id && !isDrag,
+          isSel = ss2.type === "anchor" && ss2.id === id;
+        if (!isDrag) obj.group.position.y = a.pos.y + Math.sin(A.total * .75 + ancs.indexOf(a) * 1.5) * .08;
+        obj.group.lookAt(camera.position);
+        obj.ringMat.opacity = isDrag ? .9 : isSel ? 1 : isHov ? .55 : .2;
+        obj.ringMat.color.setHex(isDrag ? 0xff9d7d : isSel ? 0xffffff : isHov ? 0x80f0ff : 0x00e5ff);
+        if (isSel) {
+          obj.selRing.visible = true;
+          const pulse = .5 + .5 * Math.sin(A.total * 4);
+          obj.selRingMat.opacity = .3 + pulse * .45;
+          obj.selRing.scale.setScalar(1 + pulse * .12);
+        } else obj.selRing.visible = false;
+        const ts = isDrag ? "drag" : isSel ? "selected" : isHov ? "selected" : a.it.assigned ? "assigned" : "idle";
+        if (obj.lastState !== ts) {
+          var _obj$planeMat$map;
+          (_obj$planeMat$map = obj.planeMat.map) == null || _obj$planeMat$map.dispose();
+          obj.planeMat.map = mkTex(ts);
+          obj.planeMat.needsUpdate = true;
+          obj.lastState = ts;
+        }
+      }
+      const rect = mount.getBoundingClientRect();
+      labelElsRef.current.forEach(el => {
+        const id = el.dataset.anchorId,
+          obj = anchorMeshMap.get(id);
+        if (!obj) return;
+        const wp = obj.group.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+        wp.project(camera);
+        if (wp.z < 1) {
+          el.style.left = (wp.x * .5 + .5) * rect.width + "px";
+          el.style.top = (-wp.y * .5 + .5) * rect.height + "px";
+          el.style.display = "flex";
+        } else el.style.display = "none";
+      });
+      renderer.render(scene, camera);
+    }
+    tick();
+    const onResize = () => {
+      W = mount.clientWidth;
+      H = mount.clientHeight;
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+      renderer.setSize(W, H);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (psRef.current) {
+        rmPS(psRef.current, scene);
+        psRef.current = null;
+      }
+      mount.removeEventListener("mousedown", onMD);
+      window.removeEventListener("mousemove", onMM);
+      window.removeEventListener("mouseup", onMU);
+      mount.removeEventListener("wheel", onWH);
+      window.removeEventListener("keydown", onKD);
+      window.removeEventListener("keyup", onKU);
+      window.removeEventListener("resize", onResize);
+      labelElsRef.current.forEach(el => el.remove());
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
+  }, []);
+  const edges = getEdges(journey, loopJ);
+  const arrangeAnchors = useCallback(() => {
+    const pos = neatPos(anchors.length);
+    setAnchors(p => p.map((a, i) => ({
+      ...a,
+      pos: pos[i]
+    })));
+  }, [anchors.length]);
+  const addAnchor = useCallback(() => {
+    const id = newId();
+    const na = {
+      id,
+      name: `Anchor ${_aid - 1}`,
+      pos: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
+      it: {
+        id: "",
+        name: "",
+        widthM: .1,
+        assigned: false
+      },
+      slam: {
+        persist: true,
+        frames: 30
+      }
+    };
+    const all = [...anchors, na];
+    const pos = neatPos(all.length);
+    setAnchors(all.map((a, i) => ({
+      ...a,
+      pos: pos[i]
+    })));
+    setJourney(j => [...j, id]);
+  }, [anchors]);
+  const removeAnchor = useCallback(id => {
+    const rem = anchors.filter(x => x.id !== id);
+    const pos = neatPos(rem.length);
+    setAnchors(rem.map((a, i) => ({
+      ...a,
+      pos: pos[i]
+    })));
+    setJourney(j => j.filter(x => x !== id));
+    setSelected(s => s.id === id ? {
+      type: null,
+      id: null
+    } : s);
+  }, [anchors]);
+  const updateAnchor = useCallback((id, f, v) => setAnchors(a => a.map(x => x.id === id ? {
+    ...x,
+    [f]: v
+  } : x)), []);
+  const moveStep = useCallback((idx, dir) => setJourney(j => {
+    const n = [...j],
+      ni = idx + dir;
+    if (ni < 0 || ni >= n.length) return j;
+    [n[idx], n[ni]] = [n[ni], n[idx]];
+    return n;
+  }), []);
+  const removeStep = useCallback(idx => setJourney(j => j.filter((_, i) => i !== idx)), []);
+  const handleNodeClick = useCallback(id => {
+    if (!connectMode) {
+      setSelected({
+        type: "anchor",
+        id
+      });
+      return;
+    }
+    if (!connectSrc) {
+      setConnectSrc(id);
+      return;
+    }
+    if (connectSrc === id) {
+      setConnectSrc(null);
+      return;
+    }
+    setJourney(j => {
+      const last = j[j.length - 1];
+      return last === connectSrc ? [...j, id] : [...j, connectSrc, id];
+    });
+    setConnectSrc(null);
+    setConnectMode(false);
+  }, [connectMode, connectSrc]);
+  const toggleCamMode = useCallback(() => {
+    const c = camRef.current;
+    if (c.mode === "orbit") {
+      c.mode = "freelook";
+      setCamMode("freelook");
+    } else {
+      const p = c.flPos;
+      c.radius = p.length();
+      c.theta = Math.atan2(p.x, p.z);
+      c.phi = Math.asin(Math.max(-1, Math.min(1, p.y / c.radius)));
+      c.mode = "orbit";
+      setCamMode("orbit");
+    }
+  }, []);
+  const handleScrub = useCallback(pos => {
+    if (scrubFnRef.current) scrubFnRef.current(pos);
+    setIsLive(false);
+  }, []);
+  const selAnchor = selected.type === "anchor" ? anchors.find(a => a.id === selected.id) : null;
+  const selPathKey = selected.type === "path" ? selected.id : null;
+  const isFL = camMode === "freelook";
+  const totalMs = edges.reduce((s, e) => s + getPCfg(pathConfigs, e.key).duration, 0) || 1;
+  return React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      height: "100vh",
+      background: C.bg,
+      color: "#e8eaf0",
+      fontFamily: "system-ui,sans-serif",
+      overflow: "hidden"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "6px 12px",
+      borderBottom: `1px solid ${C.border}`,
+      background: "rgba(2,6,14,0.98)",
+      flexShrink: 0,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("span", {
+    style: {
+      color: C.cyan,
+      fontFamily: mono,
+      fontWeight: 800,
+      fontSize: 13,
+      letterSpacing: 2
+    }
+  }, "4E SPATIAL"), React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.12)",
+      fontFamily: mono,
+      fontSize: 10
+    }
+  }, "v6"), React.createElement("div", {
+    style: {
+      width: 1,
+      height: 14,
+      background: "rgba(255,255,255,0.1)"
+    }
+  }), React.createElement("button", {
+    onClick: () => setIsLive(l => !l),
+    style: {
+      background: isLive ? "rgba(255,196,0,0.12)" : "rgba(105,255,125,0.12)",
+      border: `1px solid ${isLive ? "rgba(255,196,0,0.45)" : "rgba(105,255,125,0.45)"}`,
+      color: isLive ? C.amber : C.green,
+      padding: "4px 12px",
+      borderRadius: 5,
+      fontSize: 11,
+      cursor: "pointer",
+      fontFamily: mono,
+      display: "flex",
+      alignItems: "center",
+      gap: 5
+    }
+  }, React.createElement("span", null, isLive ? "⏸" : "▶"), React.createElement("span", null, isLive ? "LIVE" : "PAUSED")), React.createElement("button", {
+    onClick: toggleCamMode,
+    style: {
+      background: isFL ? "rgba(255,196,0,0.1)" : "rgba(0,229,255,0.07)",
+      border: `1px solid ${isFL ? "rgba(255,196,0,0.35)" : "rgba(0,229,255,0.25)"}`,
+      color: isFL ? C.amber : C.cyan,
+      padding: "4px 11px",
+      borderRadius: 5,
+      fontSize: 11,
+      cursor: "pointer",
+      fontFamily: mono
+    }
+  }, isFL ? "⊕ FREE" : "◎ ORBIT"), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }), React.createElement("span", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontFamily: mono,
+      fontSize: 10
+    }
+  }, anchors.length, " anchors \xB7 ", edges.length, " edges \xB7 ", customEdges.size > 0 ? React.createElement("span", {
+    style: {
+      color: C.orange
+    }
+  }, customEdges.size, " custom") : null, " \xB7 ", fmtMs(totalMs)), React.createElement("button", {
+    onClick: arrangeAnchors,
+    style: {
+      background: "rgba(179,136,255,0.1)",
+      border: "1px solid rgba(179,136,255,0.3)",
+      color: C.purple,
+      padding: "4px 10px",
+      borderRadius: 5,
+      fontSize: 11,
+      cursor: "pointer",
+      fontFamily: mono
+    }
+  }, "\u2B21 Arrange"), React.createElement("button", {
+    onClick: addAnchor,
+    style: {
+      background: "rgba(0,229,255,0.1)",
+      border: `1px solid ${C.cyan}40`,
+      color: C.cyan,
+      padding: "4px 10px",
+      borderRadius: 5,
+      fontSize: 11,
+      cursor: "pointer",
+      fontFamily: mono
+    }
+  }, "+ Anchor")), React.createElement("div", {
+    style: {
+      display: "flex",
+      flex: 1,
+      overflow: "hidden"
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 236,
+      flexShrink: 0,
+      background: C.panel,
+      borderRight: `1px solid ${C.border}`,
+      overflowY: "auto",
+      padding: "10px 11px"
+    }
+  }, React.createElement(SecL, {
+    action: React.createElement("button", {
+      onClick: () => {
+        setConnectMode(m => !m);
+        setConnectSrc(null);
+      },
+      style: {
+        background: connectMode ? "rgba(255,196,0,0.15)" : "rgba(255,255,255,0.05)",
+        border: `1px solid ${connectMode ? "rgba(255,196,0,0.45)" : "rgba(255,255,255,0.1)"}`,
+        color: connectMode ? C.amber : "rgba(255,255,255,0.18)",
+        padding: "2px 7px",
+        borderRadius: 4,
+        fontSize: 9,
+        cursor: "pointer",
+        fontFamily: mono
+      }
+    }, connectMode ? connectSrc ? "pick target" : "pick source" : "⊕ Connect")
+  }, "Node Graph"), React.createElement(NodeGraph, {
+    anchors: anchors,
+    edges: edges,
+    selected: selected,
+    journey: journey,
+    connectMode: connectMode,
+    connectSrc: connectSrc,
+    animEdgeIdx: animUi.edgeIdx,
+    animT: animUi.t,
+    customEdges: customEdges,
+    onSelectPath: key => setSelected({
+      type: "path",
+      id: key
+    }),
+    onNodeClick: handleNodeClick
+  }), connectMode && React.createElement("div", {
+    style: {
+      background: "rgba(255,196,0,0.07)",
+      border: "1px solid rgba(255,196,0,0.2)",
+      borderRadius: 5,
+      padding: "5px 9px",
+      marginBottom: 8,
+      fontFamily: mono,
+      fontSize: 10,
+      color: C.amber
+    }
+  }, connectSrc ? `Source: ${(_anchors$find = anchors.find(a => a.id === connectSrc)) == null ? void 0 : _anchors$find.name} → click target` : "Click node to set source"), React.createElement(SecL, null, "Journey"), React.createElement("div", {
+    style: {
+      marginBottom: 7
+    }
+  }, React.createElement(Tog, {
+    value: loopJ,
+    onChange: setLoopJ,
+    label: "Loop"
+  })), React.createElement("div", {
+    style: {
+      marginBottom: 8
+    }
+  }, journey.map((aid, idx) => {
+    var _edges$idx, _a$it;
+    const a = anchors.find(x => x.id === aid),
+      ek = (_edges$idx = edges[idx]) == null ? void 0 : _edges$idx.key,
+      eCfg = ek ? getPCfg(pathConfigs, ek) : null,
+      isCust = ek && customEdges.has(ek);
+    const isSelA = selected.type === "anchor" && selected.id === aid,
+      isSelP = selected.type === "path" && selected.id === ek;
+    return React.createElement("div", {
+      key: idx
+    }, React.createElement("div", {
+      onClick: () => setSelected({
+        type: "anchor",
+        id: aid
+      }),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "4px 7px",
+        borderRadius: 4,
+        cursor: "pointer",
+        background: isSelA ? "rgba(0,229,255,0.09)" : "rgba(255,255,255,0.02)",
+        border: `1px solid ${isSelA ? "rgba(0,229,255,0.3)" : "rgba(255,255,255,0.04)"}`,
+        marginBottom: 2
+      }
+    }, React.createElement("span", {
+      style: {
+        color: "rgba(255,255,255,0.18)",
+        fontSize: 9,
+        fontFamily: mono,
+        width: 12
+      }
+    }, idx + 1), React.createElement("div", {
+      style: {
+        width: 5,
+        height: 5,
+        borderRadius: "50%",
+        flexShrink: 0,
+        background: a != null && (_a$it = a.it) != null && _a$it.assigned ? C.green : isSelA ? C.cyan : "rgba(255,255,255,0.18)"
+      }
+    }), React.createElement("span", {
+      style: {
+        flex: 1,
+        color: isSelA ? "rgba(255,255,255,.85)" : "rgba(255,255,255,0.22)",
+        fontSize: 11,
+        fontFamily: mono,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, (a == null ? void 0 : a.name) || aid), React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 2
+      }
+    }, React.createElement(IBtn, {
+      small: true,
+      onClick: e => {
+        e.stopPropagation();
+        moveStep(idx, -1);
+      }
+    }, "\u2191"), React.createElement(IBtn, {
+      small: true,
+      onClick: e => {
+        e.stopPropagation();
+        moveStep(idx, 1);
+      }
+    }, "\u2193"), React.createElement(IBtn, {
+      small: true,
+      onClick: e => {
+        e.stopPropagation();
+        removeStep(idx);
+      },
+      col: C.red
+    }, "\u2715"))), ek && React.createElement("div", {
+      onClick: () => setSelected({
+        type: "path",
+        id: ek
+      }),
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "2px 6px 2px 18px",
+        cursor: "pointer",
+        marginBottom: 3,
+        borderRadius: 4,
+        background: isSelP ? "rgba(255,196,0,0.08)" : "transparent",
+        border: `1px solid ${isSelP ? "rgba(255,196,0,0.3)" : "transparent"}`
+      }
+    }, React.createElement("div", {
+      style: {
+        width: 14,
+        height: 1,
+        background: isSelP ? "rgba(255,196,0,0.6)" : isCust ? "rgba(255,157,125,0.4)" : "rgba(255,255,255,0.1)"
+      }
+    }), React.createElement("span", {
+      style: {
+        color: isSelP ? C.amber : isCust ? C.orange : "rgba(255,255,255,0.18)",
+        fontSize: 10,
+        fontFamily: mono,
+        flex: 1
+      }
+    }, (eCfg == null ? void 0 : eCfg.shape) || "arc", " \xB7 ", (eCfg == null ? void 0 : eCfg.duration) || 2200, "ms"), isCust && React.createElement("span", {
+      style: {
+        color: C.orange,
+        fontSize: 8,
+        fontFamily: mono
+      }
+    }, "\u2605")));
+  }), journey.length === 0 && React.createElement("div", {
+    style: {
+      color: "rgba(255,255,255,0.18)",
+      fontSize: 10,
+      fontFamily: mono,
+      fontStyle: "italic",
+      padding: "6px 0"
+    }
+  }, "Use \u2295 Connect or + Anchor.")), React.createElement("select", {
+    onChange: e => {
+      if (e.target.value) {
+        setJourney(j => [...j, e.target.value]);
+        e.target.value = "";
+      }
+    },
+    defaultValue: "",
+    style: {
+      width: "100%",
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.45)",
+      padding: "4px 7px",
+      borderRadius: 4,
+      fontSize: 11,
+      fontFamily: mono,
+      marginBottom: 12
+    }
+  }, React.createElement("option", {
+    value: "",
+    disabled: true
+  }, "+ Add step\u2026"), anchors.map(a => React.createElement("option", {
+    key: a.id,
+    value: a.id
+  }, a.name))), React.createElement(SecL, null, "Global Traveller"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 3,
+      marginBottom: 5
+    }
+  }, ["sphere", "cube", "torus", "cone", "diamond", "ring"].map(t => React.createElement(Btn, {
+    key: t,
+    active: globalTv.type === t,
+    col: C.amber,
+    small: true,
+    onClick: () => setGlobalTv(v => ({
+      ...v,
+      type: t
+    }))
+  }, t))), React.createElement(FR, {
+    label: "Color"
+  }, React.createElement("input", {
+    type: "color",
+    value: globalTv.color,
+    onChange: e => setGlobalTv(v => ({
+      ...v,
+      color: e.target.value
+    })),
+    style: {
+      width: 28,
+      height: 18,
+      border: "1px solid rgba(255,255,255,0.1)",
+      background: "none",
+      cursor: "pointer",
+      padding: 1,
+      borderRadius: 3
+    }
+  }), React.createElement("input", {
+    type: "range",
+    min: .4,
+    max: 2.4,
+    step: .1,
+    value: globalTv.scale,
+    onChange: e => setGlobalTv(v => ({
+      ...v,
+      scale: +e.target.value
+    })),
+    style: {
+      flex: 1,
+      accentColor: C.amber
+    }
+  }), React.createElement("span", {
+    style: {
+      color: C.amber,
+      fontSize: 10,
+      fontFamily: mono,
+      width: 22
+    }
+  }, globalTv.scale, "\xD7")), React.createElement(Tog, {
+    value: globalTv.trail,
+    onChange: v => setGlobalTv(t => ({
+      ...t,
+      trail: v
+    })),
+    label: "Trail"
+  })), React.createElement("div", {
+    style: {
+      flex: 1,
+      position: "relative",
+      display: "flex",
+      flexDirection: "column"
+    }
+  }, React.createElement("div", {
+    ref: mountRef,
+    style: {
+      flex: 1
+    }
+  }), React.createElement("div", {
+    ref: overlayRef,
+    style: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 52,
+      pointerEvents: "none"
+    }
+  }), !isLive && React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: 12,
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: "rgba(105,255,125,0.1)",
+      border: "1px solid rgba(105,255,125,0.35)",
+      borderRadius: 5,
+      padding: "5px 14px",
+      fontFamily: mono,
+      fontSize: 11,
+      color: C.green,
+      pointerEvents: "none"
+    }
+  }, "\u23F8 PAUSED \u2014 Space to resume"), isFL && React.createElement("div", {
+    style: {
+      position: "absolute",
+      top: "45%",
+      left: "50%",
+      transform: "translate(-50%,-50%)",
+      pointerEvents: "none",
+      opacity: .35
+    }
+  }, React.createElement("svg", {
+    width: 18,
+    height: 18
+  }, React.createElement("line", {
+    x1: 9,
+    y1: 2,
+    x2: 9,
+    y2: 16,
+    stroke: C.amber,
+    strokeWidth: 1
+  }), React.createElement("line", {
+    x1: 2,
+    y1: 9,
+    x2: 16,
+    y2: 9,
+    stroke: C.amber,
+    strokeWidth: 1
+  }), React.createElement("circle", {
+    cx: 9,
+    cy: 9,
+    r: 2.5,
+    fill: "none",
+    stroke: C.amber,
+    strokeWidth: 1
+  }))), React.createElement(Timeline, {
+    edges: edges,
+    pathConfigs: pathConfigs,
+    animUi: animUi,
+    isLive: isLive,
+    onToggleLive: () => setIsLive(l => !l),
+    onScrub: handleScrub,
+    selected: selected,
+    onSelectPath: key => setSelected({
+      type: "path",
+      id: key
+    }),
+    customEdges: customEdges
+  })), React.createElement("div", {
+    style: {
+      width: 290,
+      flexShrink: 0,
+      background: C.panel,
+      borderLeft: `1px solid ${C.border}`,
+      overflowY: "auto",
+      padding: "14px 13px"
+    }
+  }, selAnchor ? React.createElement(AnchorInspector, {
+    anchor: selAnchor,
+    onUpdate: updateAnchor
+  }) : selPathKey ? React.createElement(PathInspector, {
+    edgeKey: selPathKey,
+    anchors: anchors,
+    pathConfigs: pathConfigs,
+    onUpdate: updatePathConfig,
+    animT: animUi.t,
+    isCustom: customEdges.has(selPathKey),
+    onSyncToGlobal: () => syncEdgeToGlobal(selPathKey),
+    gj: gj
+  }) : React.createElement(GlobalJourneyEditor, {
+    gj: gj,
+    onUpdate: updateGlobalJourney,
+    edges: edges,
+    customEdges: customEdges,
+    onApplyJP: applyJourneyPreset,
+    onSyncEdge: syncEdgeToGlobal,
+    onSyncAll: syncAllToGlobal,
+    anchors: anchors
+  }))));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
