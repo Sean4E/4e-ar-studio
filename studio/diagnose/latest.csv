@@ -1,6 +1,6 @@
 # 4E Studio Scene Diagnose,
-# Generated,2026-04-15T19:00:41.673Z
-# Studio version,3.12.6
+# Generated,2026-04-15T20:05:04.430Z
+# Studio version,3.12.10
 # Renderer autoClear,true
 # Renderer sortObjects,true
 # Renderer shadowMap,true
@@ -9,15 +9,15 @@
 ,
 # Project id,(unsaved)
 # Project name,Untitled
-# Tracking mode,slam
-# Image targets,0
-# Objects,0
+# Tracking mode,image
+# Image targets,1
+# Objects,1
 # Journeys,0
 ,
 # Spatial tab active,true
 # Spatial iframe,loaded
 # Spatial handshake,ready
-# Spatial iframe src,https://sean4e.github.io/4e-ar-studio/spatial/spatial-v7.html
+# Spatial iframe src,https://ar-studio-4e.web.app/spatial/spatial-v7.html
 ,
 index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow,posX,posY,posZ,scaleX,scaleY,scaleZ,matType,colorWrite,depthWrite,depthTest,transparent,opacity,side
 0,X,Mesh,,true,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,MeshBasicMaterial,true,false,false,true,1,Front
@@ -79,3 +79,5 @@ index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow
 56,START,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 57,END,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 58,(unnamed),TransformControlsPlane,,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.1,Double
+59,(unnamed),Mesh,,true,0,true,false,false,0.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+60,LOD3spShape,Mesh,mo0haizh62xs5v,true,0,true,true,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
