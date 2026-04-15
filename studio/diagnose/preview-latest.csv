@@ -1,0 +1,19 @@
+# 4E Player Preview Diagnose,
+# Generated,2026-04-15T01:19:44.175Z
+# Player version,3.11.4
+# Preview mode,true
+# Renderer autoClear,true
+# Renderer sortObjects,false
+# Renderer shadowMap,true
+,
+index,name,type,uuid,visible,renderOrder,frustumCulled,castShadow,receiveShadow,parentName,parentType,posX,posY,posZ,scaleX,scaleY,scaleZ,matType,colorWrite,depthWrite,depthTest,transparent,opacity,side
+0,(unnamed),Mesh,C6E3CB3F,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,ShadowMaterial,true,true,true,true,0.4,Front
+1,(unnamed),Mesh,81D4EFA9,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+2,(unnamed),Mesh,5D31939F,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+3,(unnamed),Mesh,BC3D4E1D,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+4,(unnamed),Mesh,5AE35179,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+5,(unnamed),Mesh,47E0B1F9,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,false,1,Front
+6,(unnamed),Mesh,63A6FCD1,true,0,true,true,true,(root),Group,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,false,true,true,false,1,Front
+7,(unnamed),Mesh,7A88EE18,false,0,true,false,false,(root),Scene,0.000,0.000,0.000,1.000,1.000,1.000,RawShaderMaterial,true,true,true,false,1,Double
+8,(unnamed),Mesh,C4C5A5FB,true,0,true,false,false,xrweb-background,Group,0.000,0.000,0.000,4900.000,4900.000,4900.000,ShaderMaterial,true,true,true,false,1,Front
+9,(unnamed),Mesh,152BA42C,true,0,true,false,false,xrweb-background,Group,0.000,-0.010,0.000,160.000,160.000,160.000,MeshBasicMaterial,true,true,true,false,1,Front
