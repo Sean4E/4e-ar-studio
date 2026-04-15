@@ -88,6 +88,7 @@ Studio.Spatial = {
         id: t.id,
         name: t.name || '',
         widthM: t.properties?.widthM || 0.1,
+        thumbnailUrl: t._thumbnailDataUrl || t.thumbnailUrl || '',
       })),
       // Objects suitable as travellers: anything with geometry
       // (primitives or GLBs), excluding `empty` containers that

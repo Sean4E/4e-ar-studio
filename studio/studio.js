@@ -53,13 +53,20 @@ Studio.toggleFullscreen = function() {
   }
   console.log('[Studio] fullscreen', on ? 'ON' : 'OFF');
   if (Studio.toast) Studio.toast('Fullscreen ' + (on ? 'ON' : 'OFF'), 'ok');
-  setTimeout(() => {
+  // Nudge both the studio viewport and the Spatial iframe to re-measure
+  // their canvases. Fire a few times across layout milestones because
+  // CSS grid reflow can take a frame or two to settle, especially when
+  // side panels re-appear on exit.
+  const nudge = () => {
     if (Studio.Viewport && Studio.Viewport._resize) Studio.Viewport._resize();
-    // Spatial iframe needs a nudge too so its internal renderer resizes.
     if (Studio.Spatial && Studio.Spatial._iframe) {
       try { Studio.Spatial._iframe.contentWindow.dispatchEvent(new Event('resize')); } catch (_) {}
     }
-  }, 80);
+    window.dispatchEvent(new Event('resize'));
+  };
+  requestAnimationFrame(() => requestAnimationFrame(nudge));
+  setTimeout(nudge, 150);
+  setTimeout(nudge, 350);
 };
 
 Studio.showBottomTab = function(tab) {

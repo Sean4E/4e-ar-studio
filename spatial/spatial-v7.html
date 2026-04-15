@@ -1368,6 +1368,36 @@ function mkMesh(type, color, scale = 1) {
   return m;
 }
 
+// Placeholder for a scene object traveller (when path's legTvObject.source
+// points at a studio project object). We can't render the real GLB here
+// without a loader + URL wiring, so we show a distinct labeled wireframe
+// cube so the user can see WHICH project object is bound on this leg.
+function mkProjectObjPlaceholder(name, color, scale = 1) {
+  const g = new THREE.Group();
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: new THREE.Color(color || "#ffc400"),
+    transparent: true,
+    opacity: 0.95
+  });
+  const box = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box), edgeMat);
+  g.add(edges);
+  const fillMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(color || "#ffc400"),
+    transparent: true,
+    opacity: 0.10
+  });
+  g.add(new THREE.Mesh(box, fillMat));
+  if (name) {
+    const label = makeLabelSprite(name);
+    label.position.set(0, 0.42, 0);
+    label.scale.set(1.4, 0.25, 1);
+    g.add(label);
+  }
+  g.scale.setScalar(scale);
+  return g;
+}
+
 function makeLabelSprite(text) {
   const W = 320, H = 56;
   const cv = document.createElement('canvas');
@@ -3432,6 +3462,13 @@ function App() {
   useEffect(() => {
     dirtyRef.current.scene = true;
   }, [anchors, journey, loopJ, pathConfigs]);
+  // Studio pushes target thumbnails via postMessage — mark scene dirty
+  // so rebuildAnchors re-scans thumbnail URLs on the next frame.
+  useEffect(() => {
+    const h = () => { dirtyRef.current.scene = true; };
+    window.addEventListener('studio-project-update', h);
+    return () => window.removeEventListener('studio-project-update', h);
+  }, []);
   useEffect(() => {
     animRef.current.restart = true;
   }, [journey, loopJ]);
@@ -3613,6 +3650,20 @@ function App() {
             side: THREE.DoubleSide
           });
           g.add(new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), planeMat));
+          // Target-thumbnail plane — populated in the anchor-update
+          // branch below when the anchor has a picked studio target.
+          // Offset +z by 0.012 so it renders in front of the anchor
+          // graphic without z-fighting. Starts hidden.
+          const thumbMat = new THREE.MeshBasicMaterial({
+            map: null,
+            transparent: true,
+            opacity: 0.95,
+            side: THREE.DoubleSide
+          });
+          const thumbMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), thumbMat);
+          thumbMesh.position.z = 0.012;
+          thumbMesh.visible = false;
+          g.add(thumbMesh);
           g.add(new THREE.Mesh(new THREE.BoxGeometry(1.52, 1.52, .06), new THREE.MeshBasicMaterial({
             color: 0x00e5ff,
             wireframe: true,
@@ -3653,15 +3704,46 @@ function App() {
             selRingMat,
             hitMesh,
             labelSprite,
+            thumbMesh,
+            thumbMat,
+            lastThumbUrl: "",
             lastState: ""
           });
         } else {
           const existing = anchorMeshMap.get(a.id);
           existing.group.position.set(a.pos.x, a.pos.y, a.pos.z);
-          // Update label sprite if name changed
           if (existing.labelSprite && existing.lastLabelName !== a.name) {
             updateLabelSprite(existing.labelSprite, a.name);
             existing.lastLabelName = a.name;
+          }
+        }
+        // Thumbnail update — runs for both new and existing anchors.
+        // Shows the picked studio target's thumbnail as a small plane
+        // in front of the anchor graphic.
+        const entry = anchorMeshMap.get(a.id);
+        if (entry && entry.thumbMesh) {
+          const studioTargets = (window.STUDIO_PROJECT && window.STUDIO_PROJECT.targets) || [];
+          const pickedTgt = a.it.assigned ? studioTargets.find(t => t.id === a.it.id) : null;
+          const thumbUrl = (pickedTgt && pickedTgt.thumbnailUrl) || "";
+          if (thumbUrl !== entry.lastThumbUrl) {
+            entry.lastThumbUrl = thumbUrl;
+            if (thumbUrl) {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = () => {
+                const tex = new THREE.Texture(img);
+                tex.needsUpdate = true;
+                if (entry.thumbMat.map) entry.thumbMat.map.dispose();
+                entry.thumbMat.map = tex;
+                entry.thumbMat.needsUpdate = true;
+                entry.thumbMesh.visible = true;
+              };
+              img.onerror = () => { entry.thumbMesh.visible = false; };
+              img.src = thumbUrl;
+            } else {
+              entry.thumbMesh.visible = false;
+              if (entry.thumbMat.map) { entry.thumbMat.map.dispose(); entry.thumbMat.map = null; }
+            }
           }
         }
       });
@@ -3823,7 +3905,10 @@ function App() {
           color: globalTv.color,
           scale: globalTv.scale
         } : ltv.object;
-        const m = mkMesh(obj.meshType, obj.color, obj.scale);
+        const usingProject = obj.source && obj.source.type === "project";
+        const m = usingProject
+          ? mkProjectObjPlaceholder(obj.source.name || "obj", obj.color || "#ffc400", obj.scale || 1)
+          : mkMesh(obj.meshType, obj.color, obj.scale);
         m.userData.isTvMesh = true;
         tvContainer.add(m);
         tvLight.color.set(new THREE.Color(obj.color));

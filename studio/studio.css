@@ -148,6 +148,12 @@ body.studio-fullscreen #hierarchy,
 body.studio-fullscreen #inspector,
 body.studio-fullscreen #bottom-panel { display: none; }
 
+/* Splash — use the freed horizontal space by widening side panels.
+   Phone preview keeps its fixed phone-aspect size (as requested). */
+body.studio-fullscreen .sp-left,
+body.studio-fullscreen .sp-right { width: 320px; padding: 16px; }
+body.studio-fullscreen .sp-panel-title { font-size: 12px; }
+
 /* ─── Panels (shared) ───────────────────────────────────── */
 .panel {
   background: var(--bg2);
