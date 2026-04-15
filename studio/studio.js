@@ -443,12 +443,14 @@ Studio.openTokenModal = function() {
 };
 
 // Keep the toolbar button's label in sync with whether a token is
-// set. Dim icon + "Token" when missing, subtle check when present.
+// set. Condensed to just the key icon (+ ✓ when set) so the toolbar
+// has room for Publish on narrower viewports. Full wording lives
+// in the tooltip for anyone unsure what the icon means.
 Studio.refreshTokenIndicator = function() {
   const btn = document.getElementById('tb-token');
   if (!btn) return;
   const has = !!(Studio.GitHub.getConfig().token);
-  btn.textContent = has ? '🔑 Token ✓' : '🔑 Token';
+  btn.textContent = has ? '🔑 ✓' : '🔑';
   btn.title = has
     ? 'GitHub token set for this origin — click to update'
     : 'No GitHub token for this origin — click to enter';

@@ -1059,6 +1059,12 @@ Studio.Viewport = {
   // / depth-sort issue without needing to paste into the console.
   diagnoseScene() {
     const r = this.renderer;
+    // Project + spatial-handshake snapshot — this header block is what
+    // Claude / anyone debugging reads first when the CSV comes back.
+    // Spatial state is here (not in its own CSV) so one export captures
+    // the whole studio situation in a single artifact.
+    const projState = Studio.Project?.state || {};
+    const spatial   = Studio.Spatial || {};
     const meta = [
       ['# 4E Studio Scene Diagnose', ''],
       ['# Generated',          new Date().toISOString()],
@@ -1068,6 +1074,18 @@ Studio.Viewport = {
       ['# Renderer shadowMap', r.shadowMap.enabled],
       ['# Renderer outputColorSpace', r.outputColorSpace],
       ['# Camera position',    this.camera.position.toArray().join(' ')],
+      ['', ''],
+      ['# Project id',         projState.id || '(unsaved)'],
+      ['# Project name',       projState.name || ''],
+      ['# Tracking mode',      projState.trackingMode || '?'],
+      ['# Image targets',      (projState.targets || []).length],
+      ['# Objects',            (projState.objects || []).length],
+      ['# Journeys',           (projState.journeys || []).length],
+      ['', ''],
+      ['# Spatial tab active', Studio.currentTab === 'spatial'],
+      ['# Spatial iframe',     spatial._iframe ? 'loaded' : 'not loaded'],
+      ['# Spatial handshake',  spatial._ready ? 'ready' : 'pending'],
+      ['# Spatial iframe src', spatial._iframe?.src || ''],
       ['', ''],
     ];
     const header = [
