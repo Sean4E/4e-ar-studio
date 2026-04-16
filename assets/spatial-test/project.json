@@ -6,7 +6,7 @@
   "trackingMode": "image",
   "targets": [
     {
-      "id": "tgt_ufqqbpt1",
+      "id": "tgt_6691w91j",
       "name": "4E_Markers",
       "type": "PLANAR",
       "properties": {
@@ -16,11 +16,11 @@
       "luminanceUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/4E_Markers_luminance.jpg",
       "thumbnailUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/4E_Markers_thumbnail.jpg",
       "objectIds": [
-        "obj_a0"
+        "obj_a3"
       ]
     },
     {
-      "id": "tgt_jwcihiax",
+      "id": "tgt_6xp57r98",
       "name": "cottage",
       "type": "PLANAR",
       "properties": {
@@ -30,11 +30,11 @@
       "luminanceUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/cottage_luminance.jpg",
       "thumbnailUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/cottage_thumbnail.jpg",
       "objectIds": [
-        "obj_a1"
+        "obj_a2"
       ]
     },
     {
-      "id": "tgt_881tfqp6",
+      "id": "tgt_zb019u89",
       "name": "DnS",
       "type": "PLANAR",
       "properties": {
@@ -44,11 +44,11 @@
       "luminanceUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/DnS_luminance.jpg",
       "thumbnailUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/DnS_thumbnail.jpg",
       "objectIds": [
-        "obj_a2"
+        "obj_a1"
       ]
     },
     {
-      "id": "tgt_0ynda2lm",
+      "id": "tgt_4wmghu5r",
       "name": "Fairy",
       "type": "PLANAR",
       "properties": {
@@ -58,13 +58,13 @@
       "luminanceUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/Fairy_luminance.jpg",
       "thumbnailUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/Fairy_thumbnail.jpg",
       "objectIds": [
-        "obj_a3"
+        "obj_a0"
       ]
     }
   ],
   "journey": {
     "version": 1,
-    "generatedAt": "2026-04-16T00:43:04.011Z",
+    "generatedAt": "2026-04-16T01:23:38.059Z",
     "anchors": [
       {
         "id": "a0",
@@ -75,7 +75,7 @@
           "z": -3.52
         },
         "it": {
-          "id": "tgt_ufqqbpt1",
+          "id": "tgt_4wmghu5r",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -94,7 +94,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_jwcihiax",
+          "id": "tgt_zb019u89",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -113,7 +113,7 @@
           "z": 3.52
         },
         "it": {
-          "id": "tgt_881tfqp6",
+          "id": "tgt_6xp57r98",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -132,7 +132,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_0ynda2lm",
+          "id": "tgt_6691w91j",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -159,14 +159,14 @@
     },
     "paths": {}
   },
-  "generatedAt": "2026-04-16T00:46:14.963Z",
+  "generatedAt": "2026-04-16T01:23:58.958Z",
   "objects": [
     {
       "id": "obj_a0",
       "name": "Anchor 1",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_ufqqbpt1",
+      "targetId": "tgt_4wmghu5r",
       "imageToSlam": true,
       "spatialAnchorId": "a0",
       "transform": {
@@ -193,7 +193,7 @@
       "name": "Anchor 2",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_jwcihiax",
+      "targetId": "tgt_zb019u89",
       "imageToSlam": true,
       "spatialAnchorId": "a1",
       "transform": {
@@ -220,7 +220,7 @@
       "name": "Anchor 3",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_881tfqp6",
+      "targetId": "tgt_6xp57r98",
       "imageToSlam": true,
       "spatialAnchorId": "a2",
       "transform": {
@@ -247,7 +247,7 @@
       "name": "Anchor 4",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_0ynda2lm",
+      "targetId": "tgt_6691w91j",
       "imageToSlam": true,
       "spatialAnchorId": "a3",
       "transform": {
