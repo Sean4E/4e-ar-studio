@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E Spatial Runtime — Test Host</title>
+<!-- Independent test-rig version. Bumped only when the test rig itself
+     (this host page + player-spatial.html) changes. Decoupled from
+     studio/index.html + player-v2.html (which share their own version
+     for the production pair). -->
+<meta name="test-rig-version" content="0.1.1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -189,6 +194,7 @@
 
 <div id="toolbar">
   <span class="title">4E SPATIAL RUNTIME · TEST HOST</span>
+  <span class="pid" title="Test-rig version (this host + player-spatial). Independent of the main studio version.">v<span id="rig-version">?</span></span>
   <span class="pid">project: <strong id="pid-text">spatial-test</strong></span>
   <span class="deploy-pill" id="deploy-pill" title="Player file (player-spatial.html) deployment status. Click to re-check.">checking…</span>
   <span class="spacer"></span>
@@ -321,6 +327,10 @@ const ASSET_BASE = `assets/${PROJECT_ID}`;
 const TOKEN_KEY = '4e-ar-gh-token';
 const SPATIAL_SRC = '../spatial/spatial-v7.html';
 const PLAYER_SRC = `../player-spatial.html?id=${PROJECT_ID}`;
+// Host rig version — read from this page's meta. Compared against the
+// deployed player's own meta to detect out-of-sync deploys.
+const HOST_RIG_VERSION = (document.querySelector('meta[name="test-rig-version"]') || {}).content || '?';
+document.getElementById('rig-version').textContent = HOST_RIG_VERSION;
 
 const state = {
   targets: [],          // { id, name, _luminanceDataUrl, _thumbnailDataUrl, originalUrl, luminanceUrl, thumbnailUrl, properties }
@@ -660,11 +670,13 @@ function refreshPublishButton() {
 }
 
 // ─── Deploy-status check ────────────────────────────────────
-// HEAD-fetch the live player URL to confirm player-spatial.html is
+// GET-fetch the live player URL to confirm player-spatial.html is
 // reachable on Firebase. If the file isn't deployed, scanning a QR
-// code resolves to a 404 — gating Publish + QR here prevents that
-// dead-end. Click the pill in the toolbar to re-check after a deploy.
+// code resolves to a 404. We also extract its <meta name="test-rig-
+// version"> and compare to the host's own to catch
+// out-of-sync deploys.
 state.deployStatus = 'checking';      // 'checking' | 'ok' | 'missing' | 'unknown'
+state.deployedRigVersion = null;
 async function checkDeployStatus() {
   const pill = $('deploy-pill');
   pill.className = 'deploy-pill';
@@ -673,12 +685,23 @@ async function checkDeployStatus() {
   refreshPublishButton();
   const playerUrl = `${window.AR_BASE_URL}/player-spatial.html`;
   try {
-    const resp = await fetch(playerUrl, { method: 'HEAD', cache: 'no-store' });
+    // GET (not HEAD) so we can sniff the deployed rig version. CORS
+    // for *.html is enabled on Firebase Hosting (firebase.json).
+    const resp = await fetch(playerUrl + '?ck=' + Date.now(), { method: 'GET', cache: 'no-store' });
     if (resp.ok) {
+      const text = await resp.text();
+      const m = text.match(/<meta name="test-rig-version" content="([^"]+)"/);
+      state.deployedRigVersion = m ? m[1] : '(none)';
+      const localVer = HOST_RIG_VERSION;
+      const same = state.deployedRigVersion === localVer;
       state.deployStatus = 'ok';
-      pill.className = 'deploy-pill ok';
-      pill.textContent = '✓ player live';
-      pill.title = 'player-spatial.html is reachable at ' + playerUrl + ' (HTTP ' + resp.status + ') — click to re-check';
+      pill.className = 'deploy-pill ' + (same ? 'ok' : 'warn');
+      pill.textContent = same
+        ? `✓ player live · v${state.deployedRigVersion}`
+        : `⚠ deployed v${state.deployedRigVersion} ≠ host v${localVer}`;
+      pill.title = same
+        ? 'Live player matches this host. Click to re-check.'
+        : `Deployed player is on rig v${state.deployedRigVersion}; this host is on v${localVer}. Push to sync. Click to re-check.`;
     } else {
       state.deployStatus = 'missing';
       pill.className = 'deploy-pill bad';
