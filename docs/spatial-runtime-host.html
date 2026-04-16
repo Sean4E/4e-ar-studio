@@ -8,7 +8,7 @@
      (this host page + player-spatial.html) changes. Decoupled from
      studio/index.html + player-v2.html (which share their own version
      for the production pair). -->
-<meta name="test-rig-version" content="0.2.3">
+<meta name="test-rig-version" content="0.2.4">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -253,7 +253,7 @@
 
   <!-- ─── PREVIEW ──────────────────────────────────────── -->
   <div class="panel" data-panel="preview">
-    <iframe id="preview-frame" src="" allow="camera; microphone"></iframe>
+    <iframe id="preview-frame" src="" allow="camera; microphone; xr-spatial-tracking; accelerometer; gyroscope; magnetometer"></iframe>
   </div>
 
   <!-- ─── DIAGNOSE ─────────────────────────────────────── -->

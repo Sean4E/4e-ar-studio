@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.2.3">
+<meta name="test-rig-version" content="0.2.4">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1647,7 +1647,13 @@ async function init() {
   if (GH_TEST_PROJECTS.includes(appId)) {
     try {
       const ghCfg = window.AR_GITHUB_CONFIG || {};
-      const url = `https://${ghCfg.owner}.github.io/${ghCfg.repo}/assets/${appId}/project.json?t=${Date.now()}`;
+      // Use raw.githubusercontent.com (not GitHub Pages) so we bypass
+      // the Pages CDN cache. The CDN has 5-30s propagation delay after
+      // a file is committed — unacceptable for a rapid-publish test
+      // loop. Raw content is served directly from the repo with no
+      // CDN layer. Slightly slower TTFB on cold requests, but always
+      // fresh.
+      const url = `https://raw.githubusercontent.com/${ghCfg.owner}/${ghCfg.repo}/${ghCfg.branch || 'main'}/assets/${appId}/project.json?t=${Date.now()}`;
       setSplashStatus('Loading test experience…');
       const resp = await fetch(url, { mode: 'cors' });
       if (!resp.ok) {
