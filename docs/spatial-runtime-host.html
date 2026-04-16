@@ -8,7 +8,7 @@
      (this host page + player-spatial.html) changes. Decoupled from
      studio/index.html + player-v2.html (which share their own version
      for the production pair). -->
-<meta name="test-rig-version" content="0.2.2">
+<meta name="test-rig-version" content="0.2.3">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -331,7 +331,16 @@ const PROJECT_ID = 'spatial-test';
 const ASSET_BASE = `assets/${PROJECT_ID}`;
 const TOKEN_KEY = '4e-ar-gh-token';
 const SPATIAL_SRC = '../spatial/spatial-v7.html';
-const PLAYER_SRC = `../player-spatial.html?id=${PROJECT_ID}`;
+// IMPORTANT: Preview iframe must load from Firebase (HTTPS) — not
+// Live Server (HTTP) — because the player needs camera + WebXR APIs
+// which are gated behind a secure context. This mirrors how the
+// studio's own preview tab works: relative path resolves to whatever
+// origin is serving the studio. For our test rig on Live Server, we
+// hard-pin to AR_BASE_URL so AR actually works in preview.
+// Caveat: this loads the DEPLOYED player-spatial.html, so local edits
+// to that file don't appear in preview until pushed. The deploy-pill
+// in the toolbar flags the version mismatch.
+const PLAYER_SRC = `${window.AR_BASE_URL}/player-spatial.html?id=${PROJECT_ID}`;
 // Host rig version — read from this page's meta. Compared against the
 // deployed player's own meta to detect out-of-sync deploys.
 const HOST_RIG_VERSION = (document.querySelector('meta[name="test-rig-version"]') || {}).content || '?';
