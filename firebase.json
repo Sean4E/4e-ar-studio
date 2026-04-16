@@ -23,7 +23,15 @@
       "devstudio.html",
       ".git/**",
       ".github/**",
-      "node_modules/**"
+      "node_modules/**",
+      "docs/aframe-hider-test.html",
+      "docs/hider-test.html",
+      "docs/fullscreen-test.html",
+      "docs/prefab-basescale-test.html",
+      "docs/rigged-traveller-test.html",
+      "docs/traveller-anim-test.html",
+      "docs/journey-runtime-test.html",
+      "docs/architecture.html"
     ],
     "headers": [
       {

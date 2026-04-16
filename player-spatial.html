@@ -11,13 +11,13 @@
      these to the project's logo once Firestore data resolves. -->
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
-<title>4E AR Player</title>
+<title>4E Spatial Player</title>
 <meta name="version" content="3.12.17">
 <!-- Independent test-rig version. This player is paired with
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.4.2">
+<meta name="test-rig-version" content="0.4.3">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Particle engine (pure Three.js, no A-Frame wrapper) — shared with
@@ -175,7 +175,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
     <div id="sp-spinner"></div>
     <span id="sp-status" class="splash-status-text">Starting AR experience…</span>
   </div>
-  <div id="sp-branding">Powered by 4E AR Studio</div>
+  <div id="sp-branding">4E Spatial Runtime</div>
 </div>
 <script>
 // Apply cached splash content to stable-ID elements. Runs immediately
@@ -514,7 +514,11 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 // it from the DOM keeps the number displayed on the splash in lock-step
 // with whatever was actually deployed — no risk of bumping meta while
 // forgetting to bump this constant (and vice versa).
-const PLAYER_VERSION = (document.querySelector('meta[name="version"]')?.content) || 'dev';
+// Spatial test player identity. Read test-rig-version from its meta tag.
+// Prefix with "spatial " so the splash clearly distinguishes this from the
+// production player-v2 (which shows the studio's main version).
+const TEST_RIG_VERSION = (document.querySelector('meta[name="test-rig-version"]')?.content) || 'dev';
+const PLAYER_VERSION = 'spatial ' + TEST_RIG_VERSION;
 const SPLASH_START = performance.now();
 const el = id => document.getElementById(id);
 
@@ -554,7 +558,7 @@ if (window.parent && window.parent !== window) {
 // never ship the splash with a stale or missing version string.
 (function() {
   const b = document.getElementById('sp-branding');
-  if (b) b.textContent = 'Powered by 4E AR Studio v' + PLAYER_VERSION;
+  if (b) b.textContent = '4E Spatial Runtime · ' + PLAYER_VERSION;
 })();
 let APP = null, arScene = null;
 
