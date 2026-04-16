@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.2.5">
+<meta name="test-rig-version" content="0.3.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -82,15 +82,45 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 .jr-status-pill.warn{border-color:rgba(251,191,36,.4);color:#fbbf24}
 .jr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:auto}
 .jr-modal-overlay.hidden{display:none}
-.jr-modal{background:#121826;border:1px solid #1e2838;border-radius:12px;padding:18px;width:min(360px,92vw);max-height:80vh;overflow-y:auto;color:#e2e8f0;font-family:ui-monospace,monospace}
-.jr-modal h3{color:#a78bfa;font-size:12px;letter-spacing:.04em;margin-bottom:10px;text-transform:uppercase}
-.jr-modal label{display:block;font-size:11px;color:#64748b;margin:10px 0 4px}
-.jr-modal input[type=range]{width:100%;accent-color:#8b5cf6}
-.jr-modal input[type=color]{width:100%;height:32px;background:transparent;border:1px solid #1e2838;border-radius:4px;cursor:pointer}
-.jr-modal select{width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:6px 8px;border-radius:4px;font-family:inherit;font-size:11px}
-.jr-modal select option{background:#0a0e1a;color:#e2e8f0}
-.jr-modal .v{color:#cbd5e1;font-size:11px;float:right}
-.jr-modal-close{margin-top:14px;width:100%;padding:10px;background:#8b5cf6;border:none;color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}
+/* Full-screen on mobile, centered card on desktop. Tabs at top,
+   scrollable content per tab, large touch targets throughout. */
+.jr-modal{background:#0d1220;border:1px solid #1e2838;border-radius:12px;width:min(420px,96vw);max-height:88vh;display:flex;flex-direction:column;color:#e2e8f0;font-family:ui-monospace,'Space Mono',monospace;overflow:hidden}
+@media(max-width:480px){.jr-modal{width:100vw;max-height:100vh;border-radius:0;border:none}}
+.jr-modal-tabs{display:flex;border-bottom:1px solid #1e2838;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.jr-modal-tab{padding:10px 14px;border:none;background:transparent;color:#64748b;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
+.jr-modal-tab:hover{color:#cbd5e1}
+.jr-modal-tab.active{color:#a78bfa;border-bottom-color:#8b5cf6}
+.jr-modal-body{flex:1;overflow-y:auto;padding:14px 16px;min-height:0}
+.jr-modal-body .sec{display:none}
+.jr-modal-body .sec.active{display:block}
+.jr-modal-body h4{color:#a78bfa;font-size:11px;letter-spacing:.04em;margin:14px 0 8px;text-transform:uppercase}
+.jr-modal-body h4:first-child{margin-top:0}
+.jr-modal-body label{display:block;font-size:11px;color:#64748b;margin:10px 0 4px}
+.jr-modal-body label .v{color:#cbd5e1;float:right}
+.jr-modal-body input[type=range]{width:100%;accent-color:#8b5cf6;margin:4px 0}
+.jr-modal-body input[type=color]{width:100%;height:36px;background:transparent;border:1px solid #1e2838;border-radius:4px;cursor:pointer}
+.jr-modal-body select{width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:8px 10px;border-radius:5px;font-family:inherit;font-size:12px}
+.jr-modal-body select option{background:#0a0e1a;color:#e2e8f0}
+.jr-chip-grid{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.jr-chip{padding:6px 12px;border-radius:5px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;min-width:0}
+.jr-chip:hover{border-color:#8b5cf6;color:#a78bfa}
+.jr-chip.active{background:rgba(139,92,246,.18);border-color:#8b5cf6;color:#a78bfa}
+.jr-chip.amber.active{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.5);color:#fbbf24}
+.jr-chip.cyan.active{background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.4);color:#22d3ee}
+.jr-chip.green.active{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4);color:#4ade80}
+.jr-toggle{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:12px;color:#cbd5e1;cursor:pointer}
+.jr-toggle input{display:none}
+.jr-toggle .sw{width:36px;height:20px;border-radius:10px;background:#1e2838;position:relative;transition:background .15s;flex-shrink:0}
+.jr-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#475569;transition:all .15s}
+.jr-toggle input:checked + .sw{background:rgba(139,92,246,.45)}
+.jr-toggle input:checked + .sw::after{left:18px;background:#a78bfa}
+.jr-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;margin:6px 0}
+.jr-preset{padding:8px;border-radius:6px;font-size:10px;text-align:center;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;line-height:1.4}
+.jr-preset .icon{font-size:16px;display:block;margin-bottom:4px}
+.jr-preset:hover{border-color:#8b5cf6;color:#a78bfa}
+.jr-preset.active{background:rgba(139,92,246,.15);border-color:#8b5cf6;color:#a78bfa}
+.jr-modal-footer{padding:10px 16px;border-top:1px solid #1e2838;flex-shrink:0}
+.jr-modal-close{width:100%;padding:11px;background:#8b5cf6;border:none;color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}
 #jr-debug{position:fixed;bottom:10px;left:10px;background:rgba(10,14,26,.85);border:1px solid #1e2838;border-radius:5px;padding:8px 10px;font-size:10px;color:#94a3b8;line-height:1.6;font-family:ui-monospace,monospace;z-index:25;display:none;max-width:280px;pointer-events:none}
 #jr-debug.show{display:block}
 #jr-debug .k{color:#64748b;display:inline-block;min-width:90px}
@@ -206,34 +236,145 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 </div>
 <div id="jr-debug"></div>
 
-<!-- Settings modal -->
+<!-- Settings modal — full tabbed spatial properties editor -->
 <div class="jr-modal-overlay hidden" id="jr-modal">
   <div class="jr-modal">
-    <h3>Traveller</h3>
-    <label>Shape</label>
-    <select id="jr-m-shape">
-      <option value="sphere">sphere</option>
-      <option value="cube">cube</option>
-      <option value="torus">torus</option>
-      <option value="cone">cone</option>
-      <option value="diamond">diamond</option>
-      <option value="ring">ring</option>
-    </select>
-    <label>Color</label>
-    <input type="color" id="jr-m-color" value="#ffc400">
-    <label>Scale <span class="v" id="jr-m-scale-v">1.0×</span></label>
-    <input type="range" id="jr-m-scale" min="0.3" max="2.5" step="0.1" value="1.0">
-    <h3 style="margin-top:14px">Path</h3>
-    <label>Duration per leg <span class="v" id="jr-m-dur-v">2000ms</span></label>
-    <input type="range" id="jr-m-dur" min="500" max="6000" step="100" value="2000">
-    <label>Easing</label>
-    <select id="jr-m-easing">
-      <option value="linear">linear</option>
-      <option value="easeInOut">easeInOut</option>
-      <option value="easeIn">easeIn</option>
-      <option value="easeOut">easeOut</option>
-    </select>
-    <button class="jr-modal-close" id="jr-m-close">Close</button>
+    <div class="jr-modal-tabs">
+      <button class="jr-modal-tab active" data-sec="traveller">Traveller</button>
+      <button class="jr-modal-tab" data-sec="path">Path</button>
+      <button class="jr-modal-tab" data-sec="display">Display</button>
+      <button class="jr-modal-tab" data-sec="presets">Presets</button>
+    </div>
+    <div class="jr-modal-body">
+
+      <!-- ─── TRAVELLER TAB ─────────────────────────────── -->
+      <div class="sec active" data-sec="traveller">
+        <h4>Shape</h4>
+        <div class="jr-chip-grid" id="jr-m-shapes">
+          <button class="jr-chip amber active" data-v="sphere">sphere</button>
+          <button class="jr-chip amber" data-v="cube">cube</button>
+          <button class="jr-chip amber" data-v="torus">torus</button>
+          <button class="jr-chip amber" data-v="cone">cone</button>
+          <button class="jr-chip amber" data-v="diamond">diamond</button>
+          <button class="jr-chip amber" data-v="ring">ring</button>
+        </div>
+
+        <h4>Appearance</h4>
+        <label>Color</label>
+        <input type="color" id="jr-m-color" value="#ffc400">
+        <label>Scale <span class="v" id="jr-m-scale-v">1.0×</span></label>
+        <input type="range" id="jr-m-scale" min="0.3" max="2.5" step="0.1" value="1.0">
+
+        <h4>Trail</h4>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-trail" checked>
+          <span class="sw"></span>
+          Trail enabled
+        </label>
+        <label>Trail length <span class="v" id="jr-m-trail-len-v">45</span></label>
+        <input type="range" id="jr-m-trail-len" min="5" max="120" step="5" value="45">
+      </div>
+
+      <!-- ─── PATH TAB ──────────────────────────────────── -->
+      <div class="sec" data-sec="path">
+        <h4>Timing</h4>
+        <label>Duration per leg <span class="v" id="jr-m-dur-v">2000ms</span></label>
+        <input type="range" id="jr-m-dur" min="300" max="8000" step="100" value="2000">
+
+        <h4>Easing</h4>
+        <div class="jr-chip-grid" id="jr-m-easings">
+          <button class="jr-chip active" data-v="linear">linear</button>
+          <button class="jr-chip" data-v="easeIn">easeIn</button>
+          <button class="jr-chip" data-v="easeOut">easeOut</button>
+          <button class="jr-chip" data-v="easeInOut">easeInOut</button>
+          <button class="jr-chip" data-v="fadeInOut">fadeInOut</button>
+          <button class="jr-chip" data-v="peak">peak</button>
+        </div>
+
+        <h4>Curve shape</h4>
+        <div class="jr-chip-grid" id="jr-m-curves">
+          <button class="jr-chip cyan active" data-v="smooth">smooth</button>
+          <button class="jr-chip cyan" data-v="arc">high arc</button>
+          <button class="jr-chip cyan" data-v="straight">straight</button>
+        </div>
+
+        <h4>Loop</h4>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-loop" checked>
+          <span class="sw"></span>
+          Loop journey
+        </label>
+      </div>
+
+      <!-- ─── DISPLAY TAB ───────────────────────────────── -->
+      <div class="sec" data-sec="display">
+        <h4>Visibility</h4>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-show-paths" checked>
+          <span class="sw"></span>
+          🛣 Show paths
+        </label>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-show-anchors" checked>
+          <span class="sw"></span>
+          📍 Show anchor billboards
+        </label>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-show-traveller" checked>
+          <span class="sw"></span>
+          🔶 Show traveller
+        </label>
+
+        <h4>Debug</h4>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-debug">
+          <span class="sw"></span>
+          Show debug overlay
+        </label>
+      </div>
+
+      <!-- ─── PRESETS TAB ───────────────────────────────── -->
+      <div class="sec" data-sec="presets">
+        <h4>Journey presets</h4>
+        <div class="jr-preset-grid" id="jr-m-journey-presets">
+          <div class="jr-preset" data-preset="gentle"><span class="icon">🌿</span>Gentle</div>
+          <div class="jr-preset" data-preset="energetic"><span class="icon">⚡</span>Energetic</div>
+          <div class="jr-preset" data-preset="dramatic"><span class="icon">🎭</span>Dramatic</div>
+          <div class="jr-preset" data-preset="minimal"><span class="icon">◯</span>Minimal</div>
+          <div class="jr-preset" data-preset="cosmic"><span class="icon">✨</span>Cosmic</div>
+          <div class="jr-preset" data-preset="playful"><span class="icon">🎈</span>Playful</div>
+        </div>
+
+        <h4>Particle presets</h4>
+        <p style="font-size:10px;color:#475569;margin-bottom:8px">Coming soon — port of the spatial editor's 20 particle presets (swarm, smoke, fire, electric, snow, nebula, etc.)</p>
+        <div class="jr-preset-grid" id="jr-m-particle-presets" style="opacity:0.35;pointer-events:none">
+          <div class="jr-preset"><span class="icon">🐝</span>Swarm</div>
+          <div class="jr-preset"><span class="icon">💨</span>Smoke</div>
+          <div class="jr-preset"><span class="icon">🔥</span>Fire</div>
+          <div class="jr-preset"><span class="icon">💧</span>Liquid</div>
+          <div class="jr-preset"><span class="icon">✨</span>Sparkle</div>
+          <div class="jr-preset"><span class="icon">🌫</span>Dust</div>
+          <div class="jr-preset"><span class="icon">⚡</span>Electric</div>
+          <div class="jr-preset"><span class="icon">❄</span>Snow</div>
+          <div class="jr-preset"><span class="icon">💥</span>Explosion</div>
+          <div class="jr-preset"><span class="icon">🪲</span>Fireflies</div>
+          <div class="jr-preset"><span class="icon">🌌</span>Nebula</div>
+          <div class="jr-preset"><span class="icon">🌧</span>Rain</div>
+          <div class="jr-preset"><span class="icon">🎉</span>Confetti</div>
+          <div class="jr-preset"><span class="icon">🕳</span>Void</div>
+          <div class="jr-preset"><span class="icon">🪨</span>Embers</div>
+          <div class="jr-preset"><span class="icon">🫧</span>Bubbles</div>
+          <div class="jr-preset"><span class="icon">🌈</span>Aurora</div>
+          <div class="jr-preset"><span class="icon">🌀</span>Portal</div>
+          <div class="jr-preset"><span class="icon">⚛</span>Plasma</div>
+          <div class="jr-preset"><span class="icon">☄</span>Comet</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="jr-modal-footer">
+      <button class="jr-modal-close" id="jr-m-close">Close</button>
+    </div>
   </div>
 </div>
 
@@ -1284,8 +1425,20 @@ if (typeof AFRAME !== 'undefined') {
         const ta = this.anchors.find(a => a.id === toId);
         if (!fa || !ta || !fa.locked || !ta.locked) continue;
         const fp = fa.worldPos, tp = ta.worldPos;
-        const mid = fp.clone().lerp(tp, 0.5); mid.y += 0.08;
-        const curve = new THREE.CatmullRomCurve3([fp, mid, tp]);
+        const cShape = this.settings.path.curve || 'smooth';
+        let curvePts;
+        if (cShape === 'straight') {
+          curvePts = [fp, tp];
+        } else if (cShape === 'arc') {
+          const mid = fp.clone().lerp(tp, 0.5);
+          mid.y += fp.distanceTo(tp) * 0.35;
+          curvePts = [fp, mid, tp];
+        } else {
+          const mid = fp.clone().lerp(tp, 0.5);
+          mid.y += 0.08;
+          curvePts = [fp, mid, tp];
+        }
+        const curve = new THREE.CatmullRomCurve3(curvePts);
         this.curves.push({ from: fromId, to: toId, curve });
         const pts = curve.getPoints(64);
         this.pathGroup.add(new THREE.Line(
@@ -1314,6 +1467,8 @@ if (typeof AFRAME !== 'undefined') {
       easeIn:    t => t * t,
       easeOut:   t => 1 - (1 - t) * (1 - t),
       easeInOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+      fadeInOut:  t => Math.sin(t * Math.PI),
+      peak:      t => Math.pow(Math.sin(t * Math.PI), 0.5),
     },
 
     tick() {
@@ -1361,41 +1516,155 @@ if (typeof AFRAME !== 'undefined') {
       el.classList.toggle('warn', this.lockedCount < 2);
     },
 
+    // Journey presets — whole-config overrides applied in one tap.
+    JOURNEY_PRESETS: {
+      gentle:    { traveller: { shape: 'sphere', color: '#4ade80', scale: 0.8 }, path: { duration: 3500, easing: 'easeInOut', curve: 'smooth' } },
+      energetic: { traveller: { shape: 'diamond', color: '#fbbf24', scale: 1.2 }, path: { duration: 1200, easing: 'easeIn', curve: 'arc' } },
+      dramatic:  { traveller: { shape: 'torus', color: '#f87171', scale: 1.5 }, path: { duration: 4000, easing: 'fadeInOut', curve: 'smooth' } },
+      minimal:   { traveller: { shape: 'cube', color: '#e2e8f0', scale: 0.6 }, path: { duration: 2500, easing: 'linear', curve: 'straight' } },
+      cosmic:    { traveller: { shape: 'ring', color: '#a78bfa', scale: 1.0 }, path: { duration: 3000, easing: 'easeInOut', curve: 'arc' } },
+      playful:   { traveller: { shape: 'cone', color: '#22d3ee', scale: 1.0 }, path: { duration: 1600, easing: 'peak', curve: 'smooth' } },
+    },
+
     wireUI() {
       const self = this;
       const $$ = id => document.getElementById(id);
+
+      // ─── Modal tab switching ────────────────────────────
+      document.querySelectorAll('.jr-modal-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.jr-modal-tab').forEach(t => t.classList.toggle('active', t === tab));
+          document.querySelectorAll('.jr-modal-body .sec').forEach(s => s.classList.toggle('active', s.dataset.sec === tab.dataset.sec));
+        });
+      });
+
+      // ─── Floating button bar ────────────────────────────
       const refreshBtns = () => {
         $$('jr-btn-paths').classList.toggle('off', !self.settings.pathsVisible);
         $$('jr-btn-anchors').classList.toggle('off', !self.settings.anchorsVisible);
       };
       $$('jr-btn-paths').addEventListener('click', () => {
         self.settings.pathsVisible = !self.settings.pathsVisible;
+        $$('jr-m-show-paths').checked = self.settings.pathsVisible;
         self.rebuildPaths(); refreshBtns();
       });
       $$('jr-btn-anchors').addEventListener('click', () => {
         self.settings.anchorsVisible = !self.settings.anchorsVisible;
+        $$('jr-m-show-anchors').checked = self.settings.anchorsVisible;
         for (const a of self.anchors) if (a.billboard) a.billboard.visible = self.settings.anchorsVisible;
         refreshBtns();
       });
       $$('jr-btn-calibrate').addEventListener('click', () => {
-        // Reset locks; the next xrimagefound will re-populate them
         for (const a of self.anchors) { a.locked = false; a.worldPos = null; a.billboard = null; }
         self.lockedCount = 0;
         self.rebuildAnchors(); self.rebuildPaths(); self.updateStatus();
       });
       $$('jr-btn-settings').addEventListener('click', () => $$('jr-modal').classList.remove('hidden'));
       $$('jr-m-close').addEventListener('click', () => $$('jr-modal').classList.add('hidden'));
-      // Settings inputs
-      $$('jr-m-shape').value = self.settings.traveller.shape;
+
+      // ─── Chip grid helper ───────────────────────────────
+      function chipGrid(containerId, getValue, setValue, rebuild) {
+        const container = $$(containerId);
+        if (!container) return;
+        container.querySelectorAll('.jr-chip').forEach(c => {
+          c.classList.toggle('active', c.dataset.v === getValue());
+          c.addEventListener('click', () => {
+            container.querySelectorAll('.jr-chip').forEach(x => x.classList.remove('active'));
+            c.classList.add('active');
+            setValue(c.dataset.v);
+            if (rebuild) rebuild();
+          });
+        });
+      }
+
+      // ─── Traveller tab ─────────────────────────────────
+      chipGrid('jr-m-shapes', () => self.settings.traveller.shape, v => { self.settings.traveller.shape = v; }, () => self.rebuildTraveller());
       $$('jr-m-color').value = self.settings.traveller.color;
-      $$('jr-m-scale').value = self.settings.traveller.scale;
-      $$('jr-m-dur').value = self.settings.path.duration;
-      $$('jr-m-easing').value = self.settings.path.easing;
-      $$('jr-m-shape').addEventListener('change', e => { self.settings.traveller.shape = e.target.value; self.rebuildTraveller(); });
       $$('jr-m-color').addEventListener('input', e => { self.settings.traveller.color = e.target.value; self.rebuildTraveller(); });
-      $$('jr-m-scale').addEventListener('input', e => { self.settings.traveller.scale = parseFloat(e.target.value); $$('jr-m-scale-v').textContent = (+e.target.value).toFixed(1) + '×'; self.rebuildTraveller(); });
-      $$('jr-m-dur').addEventListener('input', e => { self.settings.path.duration = parseInt(e.target.value); $$('jr-m-dur-v').textContent = e.target.value + 'ms'; });
-      $$('jr-m-easing').addEventListener('change', e => self.settings.path.easing = e.target.value);
+      $$('jr-m-scale').value = self.settings.traveller.scale;
+      $$('jr-m-scale-v').textContent = self.settings.traveller.scale.toFixed(1) + '×';
+      $$('jr-m-scale').addEventListener('input', e => {
+        self.settings.traveller.scale = parseFloat(e.target.value);
+        $$('jr-m-scale-v').textContent = (+e.target.value).toFixed(1) + '×';
+        self.rebuildTraveller();
+      });
+      // Trail
+      const gtv = self.journey.globalTraveller || {};
+      self.settings.trail = gtv.trail !== false;
+      self.settings.trailLen = gtv.trailLen || 45;
+      $$('jr-m-trail').checked = self.settings.trail;
+      $$('jr-m-trail-len').value = self.settings.trailLen;
+      $$('jr-m-trail-len-v').textContent = self.settings.trailLen;
+      $$('jr-m-trail').addEventListener('change', e => { self.settings.trail = e.target.checked; });
+      $$('jr-m-trail-len').addEventListener('input', e => { self.settings.trailLen = parseInt(e.target.value); $$('jr-m-trail-len-v').textContent = e.target.value; });
+
+      // ─── Path tab ──────────────────────────────────────
+      $$('jr-m-dur').value = self.settings.path.duration;
+      $$('jr-m-dur-v').textContent = self.settings.path.duration + 'ms';
+      $$('jr-m-dur').addEventListener('input', e => {
+        self.settings.path.duration = parseInt(e.target.value);
+        $$('jr-m-dur-v').textContent = e.target.value + 'ms';
+      });
+      chipGrid('jr-m-easings', () => self.settings.path.easing, v => { self.settings.path.easing = v; }, null);
+      // Curve shape
+      self.settings.path.curve = self.settings.path.curve || 'smooth';
+      chipGrid('jr-m-curves', () => self.settings.path.curve, v => { self.settings.path.curve = v; self.rebuildPaths(); }, null);
+      // Loop toggle
+      $$('jr-m-loop').checked = !!self.journey.loop;
+      $$('jr-m-loop').addEventListener('change', e => {
+        self.journey.loop = e.target.checked;
+        self.rebuildPaths();
+      });
+
+      // ─── Display tab ───────────────────────────────────
+      $$('jr-m-show-paths').checked = self.settings.pathsVisible;
+      $$('jr-m-show-anchors').checked = self.settings.anchorsVisible;
+      self.settings.travellerVisible = true;
+      $$('jr-m-show-traveller').checked = true;
+      $$('jr-m-show-paths').addEventListener('change', e => {
+        self.settings.pathsVisible = e.target.checked;
+        self.rebuildPaths(); refreshBtns();
+      });
+      $$('jr-m-show-anchors').addEventListener('change', e => {
+        self.settings.anchorsVisible = e.target.checked;
+        for (const a of self.anchors) if (a.billboard) a.billboard.visible = e.target.checked;
+        refreshBtns();
+      });
+      $$('jr-m-show-traveller').addEventListener('change', e => {
+        self.settings.travellerVisible = e.target.checked;
+        self.travContainer.visible = e.target.checked;
+      });
+      $$('jr-m-debug').checked = document.getElementById('jr-debug').classList.contains('show');
+      $$('jr-m-debug').addEventListener('change', e => {
+        document.getElementById('jr-debug').classList.toggle('show', e.target.checked);
+      });
+
+      // ─── Presets tab ───────────────────────────────────
+      document.querySelectorAll('#jr-m-journey-presets .jr-preset').forEach(p => {
+        p.addEventListener('click', () => {
+          const key = p.dataset.preset;
+          const preset = self.JOURNEY_PRESETS[key];
+          if (!preset) return;
+          // Apply preset values
+          Object.assign(self.settings.traveller, preset.traveller);
+          Object.assign(self.settings.path, preset.path);
+          self.rebuildTraveller();
+          self.rebuildPaths();
+          // Sync UI to new values
+          $$('jr-m-color').value = self.settings.traveller.color;
+          $$('jr-m-scale').value = self.settings.traveller.scale;
+          $$('jr-m-scale-v').textContent = self.settings.traveller.scale.toFixed(1) + '×';
+          $$('jr-m-dur').value = self.settings.path.duration;
+          $$('jr-m-dur-v').textContent = self.settings.path.duration + 'ms';
+          chipGrid('jr-m-shapes', () => self.settings.traveller.shape, v => { self.settings.traveller.shape = v; }, () => self.rebuildTraveller());
+          chipGrid('jr-m-easings', () => self.settings.path.easing, v => { self.settings.path.easing = v; }, null);
+          chipGrid('jr-m-curves', () => self.settings.path.curve, v => { self.settings.path.curve = v; self.rebuildPaths(); }, null);
+          // Flash the active preset
+          document.querySelectorAll('#jr-m-journey-presets .jr-preset').forEach(x => x.classList.remove('active'));
+          p.classList.add('active');
+        });
+      });
+
       refreshBtns();
     },
   });
