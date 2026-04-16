@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.4.1">
+<meta name="test-rig-version" content="0.4.2">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Particle engine (pure Three.js, no A-Frame wrapper) — shared with
@@ -89,41 +89,43 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
    scrollable content per tab, large touch targets throughout. */
 .jr-modal{background:#0d1220;border:1px solid #1e2838;border-radius:12px;width:min(420px,96vw);max-height:88vh;display:flex;flex-direction:column;color:#e2e8f0;font-family:ui-monospace,'Space Mono',monospace;overflow:hidden}
 @media(max-width:480px){.jr-modal{width:100vw;max-height:100vh;border-radius:0;border:none}}
-.jr-modal-tabs{display:flex;border-bottom:1px solid #1e2838;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
-.jr-modal-tab{padding:10px 14px;border:none;background:transparent;color:#64748b;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
+.jr-modal-tabs{display:flex;border-bottom:1px solid #1e2838;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 4px}
+.jr-modal-tab{padding:12px 16px;border:none;background:transparent;color:#64748b;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
 .jr-modal-tab:hover{color:#cbd5e1}
 .jr-modal-tab.active{color:#a78bfa;border-bottom-color:#8b5cf6}
-.jr-modal-body{flex:1;overflow-y:auto;padding:14px 16px;min-height:0}
+.jr-modal-body{flex:1;overflow-y:auto;padding:18px 20px;min-height:0}
+@media(max-width:480px){.jr-modal-body{padding:16px}}
 .jr-modal-body .sec{display:none}
 .jr-modal-body .sec.active{display:block}
-.jr-modal-body h4{color:#a78bfa;font-size:11px;letter-spacing:.04em;margin:14px 0 8px;text-transform:uppercase}
-.jr-modal-body h4:first-child{margin-top:0}
-.jr-modal-body label{display:block;font-size:11px;color:#64748b;margin:10px 0 4px}
-.jr-modal-body label .v{color:#cbd5e1;float:right}
-.jr-modal-body input[type=range]{width:100%;accent-color:#8b5cf6;margin:4px 0}
-.jr-modal-body input[type=color]{width:100%;height:36px;background:transparent;border:1px solid #1e2838;border-radius:4px;cursor:pointer}
-.jr-modal-body select{width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:8px 10px;border-radius:5px;font-family:inherit;font-size:12px}
+.jr-modal-body h4{color:#a78bfa;font-size:11px;letter-spacing:.06em;margin:20px 0 10px;text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid rgba(139,92,246,.12)}
+.jr-modal-body h4:first-child{margin-top:4px}
+.jr-modal-body label{display:block;font-size:12px;color:#94a3b8;margin:14px 0 6px;line-height:1.4}
+.jr-modal-body label .v{color:#cbd5e1;float:right;font-size:11px}
+.jr-modal-body input[type=range]{width:100%;accent-color:#8b5cf6;margin:6px 0 8px;height:6px}
+.jr-modal-body input[type=color]{width:100%;height:40px;background:transparent;border:1px solid #1e2838;border-radius:6px;cursor:pointer;margin:4px 0 8px}
+.jr-modal-body select{width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:10px 12px;border-radius:6px;font-family:inherit;font-size:12px;margin:4px 0 8px}
 .jr-modal-body select option{background:#0a0e1a;color:#e2e8f0}
-.jr-chip-grid{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-.jr-chip{padding:6px 12px;border-radius:5px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;min-width:0}
+.jr-chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.jr-chip{padding:8px 14px;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;min-width:0}
 .jr-chip:hover{border-color:#8b5cf6;color:#a78bfa}
 .jr-chip.active{background:rgba(139,92,246,.18);border-color:#8b5cf6;color:#a78bfa}
 .jr-chip.amber.active{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.5);color:#fbbf24}
 .jr-chip.cyan.active{background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.4);color:#22d3ee}
 .jr-chip.green.active{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4);color:#4ade80}
-.jr-toggle{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:12px;color:#cbd5e1;cursor:pointer}
+.jr-toggle{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:12px;color:#cbd5e1;cursor:pointer}
 .jr-toggle input{display:none}
 .jr-toggle .sw{width:36px;height:20px;border-radius:10px;background:#1e2838;position:relative;transition:background .15s;flex-shrink:0}
 .jr-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#475569;transition:all .15s}
 .jr-toggle input:checked + .sw{background:rgba(139,92,246,.45)}
 .jr-toggle input:checked + .sw::after{left:18px;background:#a78bfa}
-.jr-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;margin:6px 0}
-.jr-preset{padding:8px;border-radius:6px;font-size:10px;text-align:center;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;line-height:1.4}
-.jr-preset .icon{font-size:16px;display:block;margin-bottom:4px}
+.jr-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin:8px 0 12px}
+.jr-preset{padding:10px 8px;border-radius:8px;font-size:10px;text-align:center;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;line-height:1.4}
+.jr-preset .icon{font-size:18px;display:block;margin-bottom:5px}
 .jr-preset:hover{border-color:#8b5cf6;color:#a78bfa}
 .jr-preset.active{background:rgba(139,92,246,.15);border-color:#8b5cf6;color:#a78bfa}
-.jr-modal-footer{padding:10px 16px;border-top:1px solid #1e2838;flex-shrink:0}
-.jr-modal-close{width:100%;padding:11px;background:#8b5cf6;border:none;color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}
+.jr-modal-footer{padding:14px 20px;border-top:1px solid #1e2838;flex-shrink:0}
+@media(max-width:480px){.jr-modal-footer{padding:12px 16px}}
+.jr-modal-close{width:100%;padding:14px;background:#8b5cf6;border:none;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;letter-spacing:.02em}
 #jr-debug{position:fixed;bottom:10px;left:10px;background:rgba(10,14,26,.85);border:1px solid #1e2838;border-radius:5px;padding:8px 10px;font-size:10px;color:#94a3b8;line-height:1.6;font-family:ui-monospace,monospace;z-index:25;display:none;max-width:280px;pointer-events:none}
 #jr-debug.show{display:block}
 #jr-debug .k{color:#64748b;display:inline-block;min-width:90px}
