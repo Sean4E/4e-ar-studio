@@ -6,7 +6,7 @@
   "trackingMode": "image",
   "targets": [
     {
-      "id": "tgt_rts9jryl",
+      "id": "tgt_wclgma4m",
       "name": "4E_Markers",
       "type": "PLANAR",
       "properties": {
@@ -20,7 +20,7 @@
       ]
     },
     {
-      "id": "tgt_4zam3mny",
+      "id": "tgt_w2qu07el",
       "name": "cottage",
       "type": "PLANAR",
       "properties": {
@@ -34,7 +34,7 @@
       ]
     },
     {
-      "id": "tgt_29msw4sn",
+      "id": "tgt_231xipvw",
       "name": "DnS",
       "type": "PLANAR",
       "properties": {
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "id": "tgt_mxtoo9dg",
+      "id": "tgt_m3tx0zo1",
       "name": "Fairy",
       "type": "PLANAR",
       "properties": {
@@ -64,7 +64,7 @@
   ],
   "journey": {
     "version": 1,
-    "generatedAt": "2026-04-16T01:53:25.496Z",
+    "generatedAt": "2026-04-16T02:27:34.553Z",
     "anchors": [
       {
         "id": "a0",
@@ -75,7 +75,7 @@
           "z": -3.52
         },
         "it": {
-          "id": "tgt_mxtoo9dg",
+          "id": "tgt_m3tx0zo1",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -94,7 +94,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_29msw4sn",
+          "id": "tgt_231xipvw",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -113,7 +113,7 @@
           "z": 3.52
         },
         "it": {
-          "id": "tgt_rts9jryl",
+          "id": "tgt_wclgma4m",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -132,7 +132,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_4zam3mny",
+          "id": "tgt_w2qu07el",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -157,16 +157,61 @@
       "trail": true,
       "trailLen": 45
     },
-    "paths": {}
+    "paths": {
+      "a0→a1": {
+        "shape": "noise",
+        "easing": "linear",
+        "duration": 1050,
+        "legTvType": "object",
+        "legTvObject": {
+          "meshType": "sphere",
+          "color": "#ffc400",
+          "scale": 1
+        }
+      },
+      "a1→a2": {
+        "shape": "noise",
+        "easing": "linear",
+        "duration": 1050,
+        "legTvType": "object",
+        "legTvObject": {
+          "meshType": "sphere",
+          "color": "#ffc400",
+          "scale": 1
+        }
+      },
+      "a2→a3": {
+        "shape": "noise",
+        "easing": "linear",
+        "duration": 1050,
+        "legTvType": "object",
+        "legTvObject": {
+          "meshType": "sphere",
+          "color": "#ffc400",
+          "scale": 1
+        }
+      },
+      "a3→a0": {
+        "shape": "noise",
+        "easing": "linear",
+        "duration": 1050,
+        "legTvType": "object",
+        "legTvObject": {
+          "meshType": "sphere",
+          "color": "#ffc400",
+          "scale": 1
+        }
+      }
+    }
   },
-  "generatedAt": "2026-04-16T01:53:44.095Z",
+  "generatedAt": "2026-04-16T02:27:56.360Z",
   "objects": [
     {
       "id": "obj_a0",
       "name": "Anchor 1",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_mxtoo9dg",
+      "targetId": "tgt_m3tx0zo1",
       "imageToSlam": true,
       "spatialAnchorId": "a0",
       "transform": {
@@ -193,7 +238,7 @@
       "name": "Anchor 2",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_29msw4sn",
+      "targetId": "tgt_231xipvw",
       "imageToSlam": true,
       "spatialAnchorId": "a1",
       "transform": {
@@ -220,7 +265,7 @@
       "name": "Anchor 3",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_rts9jryl",
+      "targetId": "tgt_wclgma4m",
       "imageToSlam": true,
       "spatialAnchorId": "a2",
       "transform": {
@@ -247,7 +292,7 @@
       "name": "Anchor 4",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_4zam3mny",
+      "targetId": "tgt_w2qu07el",
       "imageToSlam": true,
       "spatialAnchorId": "a3",
       "transform": {
