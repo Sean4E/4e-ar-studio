@@ -6,7 +6,7 @@
   "trackingMode": "image",
   "targets": [
     {
-      "id": "tgt_l7ytrnju",
+      "id": "tgt_a94lvtaj",
       "name": "4E_Markers",
       "type": "PLANAR",
       "properties": {
@@ -20,7 +20,7 @@
       ]
     },
     {
-      "id": "tgt_oocwqhpt",
+      "id": "tgt_m9diul3g",
       "name": "cottage",
       "type": "PLANAR",
       "properties": {
@@ -34,7 +34,7 @@
       ]
     },
     {
-      "id": "tgt_47sxil97",
+      "id": "tgt_mfwosb5f",
       "name": "DnS",
       "type": "PLANAR",
       "properties": {
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "id": "tgt_7hpnhojl",
+      "id": "tgt_dzwr1wh9",
       "name": "Fairy",
       "type": "PLANAR",
       "properties": {
@@ -64,7 +64,7 @@
   ],
   "journey": {
     "version": 1,
-    "generatedAt": "2026-04-16T03:42:02.840Z",
+    "generatedAt": "2026-04-16T03:48:19.114Z",
     "anchors": [
       {
         "id": "a0",
@@ -75,7 +75,7 @@
           "z": -3.52
         },
         "it": {
-          "id": "tgt_7hpnhojl",
+          "id": "tgt_dzwr1wh9",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -94,7 +94,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_47sxil97",
+          "id": "tgt_mfwosb5f",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -113,7 +113,7 @@
           "z": 3.52
         },
         "it": {
-          "id": "tgt_l7ytrnju",
+          "id": "tgt_a94lvtaj",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -132,7 +132,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_oocwqhpt",
+          "id": "tgt_m9diul3g",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -159,14 +159,14 @@
     },
     "paths": {}
   },
-  "generatedAt": "2026-04-16T03:42:24.261Z",
+  "generatedAt": "2026-04-16T03:48:39.038Z",
   "objects": [
     {
       "id": "obj_a0",
       "name": "Anchor 1",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_7hpnhojl",
+      "targetId": "tgt_dzwr1wh9",
       "imageToSlam": true,
       "spatialAnchorId": "a0",
       "transform": {
@@ -193,7 +193,7 @@
       "name": "Anchor 2",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_47sxil97",
+      "targetId": "tgt_mfwosb5f",
       "imageToSlam": true,
       "spatialAnchorId": "a1",
       "transform": {
@@ -220,7 +220,7 @@
       "name": "Anchor 3",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_l7ytrnju",
+      "targetId": "tgt_a94lvtaj",
       "imageToSlam": true,
       "spatialAnchorId": "a2",
       "transform": {
@@ -247,7 +247,7 @@
       "name": "Anchor 4",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_oocwqhpt",
+      "targetId": "tgt_m9diul3g",
       "imageToSlam": true,
       "spatialAnchorId": "a3",
       "transform": {
