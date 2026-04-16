@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.4.4">
+<meta name="test-rig-version" content="0.4.5">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Particle engine (pure Three.js, no A-Frame wrapper) — shared with
@@ -87,8 +87,8 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 .jr-modal-overlay.hidden{display:none}
 /* Full-screen on mobile, centered card on desktop. Tabs at top,
    scrollable content per tab, large touch targets throughout. */
-.jr-modal{background:#0d1220;border:1px solid #1e2838;border-radius:12px;width:min(420px,96vw);max-height:88vh;display:flex;flex-direction:column;color:#e2e8f0;font-family:ui-monospace,'Space Mono',monospace;overflow:hidden}
-@media(max-width:480px){.jr-modal{width:100vw;max-height:100vh;border-radius:0;border:none}}
+.jr-modal{background:#0d1220;border:1px solid #1e2838;border-radius:12px;width:min(440px,96vw);max-height:88vh;display:flex;flex-direction:column;color:#e2e8f0;font-family:ui-monospace,'Space Mono',monospace;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+@media(max-width:480px){.jr-modal{width:100vw;height:100vh;max-height:100vh;border-radius:0;border:none}}
 .jr-modal-tabs{display:flex;border-bottom:1px solid #1e2838;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 4px}
 .jr-modal-tab{padding:12px 16px;border:none;background:transparent;color:#64748b;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
 .jr-modal-tab:hover{color:#cbd5e1}
@@ -97,30 +97,34 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 @media(max-width:480px){.jr-modal-body{padding:16px}}
 .jr-modal-body .sec{display:none}
 .jr-modal-body .sec.active{display:block}
-.jr-modal-body h4{color:#a78bfa;font-size:11px;letter-spacing:.06em;margin:20px 0 10px;text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid rgba(139,92,246,.12)}
+.jr-modal-body h4{color:#a78bfa;font-size:11px;letter-spacing:.06em;margin:22px 0 12px;text-transform:uppercase;padding-bottom:8px;border-bottom:1px solid rgba(139,92,246,.12);clear:both}
 .jr-modal-body h4:first-child{margin-top:4px}
-.jr-modal-body label{display:block;font-size:12px;color:#94a3b8;margin:14px 0 6px;line-height:1.4}
-.jr-modal-body label .v{color:#cbd5e1;float:right;font-size:11px}
-.jr-modal-body input[type=range]{width:100%;accent-color:#8b5cf6;margin:6px 0 8px;height:6px}
-.jr-modal-body input[type=color]{width:100%;height:40px;background:transparent;border:1px solid #1e2838;border-radius:6px;cursor:pointer;margin:4px 0 8px}
-.jr-modal-body select{width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:10px 12px;border-radius:6px;font-family:inherit;font-size:12px;margin:4px 0 8px}
+/* Single-line label row: "Label  [value]" on one row, control below */
+.jr-modal-body label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:#94a3b8;margin:16px 0 8px;line-height:1.4;clear:both;gap:10px}
+.jr-modal-body label .v{color:#cbd5e1;font-size:11px;font-weight:600;white-space:nowrap}
+.jr-modal-body input[type=range]{display:block;width:100%;accent-color:#8b5cf6;margin:0 0 6px;height:6px}
+.jr-modal-body input[type=color]{display:block;width:100%;height:42px;background:transparent;border:1px solid #1e2838;border-radius:6px;cursor:pointer;margin:0 0 10px;padding:2px}
+.jr-modal-body select{display:block;width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:10px 12px;border-radius:6px;font-family:inherit;font-size:12px;margin:0 0 10px}
 .jr-modal-body select option{background:#0a0e1a;color:#e2e8f0}
-.jr-chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
-.jr-chip{padding:8px 14px;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;min-width:0}
+/* Dual-slider row — replaces fragile inline-block+float with flexbox */
+.jr-dual{display:flex;gap:10px;margin:0 0 10px}
+.jr-dual input[type=range]{flex:1;margin:0}
+.jr-chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;clear:both}
+.jr-chip{padding:8px 14px;border-radius:6px;font-size:11px;font-family:inherit;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;min-width:0;line-height:1}
 .jr-chip:hover{border-color:#8b5cf6;color:#a78bfa}
 .jr-chip.active{background:rgba(139,92,246,.18);border-color:#8b5cf6;color:#a78bfa}
 .jr-chip.amber.active{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.5);color:#fbbf24}
 .jr-chip.cyan.active{background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.4);color:#22d3ee}
 .jr-chip.green.active{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4);color:#4ade80}
-.jr-toggle{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:12px;color:#cbd5e1;cursor:pointer}
+.jr-toggle{display:flex;align-items:center;gap:12px;padding:12px 0;font-size:12px;color:#cbd5e1;cursor:pointer;margin:0;clear:both}
 .jr-toggle input{display:none}
 .jr-toggle .sw{width:36px;height:20px;border-radius:10px;background:#1e2838;position:relative;transition:background .15s;flex-shrink:0}
 .jr-toggle .sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#475569;transition:all .15s}
 .jr-toggle input:checked + .sw{background:rgba(139,92,246,.45)}
 .jr-toggle input:checked + .sw::after{left:18px;background:#a78bfa}
-.jr-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin:8px 0 12px}
-.jr-preset{padding:10px 8px;border-radius:8px;font-size:10px;text-align:center;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;line-height:1.4}
-.jr-preset .icon{font-size:18px;display:block;margin-bottom:5px}
+.jr-preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin:0 0 14px;clear:both}
+.jr-preset{padding:12px 6px;border-radius:8px;font-size:10px;text-align:center;cursor:pointer;border:1px solid #1e2838;background:#0a0e1a;color:#94a3b8;transition:all .12s;line-height:1.4;word-break:break-word}
+.jr-preset .icon{font-size:20px;display:block;margin-bottom:6px}
 .jr-preset:hover{border-color:#8b5cf6;color:#a78bfa}
 .jr-preset.active{background:rgba(139,92,246,.15);border-color:#8b5cf6;color:#a78bfa}
 .jr-modal-footer{padding:14px 20px;border-top:1px solid #1e2838;flex-shrink:0}
@@ -346,18 +350,24 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 
           <h4>Lifetime &amp; Speed</h4>
           <label>Lifetime <span class="v" id="jr-p-life-v">1.5 – 2.8s</span></label>
-          <input type="range" id="jr-p-life-min" min="0.2" max="6" step="0.1" value="1.5" style="width:48%;display:inline-block">
-          <input type="range" id="jr-p-life-max" min="0.2" max="8" step="0.1" value="2.8" style="width:48%;display:inline-block;float:right">
+          <div class="jr-dual">
+            <input type="range" id="jr-p-life-min" min="0.2" max="6" step="0.1" value="1.5">
+            <input type="range" id="jr-p-life-max" min="0.2" max="8" step="0.1" value="2.8">
+          </div>
           <label>Speed <span class="v" id="jr-p-speed-v">0.5 – 1.5</span></label>
-          <input type="range" id="jr-p-speed-min" min="0" max="5" step="0.1" value="0.5" style="width:48%;display:inline-block">
-          <input type="range" id="jr-p-speed-max" min="0" max="8" step="0.1" value="1.5" style="width:48%;display:inline-block;float:right">
+          <div class="jr-dual">
+            <input type="range" id="jr-p-speed-min" min="0" max="5" step="0.1" value="0.5">
+            <input type="range" id="jr-p-speed-max" min="0" max="8" step="0.1" value="1.5">
+          </div>
           <label>Spread <span class="v" id="jr-p-spread-v">90°</span></label>
           <input type="range" id="jr-p-spread" min="0" max="360" step="5" value="90">
 
           <h4>Size</h4>
           <label>Size start → end <span class="v" id="jr-p-size-v">0.10 → 0.04</span></label>
-          <input type="range" id="jr-p-size-start" min="0.01" max="1" step="0.01" value="0.1" style="width:48%;display:inline-block">
-          <input type="range" id="jr-p-size-end" min="0.01" max="1" step="0.01" value="0.04" style="width:48%;display:inline-block;float:right">
+          <div class="jr-dual">
+            <input type="range" id="jr-p-size-start" min="0.01" max="1" step="0.01" value="0.1">
+            <input type="range" id="jr-p-size-end" min="0.01" max="1" step="0.01" value="0.04">
+          </div>
           <label>Size curve</label>
           <div class="jr-chip-grid" id="jr-p-size-curve">
             <button class="jr-chip active" data-v="linear">linear</button>
@@ -383,8 +393,10 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 
           <h4>Opacity</h4>
           <label>Opacity start → end <span class="v" id="jr-p-opacity-v">1.0 → 0.0</span></label>
-          <input type="range" id="jr-p-opacity-start" min="0" max="1" step="0.05" value="1" style="width:48%;display:inline-block">
-          <input type="range" id="jr-p-opacity-end" min="0" max="1" step="0.05" value="0" style="width:48%;display:inline-block;float:right">
+          <div class="jr-dual">
+            <input type="range" id="jr-p-opacity-start" min="0" max="1" step="0.05" value="1">
+            <input type="range" id="jr-p-opacity-end" min="0" max="1" step="0.05" value="0">
+          </div>
           <label>Opacity curve</label>
           <div class="jr-chip-grid" id="jr-p-opacity-curve">
             <button class="jr-chip active" data-v="linear">linear</button>
