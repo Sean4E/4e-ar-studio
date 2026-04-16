@@ -8,7 +8,7 @@
      (this host page + player-spatial.html) changes. Decoupled from
      studio/index.html + player-v2.html (which share their own version
      for the production pair). -->
-<meta name="test-rig-version" content="0.2.0">
+<meta name="test-rig-version" content="0.2.1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -258,10 +258,15 @@
 
   <!-- ─── DIAGNOSE ─────────────────────────────────────── -->
   <div class="panel" data-panel="diagnose" id="diagnose">
-    <h3>Project</h3>
+    <h3>Versions</h3>
+    <div class="row"><span class="k">Host (this page)</span><span class="v" id="diag-host-version">—</span></div>
+    <div class="row"><span class="k">Deployed player</span><span class="v" id="diag-deployed-version">—</span></div>
+    <div class="row"><span class="k">Match</span><span class="v" id="diag-version-match">—</span></div>
+    <h3 style="margin-top:14px">Project</h3>
     <div class="row"><span class="k">Project ID</span><span class="v">spatial-test</span></div>
     <div class="row"><span class="k">GitHub asset path</span><span class="v">assets/spatial-test/</span></div>
-    <div class="row"><span class="k">Player URL</span><span class="v" id="diag-player-url">—</span></div>
+    <div class="row"><span class="k">Live player URL</span><span class="v" id="diag-live-url">—</span></div>
+    <div class="row"><span class="k">Last published</span><span class="v" id="diag-player-url">—</span></div>
     <div class="row"><span class="k">Token configured</span><span class="v" id="diag-token-status">checking…</span></div>
     <div class="row"><span class="k">Player deployed</span><span class="v" id="diag-deploy-status">checking…</span></div>
 
@@ -721,7 +726,15 @@ async function checkDeployStatus() {
     else if (state.deployStatus === 'missing') diagEl.innerHTML = '<span class="bad-text">✗ not deployed (404)</span>';
     else diagEl.innerHTML = '<span style="color:var(--amber)">? unknown — ' + playerUrl + '</span>';
   }
-  logLine('deploy status: ' + state.deployStatus);
+  // Versions section in Diagnose tab
+  $('diag-host-version').textContent = HOST_RIG_VERSION;
+  $('diag-deployed-version').textContent = state.deployedRigVersion || '(unknown)';
+  const matchEl = $('diag-version-match');
+  if (state.deployedRigVersion === HOST_RIG_VERSION) matchEl.innerHTML = '<span class="ok-text">✓ in sync</span>';
+  else if (state.deployedRigVersion) matchEl.innerHTML = '<span style="color:var(--amber)">⚠ out of sync — push or wait for Firebase deploy</span>';
+  else matchEl.textContent = '—';
+  $('diag-live-url').innerHTML = '<a href="' + playerUrl + '?id=' + PROJECT_ID + '" target="_blank" style="color:var(--purple2)">' + playerUrl + '?id=' + PROJECT_ID + '</a>';
+  logLine('deploy status: ' + state.deployStatus + ' (deployed v' + state.deployedRigVersion + ', host v' + HOST_RIG_VERSION + ')');
 }
 $('deploy-pill').addEventListener('click', checkDeployStatus);
 
@@ -850,17 +863,27 @@ $('btn-copy-diag').addEventListener('click', () => {
   const out = [
     '# 4E Spatial Runtime Test Host — Diagnose',
     'Generated: ' + new Date().toISOString(),
-    'Project ID: ' + PROJECT_ID,
-    'Player URL: ' + (state.publishUrl || '(not yet published)'),
-    'Token configured: ' + (localStorage.getItem(TOKEN_KEY) ? 'yes' : 'no'),
     '',
-    'Targets (' + state.targets.length + '):',
+    '── VERSIONS ──',
+    'Host (this page) test-rig-version: ' + HOST_RIG_VERSION,
+    'Deployed player test-rig-version:  ' + (state.deployedRigVersion || '(unknown)'),
+    'Versions match:                    ' + (state.deployedRigVersion === HOST_RIG_VERSION ? 'yes' : 'NO ⚠'),
+    '',
+    '── PROJECT ──',
+    'Project ID:        ' + PROJECT_ID,
+    'GitHub asset path: ' + ASSET_BASE + '/',
+    'Player URL:        ' + (state.publishUrl || '(not yet published)'),
+    'Live player URL:   ' + window.AR_BASE_URL + '/player-spatial.html?id=' + PROJECT_ID,
+    'Token configured:  ' + (localStorage.getItem(TOKEN_KEY) ? 'yes' : 'no'),
+    'Deploy status:     ' + state.deployStatus,
+    '',
+    '── IMAGE TARGETS (' + state.targets.length + ') ──',
     JSON.stringify(state.targets.map(t => ({ id: t.id, name: t.name, uploaded: !!t.luminanceUrl })), null, 2),
     '',
-    'Journey:',
+    '── JOURNEY ──',
     state.journey ? JSON.stringify(state.journey, null, 2) : '(none)',
     '',
-    'Log:',
+    '── LOG ──',
     state.log.join('\n'),
   ].join('\n');
   navigator.clipboard.writeText(out);

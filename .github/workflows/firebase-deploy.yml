@@ -18,6 +18,9 @@ on:
     paths:
       - 'player-v2.html'
       - 'player.html'
+      # Spatial-runtime test player. Paired with docs/spatial-runtime-host.html
+      # (test rig). Independent test-rig-version meta — see firebase.json.
+      - 'player-spatial.html'
       - 'config.js'
       - 'sw.js'
       - 'samples/**'
