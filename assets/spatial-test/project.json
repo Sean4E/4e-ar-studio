@@ -6,7 +6,7 @@
   "trackingMode": "image",
   "targets": [
     {
-      "id": "tgt_2r0lbfbz",
+      "id": "tgt_w6mfjiee",
       "name": "4E_Markers",
       "type": "PLANAR",
       "properties": {
@@ -20,7 +20,7 @@
       ]
     },
     {
-      "id": "tgt_dczo81ir",
+      "id": "tgt_bfexgapw",
       "name": "cottage",
       "type": "PLANAR",
       "properties": {
@@ -34,7 +34,7 @@
       ]
     },
     {
-      "id": "tgt_mol2ibf7",
+      "id": "tgt_vgqa1vrl",
       "name": "DnS",
       "type": "PLANAR",
       "properties": {
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "id": "tgt_ip3qjoyg",
+      "id": "tgt_qm6otldm",
       "name": "Fairy",
       "type": "PLANAR",
       "properties": {
@@ -64,7 +64,7 @@
   ],
   "journey": {
     "version": 1,
-    "generatedAt": "2026-04-16T01:34:47.319Z",
+    "generatedAt": "2026-04-16T01:44:43.123Z",
     "anchors": [
       {
         "id": "a0",
@@ -75,7 +75,7 @@
           "z": -3.52
         },
         "it": {
-          "id": "tgt_ip3qjoyg",
+          "id": "tgt_qm6otldm",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -94,7 +94,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_mol2ibf7",
+          "id": "tgt_vgqa1vrl",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -113,7 +113,7 @@
           "z": 3.52
         },
         "it": {
-          "id": "tgt_2r0lbfbz",
+          "id": "tgt_w6mfjiee",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -132,7 +132,7 @@
           "z": 0
         },
         "it": {
-          "id": "tgt_dczo81ir",
+          "id": "tgt_bfexgapw",
           "name": "",
           "widthM": 0.1,
           "assigned": true
@@ -159,14 +159,14 @@
     },
     "paths": {}
   },
-  "generatedAt": "2026-04-16T01:35:14.691Z",
+  "generatedAt": "2026-04-16T01:45:01.089Z",
   "objects": [
     {
       "id": "obj_a0",
       "name": "Anchor 1",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_ip3qjoyg",
+      "targetId": "tgt_qm6otldm",
       "imageToSlam": true,
       "spatialAnchorId": "a0",
       "transform": {
@@ -193,7 +193,7 @@
       "name": "Anchor 2",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_mol2ibf7",
+      "targetId": "tgt_vgqa1vrl",
       "imageToSlam": true,
       "spatialAnchorId": "a1",
       "transform": {
@@ -220,7 +220,7 @@
       "name": "Anchor 3",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_2r0lbfbz",
+      "targetId": "tgt_w6mfjiee",
       "imageToSlam": true,
       "spatialAnchorId": "a2",
       "transform": {
@@ -247,7 +247,7 @@
       "name": "Anchor 4",
       "type": "primitive",
       "primitiveType": "empty",
-      "targetId": "tgt_dczo81ir",
+      "targetId": "tgt_bfexgapw",
       "imageToSlam": true,
       "spatialAnchorId": "a3",
       "transform": {
