@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.2.1">
+<meta name="test-rig-version" content="0.2.2">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1160,6 +1160,34 @@ if (typeof AFRAME !== 'undefined') {
       };
       const attach = () => sceneEl.addEventListener('xrimagefound', this._onFound);
       if (sceneEl.hasLoaded) attach(); else sceneEl.addEventListener('loaded', attach);
+
+      // Preview-mode shortcut. When running in an iframe (browser
+      // preview, no real camera), 8th Wall's xrweb fails to start and
+      // xrimagefound never fires. We fake anchor world positions in a
+      // row in front of the default camera so the user can verify the
+      // path + traveller render correctly before going to the phone.
+      if (PREVIEW_MODE) {
+        console.log('[journey-runtime] PREVIEW_MODE — faking anchor positions in a row');
+        const spacing = 0.45;
+        const startX = -((this.anchors.length - 1) * spacing) / 2;
+        this.anchors.forEach((a, i) => {
+          a.worldPos = new THREE.Vector3(startX + i * spacing, 0, -1.2);
+          a.locked = true;
+        });
+        this.lockedCount = this.anchors.length;
+        // Defer the rebuild to after the scene init finishes.
+        setTimeout(() => {
+          this.rebuildAnchors();
+          this.rebuildPaths();
+          this.updateStatus();
+          // Camera preview: nudge the A-Frame camera so the row is in view.
+          const cam = sceneEl.camera;
+          if (cam) {
+            cam.parent && cam.parent.position.set(0, 0.2, 0);
+            cam.position.set(0, 0.2, 0);
+          }
+        }, 300);
+      }
 
       // Show UI overlay
       const ui = document.getElementById('jr-ui');

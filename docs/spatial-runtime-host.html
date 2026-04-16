@@ -8,7 +8,7 @@
      (this host page + player-spatial.html) changes. Decoupled from
      studio/index.html + player-v2.html (which share their own version
      for the production pair). -->
-<meta name="test-rig-version" content="0.2.1">
+<meta name="test-rig-version" content="0.2.2">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -363,20 +363,35 @@ function logLine(s) {
 }
 
 // ─── GitHub upload (inlined from studio/modules/github.js) ──
+// Includes retry-on-conflict (HTTP 409): GitHub's contents API has
+// brief replication lag after a successful PUT — the next GET for SHA
+// can return a stale value, causing the next PUT to be rejected. We
+// re-fetch SHA and retry once with cache-bust before failing.
 async function ghUpload(path, b64) {
   const cfg = window.AR_GITHUB_CONFIG || {};
   const token = localStorage.getItem(TOKEN_KEY) || cfg.token || '';
   if (!token) throw new Error('GitHub token not set');
   const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}`;
   const headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
-  let sha;
-  try {
-    const check = await fetch(apiUrl + '?ref=' + cfg.branch, { headers });
-    if (check.ok) sha = (await check.json()).sha;
-  } catch (_) {}
-  const body = { message: `Spatial test host: ${path}`, branch: cfg.branch, content: b64 };
-  if (sha) body.sha = sha;
-  const resp = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+
+  async function attempt(cacheBust) {
+    let sha;
+    try {
+      const url = apiUrl + '?ref=' + cfg.branch + (cacheBust ? '&_=' + Date.now() : '');
+      const check = await fetch(url, { headers, cache: 'no-store' });
+      if (check.ok) sha = (await check.json()).sha;
+    } catch (_) {}
+    const body = { message: `Spatial test host: ${path}`, branch: cfg.branch, content: b64 };
+    if (sha) body.sha = sha;
+    return fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+  }
+
+  let resp = await attempt(false);
+  if (resp.status === 409) {
+    // Conflict — wait briefly for GitHub to settle, refetch SHA, retry.
+    await new Promise(r => setTimeout(r, 800));
+    resp = await attempt(true);
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.message || 'GitHub upload failed (' + resp.status + ')');
@@ -469,8 +484,26 @@ function ensureSpatialFrame() {
 }
 function ensurePreviewFrame() {
   const ifr = $('preview-frame');
+  // Only load the iframe AFTER a successful publish. Loading it earlier
+  // would fetch a stale (or empty) project.json, making the journey
+  // runtime disable itself with "no journey or <2 anchors". Show a
+  // hint message in the panel while waiting for the first publish.
+  if (!state.publishUrl) {
+    const wrap = ifr.parentElement;
+    if (!wrap.querySelector('.preview-hint')) {
+      const hint = document.createElement('div');
+      hint.className = 'preview-hint';
+      hint.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:30px;line-height:1.6';
+      hint.innerHTML = '<div>📦 No publish yet.<br><br><span style="font-size:11px;color:var(--faint)">Switch to <strong style="color:var(--text2)">Setup</strong> to upload targets, then <strong style="color:var(--text2)">Spatial</strong> to build the journey, then click <strong style="color:var(--purple2)">▶ Publish to test app</strong>.<br><br>This Preview tab will load automatically after the first publish.</span></div>';
+      wrap.appendChild(hint);
+    }
+    return;
+  }
+  // Remove the hint if present
+  const hint = ifr.parentElement.querySelector('.preview-hint');
+  if (hint) hint.remove();
   if (!ifr.src || !ifr.src.includes(PROJECT_ID)) {
-    ifr.src = PLAYER_SRC + '&t=' + Date.now();  // bust cache
+    ifr.src = PLAYER_SRC + '&debug=1&t=' + Date.now();  // bust cache + show debug overlay
     logLine('preview iframe (re)loaded: ' + ifr.src);
   }
 }
@@ -829,14 +862,21 @@ async function publish() {
     logLine('uploaded project.json');
     state.publishUrl = `${window.AR_BASE_URL}/player-spatial.html?id=${PROJECT_ID}&t=${Date.now()}`;
     $('diag-player-url').innerHTML = `<a href="${state.publishUrl}" target="_blank" style="color:var(--purple2)">${state.publishUrl}</a>`;
-    btn.textContent = '✓ Published — open Preview or QR';
+    btn.textContent = '✓ Published — opening Preview…';
     setTimeout(() => { btn.textContent = '▶ Publish to test app'; refreshPublishButton(); }, 2400);
-    toast('Published ✓ — switch to Preview tab or scan QR', 'ok');
+    toast('Published ✓ · GitHub Pages takes ~10s to propagate', 'ok');
     logLine('publish complete: ' + state.publishUrl);
     $('btn-qr').disabled = false;
-    // Hot-reload preview if on Preview tab
-    const previewIfr = $('preview-frame');
-    if (previewIfr.src) previewIfr.src = PLAYER_SRC + '&t=' + Date.now();
+    // Switch to Preview tab and force a fresh iframe load. Wait a tick
+    // for GitHub Pages to propagate (CDN cache lag), then load.
+    setTimeout(() => {
+      document.querySelector('.tab[data-tab="preview"]').click();
+      const previewIfr = $('preview-frame');
+      const hint = previewIfr.parentElement.querySelector('.preview-hint');
+      if (hint) hint.remove();
+      previewIfr.src = PLAYER_SRC + '&debug=1&t=' + Date.now();
+      logLine('preview switched + reloaded after publish');
+    }, 1200);
   } catch (err) {
     btn.textContent = '✗ Failed';
     setTimeout(() => { btn.textContent = '▶ Publish to test app'; refreshPublishButton(); }, 2400);
