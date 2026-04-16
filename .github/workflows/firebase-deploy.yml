@@ -21,6 +21,9 @@ on:
       # Spatial-runtime test player. Paired with docs/spatial-runtime-host.html
       # (test rig). Independent test-rig-version meta — see firebase.json.
       - 'player-spatial.html'
+      # Shared particle engine used by player-spatial (journey runtime)
+      # and also available to future players / spatial editor copies.
+      - 'particle-engine.js'
       - 'config.js'
       - 'sw.js'
       - 'samples/**'

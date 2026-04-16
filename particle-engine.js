@@ -813,32 +813,7 @@ const JP = [{
   dur: 3000,
   desc: "Noise slow, snowfall"
 }];
-const mkPt = () => ({
-  alive: false,
-  px: 0,
-  py: 0,
-  pz: 0,
-  vx: 0,
-  vy: 0,
-  vz: 0,
-  life: 0,
-  maxLife: 1,
-  r1: 1,
-  g1: 1,
-  b1: 1,
-  r2: 0,
-  g2: 0,
-  b2: 0,
-  rm: .5,
-  gm: .5,
-  bm: .5,
-  hasMid: false,
-  sStart: .1,
-  sEnd: .05,
-  nx: 0,
-  ny: 0,
-  nz: 0
-});
+// (mkPt removed — already declared at the top of this file)
 function emitP(ps, o) {
   let s = -1;
   for (let i = 0; i < ps.p.length; i++) {
@@ -1100,5 +1075,4 @@ function rmPS(ps, scene) {
   scene.remove(ps.pts);
   ps.geo.dispose();
   ps.mat.dispose();
-}
 }
