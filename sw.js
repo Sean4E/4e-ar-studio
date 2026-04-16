@@ -9,7 +9,7 @@
 // no-cache headers on sw.js (firebase.json) ensure this file itself
 // is re-fetched promptly instead of living for hours in the browser
 // HTTP cache.
-const CACHE = '4e-ar-shell-v3';
+const CACHE = '4e-ar-shell-v4';
 const SHELL = ['/player-v2.html', '/config.js'];
 
 self.addEventListener('install', e => {
@@ -30,24 +30,28 @@ self.addEventListener('fetch', e => {
   // Only handle our own origin's shell; let the browser handle everything else
   if (url.origin !== self.location.origin) return;
   if (e.request.method !== 'GET') return;
-  // Never intercept studio, projects dashboard, or anything outside the
-  // player shell. The studio is no-cache by design and must hit origin
-  // every time. Earlier versions of this SW didn't opt these paths out,
-  // which meant we became a candidate cause for any "stuck on an old
-  // version" report even though the fetch handler was network-first.
-  if (url.pathname.startsWith('/studio/')) return;
-  if (url.pathname === '/projects.html')  return;
+  // Only intercept the handful of SHELL paths we actually cache.
+  // Anything else (studio, projects.html, player-spatial, spatial-v7,
+  // docs/, Firebase Hosting static assets, etc.) is left to the
+  // browser. Intercepting without caching caused "Failed to convert
+  // value to Response" TypeErrors whenever the network fetch rejected
+  // and caches.match returned undefined — ugly console noise and a
+  // real availability regression on flaky networks.
+  const isShell = SHELL.some(p => url.pathname.endsWith(p));
+  if (!isShell) return;
 
   e.respondWith(
     fetch(e.request)
       .then(r => {
-        // Cache the player shell responses opportunistically
-        if (r.ok && SHELL.some(p => url.pathname.endsWith(p))) {
+        if (r.ok) {
           const copy = r.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy));
         }
         return r;
       })
-      .catch(() => caches.match(e.request))
+      // Fall back to cache on network failure. If cache also has
+      // nothing, synthesise a 504 rather than returning undefined
+      // (which the browser rejects with TypeError).
+      .catch(() => caches.match(e.request).then(r => r || new Response('Service unavailable', { status: 504, statusText: 'Gateway Timeout' })))
   );
 });
