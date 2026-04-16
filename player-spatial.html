@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.4.0">
+<meta name="test-rig-version" content="0.4.1">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Particle engine (pure Three.js, no A-Frame wrapper) — shared with
@@ -310,10 +310,39 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
             <div class="jr-preset" data-preset="comet"><span class="icon">☄</span>Comet</div>
           </div>
           <h4>Parameters</h4>
+          <h4>Emission</h4>
           <label>Count <span class="v" id="jr-p-count-v">60</span></label>
           <input type="range" id="jr-p-count" min="10" max="200" step="5" value="60">
           <label>Emission rate <span class="v" id="jr-p-rate-v">20</span></label>
           <input type="range" id="jr-p-rate" min="1" max="100" step="1" value="20">
+          <label>Burst count <span class="v" id="jr-p-burst-v">0</span></label>
+          <input type="range" id="jr-p-burst" min="0" max="100" step="5" value="0">
+          <label class="jr-toggle">
+            <input type="checkbox" id="jr-p-continuous" checked>
+            <span class="sw"></span>
+            Continuous emit
+          </label>
+
+          <h4>Shape</h4>
+          <label>Emit shape</label>
+          <div class="jr-chip-grid" id="jr-p-emit-shape">
+            <button class="jr-chip active" data-v="sphere">sphere</button>
+            <button class="jr-chip" data-v="ring">ring</button>
+            <button class="jr-chip" data-v="cone">cone</button>
+            <button class="jr-chip" data-v="box">box</button>
+            <button class="jr-chip" data-v="point">point</button>
+          </div>
+          <label>Emit radius <span class="v" id="jr-p-radius-v">0.35</span></label>
+          <input type="range" id="jr-p-radius" min="0.05" max="2" step="0.05" value="0.35">
+          <label>Emit angle <span class="v" id="jr-p-angle-v">30°</span></label>
+          <input type="range" id="jr-p-angle" min="0" max="180" step="5" value="30">
+          <label class="jr-toggle">
+            <input type="checkbox" id="jr-p-spread3d" checked>
+            <span class="sw"></span>
+            Spread 3D
+          </label>
+
+          <h4>Lifetime &amp; Speed</h4>
           <label>Lifetime <span class="v" id="jr-p-life-v">1.5 – 2.8s</span></label>
           <input type="range" id="jr-p-life-min" min="0.2" max="6" step="0.1" value="1.5" style="width:48%;display:inline-block">
           <input type="range" id="jr-p-life-max" min="0.2" max="8" step="0.1" value="2.8" style="width:48%;display:inline-block;float:right">
@@ -322,35 +351,70 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
           <input type="range" id="jr-p-speed-max" min="0" max="8" step="0.1" value="1.5" style="width:48%;display:inline-block;float:right">
           <label>Spread <span class="v" id="jr-p-spread-v">90°</span></label>
           <input type="range" id="jr-p-spread" min="0" max="360" step="5" value="90">
+
+          <h4>Size</h4>
           <label>Size start → end <span class="v" id="jr-p-size-v">0.10 → 0.04</span></label>
           <input type="range" id="jr-p-size-start" min="0.01" max="1" step="0.01" value="0.1" style="width:48%;display:inline-block">
           <input type="range" id="jr-p-size-end" min="0.01" max="1" step="0.01" value="0.04" style="width:48%;display:inline-block;float:right">
+          <label>Size curve</label>
+          <div class="jr-chip-grid" id="jr-p-size-curve">
+            <button class="jr-chip active" data-v="linear">linear</button>
+            <button class="jr-chip" data-v="easeIn">easeIn</button>
+            <button class="jr-chip" data-v="easeOut">easeOut</button>
+            <button class="jr-chip" data-v="peak">peak</button>
+          </div>
+
+          <h4>Color</h4>
           <label>Color start</label>
           <input type="color" id="jr-p-color-start" value="#ffc400">
+          <label class="jr-toggle">
+            <input type="checkbox" id="jr-p-color-mid-toggle">
+            <span class="sw"></span>
+            Color midpoint
+          </label>
+          <div id="jr-p-color-mid-row" style="display:none">
+            <label>Color mid</label>
+            <input type="color" id="jr-p-color-mid" value="#ff8800">
+          </div>
           <label>Color end</label>
           <input type="color" id="jr-p-color-end" value="#ff6600">
+
+          <h4>Opacity</h4>
           <label>Opacity start → end <span class="v" id="jr-p-opacity-v">1.0 → 0.0</span></label>
           <input type="range" id="jr-p-opacity-start" min="0" max="1" step="0.05" value="1" style="width:48%;display:inline-block">
           <input type="range" id="jr-p-opacity-end" min="0" max="1" step="0.05" value="0" style="width:48%;display:inline-block;float:right">
+          <label>Opacity curve</label>
+          <div class="jr-chip-grid" id="jr-p-opacity-curve">
+            <button class="jr-chip active" data-v="linear">linear</button>
+            <button class="jr-chip" data-v="easeIn">easeIn</button>
+            <button class="jr-chip" data-v="easeOut">easeOut</button>
+            <button class="jr-chip" data-v="fadeInOut">fadeInOut</button>
+            <button class="jr-chip" data-v="peak">peak</button>
+            <button class="jr-chip" data-v="flicker">flicker</button>
+          </div>
+
+          <h4>Physics</h4>
           <label>Turbulence <span class="v" id="jr-p-turb-v">0.5</span></label>
           <input type="range" id="jr-p-turb" min="0" max="8" step="0.1" value="0.5">
+          <label>Turbulence frequency <span class="v" id="jr-p-turb-freq-v">1.0</span></label>
+          <input type="range" id="jr-p-turb-freq" min="0.1" max="5" step="0.1" value="1.0">
+          <label>Turbulence speed <span class="v" id="jr-p-turb-speed-v">1.0</span></label>
+          <input type="range" id="jr-p-turb-speed" min="0.1" max="5" step="0.1" value="1.0">
           <label>Gravity <span class="v" id="jr-p-gravity-v">0.0</span></label>
           <input type="range" id="jr-p-gravity" min="-3" max="3" step="0.1" value="0">
           <label>Drag <span class="v" id="jr-p-drag-v">0.98</span></label>
           <input type="range" id="jr-p-drag" min="0.8" max="1" step="0.005" value="0.98">
-          <label>Emit shape</label>
-          <div class="jr-chip-grid" id="jr-p-emit-shape">
-            <button class="jr-chip active" data-v="sphere">sphere</button>
-            <button class="jr-chip" data-v="ring">ring</button>
-            <button class="jr-chip" data-v="cone">cone</button>
-            <button class="jr-chip" data-v="box">box</button>
-          </div>
-          <label>Emit radius <span class="v" id="jr-p-radius-v">0.35</span></label>
-          <input type="range" id="jr-p-radius" min="0.05" max="2" step="0.05" value="0.35">
+          <label>Swirl <span class="v" id="jr-p-swirl-v">0.0</span></label>
+          <input type="range" id="jr-p-swirl" min="0" max="5" step="0.1" value="0">
+          <label>Attract <span class="v" id="jr-p-attract-v">0.0</span></label>
+          <input type="range" id="jr-p-attract" min="-3" max="3" step="0.1" value="0">
+
+          <h4>Rendering</h4>
           <label>Blending</label>
           <div class="jr-chip-grid" id="jr-p-blending">
             <button class="jr-chip active" data-v="additive">additive</button>
             <button class="jr-chip" data-v="normal">normal</button>
+            <button class="jr-chip" data-v="screen">screen</button>
           </div>
         </div>
       </div>
@@ -369,12 +433,15 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
           <button class="jr-chip" data-v="easeInOut">easeInOut</button>
           <button class="jr-chip" data-v="fadeInOut">fadeInOut</button>
           <button class="jr-chip" data-v="peak">peak</button>
+          <button class="jr-chip" data-v="bounce">bounce</button>
+          <button class="jr-chip" data-v="spring">spring</button>
         </div>
 
         <h4>Curve shape</h4>
         <div class="jr-chip-grid" id="jr-m-curves">
           <button class="jr-chip cyan active" data-v="smooth">smooth</button>
           <button class="jr-chip cyan" data-v="arc">high arc</button>
+          <button class="jr-chip cyan" data-v="bezier">bezier</button>
           <button class="jr-chip cyan" data-v="straight">straight</button>
           <button class="jr-chip cyan" data-v="noise">noise</button>
         </div>
@@ -1500,6 +1567,16 @@ if (typeof AFRAME !== 'undefined') {
           const mid = fp.clone().lerp(tp, 0.5);
           mid.y += d * 0.35;
           curvePts = [fp, mid, tp];
+        } else if (cShape === 'bezier') {
+          const dir = tp.clone().sub(fp).normalize();
+          const perp = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+          const mid = fp.clone().lerp(tp, 0.5);
+          curvePts = [
+            fp,
+            fp.clone().lerp(mid, 0.5).addScaledVector(perp, d * 0.42).add(new THREE.Vector3(0, d * 0.32, 0)),
+            tp.clone().lerp(mid, 0.5).addScaledVector(perp, -d * 0.28).add(new THREE.Vector3(0, d * 0.12, 0)),
+            tp
+          ];
         } else if (cShape === 'noise') {
           curvePts = [];
           const time = this._particleTime || 0;
@@ -1562,6 +1639,14 @@ if (typeof AFRAME !== 'undefined') {
       easeInOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
       fadeInOut:  t => Math.sin(t * Math.PI),
       peak:      t => Math.pow(Math.sin(t * Math.PI), 0.5),
+      bounce: t => {
+        const n1 = 7.5625, d1 = 2.75;
+        if (t < 1/d1) return n1*t*t;
+        if (t < 2/d1) return n1*(t-=1.5/d1)*t+.75;
+        if (t < 2.5/d1) return n1*(t-=2.25/d1)*t+.9375;
+        return n1*(t-=2.625/d1)*t+.984375;
+      },
+      spring: t => 1 - Math.cos(t * Math.PI * 3) * Math.exp(-t * 5),
     },
 
     tick() {
@@ -1704,22 +1789,36 @@ if (typeof AFRAME !== 'undefined') {
         const c = self._particleCfg;
         $$('jr-p-count').value = c.count; $$('jr-p-count-v').textContent = c.count;
         $$('jr-p-rate').value = c.emissionRate; $$('jr-p-rate-v').textContent = c.emissionRate;
+        $$('jr-p-burst').value = c.burstCount || 0; $$('jr-p-burst-v').textContent = c.burstCount || 0;
+        $$('jr-p-continuous').checked = c.continuousEmit !== false;
         $$('jr-p-life-min').value = c.lifetimeMin; $$('jr-p-life-max').value = c.lifetimeMax;
         $$('jr-p-life-v').textContent = c.lifetimeMin.toFixed(1) + ' – ' + c.lifetimeMax.toFixed(1) + 's';
         $$('jr-p-speed-min').value = c.speedMin; $$('jr-p-speed-max').value = c.speedMax;
         $$('jr-p-speed-v').textContent = c.speedMin.toFixed(1) + ' – ' + c.speedMax.toFixed(1);
         $$('jr-p-spread').value = c.spread; $$('jr-p-spread-v').textContent = c.spread + '°';
+        $$('jr-p-spread3d').checked = c.spread3D !== false;
+        $$('jr-p-angle').value = c.emitAngle || 30; $$('jr-p-angle-v').textContent = (c.emitAngle || 30) + '°';
         $$('jr-p-size-start').value = c.sizeStart; $$('jr-p-size-end').value = c.sizeEnd;
         $$('jr-p-size-v').textContent = c.sizeStart.toFixed(2) + ' → ' + c.sizeEnd.toFixed(2);
-        $$('jr-p-color-start').value = c.colorStart; $$('jr-p-color-end').value = c.colorEnd;
+        chipGrid('jr-p-size-curve', () => c.sizeCurve || 'linear', v => { self._particleCfg.sizeCurve = v; applyParticleCfg(self._particleCfg); }, null);
+        $$('jr-p-color-start').value = c.colorStart;
+        $$('jr-p-color-end').value = c.colorEnd;
+        $$('jr-p-color-mid-toggle').checked = !!c.colorMid;
+        $$('jr-p-color-mid-row').style.display = c.colorMid ? 'block' : 'none';
+        if (c.colorMid) $$('jr-p-color-mid').value = c.colorMid;
         $$('jr-p-opacity-start').value = c.opacityStart; $$('jr-p-opacity-end').value = c.opacityEnd;
         $$('jr-p-opacity-v').textContent = c.opacityStart.toFixed(1) + ' → ' + c.opacityEnd.toFixed(1);
+        chipGrid('jr-p-opacity-curve', () => c.opacityCurve || 'linear', v => { self._particleCfg.opacityCurve = v; applyParticleCfg(self._particleCfg); }, null);
         $$('jr-p-turb').value = c.turbulence; $$('jr-p-turb-v').textContent = c.turbulence.toFixed(1);
+        $$('jr-p-turb-freq').value = c.turbulenceFreq || 1; $$('jr-p-turb-freq-v').textContent = (c.turbulenceFreq || 1).toFixed(1);
+        $$('jr-p-turb-speed').value = c.turbulenceSpeed || 1; $$('jr-p-turb-speed-v').textContent = (c.turbulenceSpeed || 1).toFixed(1);
         $$('jr-p-gravity').value = c.gravity || 0; $$('jr-p-gravity-v').textContent = (c.gravity || 0).toFixed(1);
         $$('jr-p-drag').value = c.drag; $$('jr-p-drag-v').textContent = c.drag.toFixed(3);
+        $$('jr-p-swirl').value = c.swirl || 0; $$('jr-p-swirl-v').textContent = (c.swirl || 0).toFixed(1);
+        $$('jr-p-attract').value = c.attract || 0; $$('jr-p-attract-v').textContent = (c.attract || 0).toFixed(1);
         $$('jr-p-radius').value = c.emitRadius; $$('jr-p-radius-v').textContent = c.emitRadius.toFixed(2);
         chipGrid('jr-p-emit-shape', () => c.emitShape, v => { self._particleCfg.emitShape = v; applyParticleCfg(self._particleCfg); }, null);
-        chipGrid('jr-p-blending', () => c.blending, v => { self._particleCfg.blending = v; applyParticleCfg(self._particleCfg); }, null);
+        chipGrid('jr-p-blending', () => c.blending || 'additive', v => { self._particleCfg.blending = v; applyParticleCfg(self._particleCfg); }, null);
       }
       document.querySelectorAll('#jr-m-particle-pick .jr-preset').forEach(p => {
         p.addEventListener('click', () => {
@@ -1754,9 +1853,23 @@ if (typeof AFRAME !== 'undefined') {
       $$('jr-p-color-end').addEventListener('input', e => { self._particleCfg.colorEnd = e.target.value; applyParticleCfg(self._particleCfg); });
       pSlider('jr-p-opacity-start', 'opacityStart', Number, 'jr-p-opacity-v', c => c.opacityStart.toFixed(1)+' → '+c.opacityEnd.toFixed(1));
       pSlider('jr-p-opacity-end', 'opacityEnd', Number, 'jr-p-opacity-v', c => c.opacityStart.toFixed(1)+' → '+c.opacityEnd.toFixed(1));
+      pSlider('jr-p-burst', 'burstCount', Number, 'jr-p-burst-v');
+      $$('jr-p-continuous').addEventListener('change', e => { self._particleCfg.continuousEmit = e.target.checked; applyParticleCfg(self._particleCfg); });
+      pSlider('jr-p-angle', 'emitAngle', Number, 'jr-p-angle-v', c => (c.emitAngle||30)+'°');
+      $$('jr-p-spread3d').addEventListener('change', e => { self._particleCfg.spread3D = e.target.checked; applyParticleCfg(self._particleCfg); });
+      $$('jr-p-color-mid-toggle').addEventListener('change', e => {
+        self._particleCfg.colorMid = e.target.checked ? ($$('jr-p-color-mid').value || '#ff8800') : null;
+        $$('jr-p-color-mid-row').style.display = e.target.checked ? 'block' : 'none';
+        applyParticleCfg(self._particleCfg);
+      });
+      $$('jr-p-color-mid').addEventListener('input', e => { self._particleCfg.colorMid = e.target.value; applyParticleCfg(self._particleCfg); });
       pSlider('jr-p-turb', 'turbulence', Number, 'jr-p-turb-v', c => c.turbulence.toFixed(1));
+      pSlider('jr-p-turb-freq', 'turbulenceFreq', Number, 'jr-p-turb-freq-v', c => (c.turbulenceFreq||1).toFixed(1));
+      pSlider('jr-p-turb-speed', 'turbulenceSpeed', Number, 'jr-p-turb-speed-v', c => (c.turbulenceSpeed||1).toFixed(1));
       pSlider('jr-p-gravity', 'gravity', Number, 'jr-p-gravity-v', c => (c.gravity||0).toFixed(1));
       pSlider('jr-p-drag', 'drag', Number, 'jr-p-drag-v', c => c.drag.toFixed(3));
+      pSlider('jr-p-swirl', 'swirl', Number, 'jr-p-swirl-v', c => (c.swirl||0).toFixed(1));
+      pSlider('jr-p-attract', 'attract', Number, 'jr-p-attract-v', c => (c.attract||0).toFixed(1));
       pSlider('jr-p-radius', 'emitRadius', Number, 'jr-p-radius-v', c => c.emitRadius.toFixed(2));
       syncParticleUI();
 
