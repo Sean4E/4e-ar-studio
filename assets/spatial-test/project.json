@@ -1,0 +1,36 @@
+{
+  "id": "spatial-test",
+  "name": "Spatial Test",
+  "version": 1,
+  "kind": "spatial-runtime-test",
+  "trackingMode": "image",
+  "targets": [
+    {
+      "id": "tgt_peconq8f",
+      "name": "DnS",
+      "type": "PLANAR",
+      "properties": {
+        "widthM": 0.1
+      },
+      "originalUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/DnS_original.jpg",
+      "luminanceUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/DnS_luminance.jpg",
+      "thumbnailUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/DnS_thumbnail.jpg",
+      "objectIds": []
+    },
+    {
+      "id": "tgt_sk7npzmj",
+      "name": "Fairy",
+      "type": "PLANAR",
+      "properties": {
+        "widthM": 0.1
+      },
+      "originalUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/Fairy_original.jpg",
+      "luminanceUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/Fairy_luminance.jpg",
+      "thumbnailUrl": "https://Sean4E.github.io/4e-ar-studio/assets/spatial-test/targets/Fairy_thumbnail.jpg",
+      "objectIds": []
+    }
+  ],
+  "journey": null,
+  "generatedAt": "2026-04-16T00:27:03.290Z",
+  "objects": []
+}
