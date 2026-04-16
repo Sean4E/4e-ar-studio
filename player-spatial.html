@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.2.4">
+<meta name="test-rig-version" content="0.2.5">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1089,14 +1089,16 @@ if (typeof AFRAME !== 'undefined') {
   AFRAME.registerComponent('journey-runtime', {
     init() {
       const sceneEl = this.el;
-      this.journey = (window.APP && window.APP.journey) || null;
+      // APP is a module-scope `let` — NOT on window. Use the closure
+      // reference directly (same <script> block, same scope chain).
+      this.journey = (APP && APP.journey) || null;
       if (!this.journey || !this.journey.anchors || this.journey.anchors.length < 2) {
         console.log('[journey-runtime] no journey or <2 anchors — disabling');
         return;
       }
       // Resolve target name per anchor (xrimagefound delivers .name; we
       // need the name string, not the studio's tgt_xxxx id).
-      const targets = (window.APP.targets || []);
+      const targets = (APP && APP.targets) || [];
       this.anchors = this.journey.anchors.map(a => {
         const tgt = (a.it && a.it.id) ? targets.find(t => t.id === a.it.id) : null;
         return {
