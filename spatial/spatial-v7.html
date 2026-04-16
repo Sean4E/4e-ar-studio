@@ -11,6 +11,11 @@
      Runs synchronously before the React app renders so the initial
      paint already has the right version. -->
 <script>
+// True when the spatial editor is running inside an iframe (studio,
+// the spatial-runtime test host, or any future embedder). Used to
+// gate the 💾 Save button — a standalone load has no parent to post
+// the journey to, so we hide the button instead of failing silently.
+const IS_IFRAMED = (() => { try { return window.parent && window.parent !== window; } catch (_) { return false; } })();
 const STUDIO_VERSION = (() => {
   try {
     if (window.parent && window.parent !== window) {
@@ -4557,6 +4562,36 @@ function App() {
       pos: pos[i]
     })));
   }, [anchors.length]);
+  // Save the current journey to the parent host (studio or test rig).
+  // Wraps anchors + sequence + path/traveller configs into one payload
+  // and posts it via window.parent.postMessage. The host receives it
+  // via `4e-spatial-journey` and decides what to persist / instantiate.
+  const [saveBlinking, setSaveBlinking] = useState(false);
+  const saveJourney = useCallback(() => {
+    if (!IS_IFRAMED) return;
+    const payload = {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      anchors: anchors.map(a => ({
+        id: a.id,
+        name: a.name,
+        pos: a.pos,
+        it: a.it,
+        slam: a.slam,
+      })),
+      sequence: [...journey],
+      loop: !!loopJ,
+      globalTraveller: globalTv,
+      paths: { ...pathConfigs },
+    };
+    try {
+      window.parent.postMessage({ type: '4e-spatial-journey', journey: payload }, '*');
+      setSaveBlinking(true);
+      setTimeout(() => setSaveBlinking(false), 900);
+    } catch (e) {
+      console.warn('[Spatial] save failed:', e && e.message);
+    }
+  }, [anchors, journey, loopJ, pathConfigs, globalTv]);
   const addAnchor = useCallback(() => {
     const id = newId();
     const na = {
@@ -4762,7 +4797,22 @@ function App() {
       cursor: "pointer",
       fontFamily: mono
     }
-  }, "+ Anchor")), React.createElement("div", {
+  }, "+ Anchor"), IS_IFRAMED && React.createElement("button", {
+    onClick: saveJourney,
+    title: "Save journey to studio (posts via postMessage)",
+    style: {
+      background: saveBlinking ? "rgba(74,222,128,0.25)" : "rgba(139,92,246,0.12)",
+      border: `1px solid ${saveBlinking ? "rgba(74,222,128,0.6)" : "rgba(139,92,246,0.45)"}`,
+      color: saveBlinking ? "#a7f3d0" : C.purple,
+      padding: "4px 12px",
+      borderRadius: 5,
+      fontSize: 11,
+      cursor: "pointer",
+      fontFamily: mono,
+      marginLeft: 4,
+      transition: "all 0.15s"
+    }
+  }, saveBlinking ? "✓ Saved" : "💾 Save")), React.createElement("div", {
     style: {
       display: "flex",
       flex: 1,

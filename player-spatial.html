@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.12.18">
+<meta name="version" content="3.12.17">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -1216,23 +1216,76 @@ function showARUI() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────
+// PROJECT DATA SOURCE — ARCHITECTURE NOTE
+//
+// 4E AR Studio publishes to two backends:
+//
+//   • Firestore  → project metadata JSON (targets[], objects[], settings,
+//                  splash, journey, …). Single doc per project at
+//                  ar_apps/{projectId}. Fast, near-instant updates.
+//                  This is the DEFAULT path for every real published app.
+//
+//   • GitHub Pages → asset binaries (image-target luminance/thumbnail/
+//                    original JPGs, GLB models, audio, video). Free, CDN-
+//                    backed, but has 5–30s propagation lag per write.
+//
+// Real published apps load metadata from Firestore, then fetch each
+// asset URL from GitHub. Two backends, two roles.
+//
+// EXCEPTION — "spatial-test" project (and any other id in
+// GH_TEST_PROJECTS below) loads its WHOLE project.json from GitHub
+// instead of Firestore. This is for the spatial-runtime test rig
+// (docs/spatial-runtime-host.html) which writes to one stable path
+// (assets/spatial-test/project.json) and overwrites it on every
+// publish. Keeps test data out of the production Firestore collection
+// and lets us iterate without Firestore writes.
+// ─────────────────────────────────────────────────────────────────
 async function init() {
   const appId = new URLSearchParams(location.search).get('id');
   if (!appId) { showError('No App ID', 'Scan a valid 4E AR QR code.'); return; }
 
   setSplashStatus('Connecting…');
-  const cfg = window.AR_FIREBASE_CONFIG;
-  if (!cfg?.apiKey) { showError('Config missing', 'Firebase not configured.'); return; }
 
+  // Test-rig branch — see architecture note above.
+  const GH_TEST_PROJECTS = ['spatial-test'];
+  if (GH_TEST_PROJECTS.includes(appId)) {
+    try {
+      const ghCfg = window.AR_GITHUB_CONFIG || {};
+      const url = `https://${ghCfg.owner}.github.io/${ghCfg.repo}/assets/${appId}/project.json?t=${Date.now()}`;
+      setSplashStatus('Loading test experience…');
+      const resp = await fetch(url, { mode: 'cors' });
+      if (!resp.ok) {
+        showError('Not published yet', 'No project.json at ' + url + ' (HTTP ' + resp.status + '). Run Publish in the spatial-runtime test host first.');
+        return;
+      }
+      APP = await resp.json();
+      APP.id = appId;
+      // Continue down the same pipeline as a Firestore-loaded project.
+    } catch (e) {
+      showError('Test load failed', e.message || String(e));
+      return;
+    }
+  } else {
+    const cfg = window.AR_FIREBASE_CONFIG;
+    if (!cfg?.apiKey) { showError('Config missing', 'Firebase not configured.'); return; }
+    try {
+      firebase.initializeApp(cfg);
+      const db = firebase.firestore();
+      setSplashStatus('Loading experience…');
+      const doc = await db.collection('ar_apps').doc(appId).get();
+      if (!doc.exists) { showError('Not found', 'Experience does not exist.'); return; }
+      APP = doc.data();
+      APP.id = appId;
+    } catch (e) {
+      showError('Load failed', e.message || String(e));
+      return;
+    }
+  }
+
+  // From here on, both branches share the same APP shape and can use
+  // the same downstream init pipeline.
   try {
-    firebase.initializeApp(cfg);
-    const db = firebase.firestore();
-    setSplashStatus('Loading experience…');
-    const doc = await db.collection('ar_apps').doc(appId).get();
-    if (!doc.exists) { showError('Not found', 'Experience does not exist.'); return; }
-
-    APP = doc.data();
-    APP.id = appId;
 
     // PWA: inject per-project manifest + touch icon + theme color, register SW
     applyPWA(APP);

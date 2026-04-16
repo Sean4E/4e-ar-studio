@@ -37,6 +37,15 @@ Studio.Spatial = {
       if (d.type === '4e-spatial-ready') {
         this._ready = true;
         this._sendProject();
+      } else if (d.type === '4e-spatial-journey') {
+        // Save-back from the spatial editor. Full integration with
+        // Studio.Project (auto-create anchor empties + persist journey
+        // to project state) is a coming phase. For now, log + toast so
+        // the Save button doesn't appear silently broken.
+        const j = d.journey || d.payload || {};
+        const n = (j.anchors || []).length;
+        Studio.log(`[Spatial] journey received — ${n} anchors (preview only; persistence coming)`);
+        Studio.toast(`Journey received (${n} anchors) — full save coming next`, 'ok');
       }
     });
 

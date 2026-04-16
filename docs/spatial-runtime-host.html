@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4E Spatial Runtime — Test Host</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../config.js"></script>
+<style>
+  :root {
+    --bg: #060810; --bg2: #121826; --bg3: #1a2230; --bg4: #232b3d;
+    --border: #1e2838; --border2: #2d384a;
+    --text: #e2e8f0; --text2: #cbd5e1; --muted: #64748b; --faint: #475569;
+    --purple: #8b5cf6; --purple2: #a78bfa; --purple3: #2a1a4a;
+    --amber: #fbbf24; --green: #4ade80; --red: #f87171; --cyan: #22d3ee;
+    --toolbar-h: 44px; --tabs-h: 32px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'Space Mono', ui-monospace, monospace; background: var(--bg); color: var(--text); overflow: hidden; }
+  body { display: grid; grid-template-rows: var(--toolbar-h) var(--tabs-h) 1fr; }
+
+  /* ─── Toolbar ───────────────────────────────────────────── */
+  #toolbar {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 8px; font-size: 12px;
+  }
+  #toolbar .title { color: var(--purple2); font-weight: 700; letter-spacing: 0.04em; font-family: 'Syne', sans-serif; font-size: 13px; }
+  #toolbar .pid { color: var(--muted); font-size: 11px; padding: 2px 8px; background: var(--bg); border-radius: 4px; border: 1px solid var(--border); }
+  .deploy-pill {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .deploy-pill.ok { background: rgba(74,222,128,0.08); border-color: rgba(74,222,128,0.4); color: var(--green); }
+  .deploy-pill.bad { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.4); color: var(--red); }
+  .deploy-pill.warn { background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.4); color: var(--amber); }
+  #toolbar .spacer { flex: 1; }
+  .btn {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 10px; border-radius: 5px; cursor: pointer;
+    font-family: inherit; font-size: 11px; font-weight: 600; transition: all 0.12s;
+  }
+  .btn:hover { background: var(--bg4); border-color: var(--border2); }
+  .btn.primary { background: var(--purple); border-color: var(--purple); color: #fff; }
+  .btn.primary:hover { background: #7c4ddb; }
+  .btn.warn { background: #3b1414; border-color: #5b1f1f; color: var(--red); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ─── Tabs ─────────────────────────────────────────────── */
+  #tabs { background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; padding: 0 8px; gap: 2px; align-items: flex-end; }
+  .tab {
+    padding: 5px 14px; border: none; background: transparent; color: var(--muted);
+    font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+    border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: 0.04em;
+    transition: all 0.12s;
+  }
+  .tab:hover { color: var(--text2); }
+  .tab.active { color: var(--purple2); border-bottom-color: var(--purple); }
+  .spacer { flex: 1; }
+  .ws-fs {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+    font-family: inherit; font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 5px; cursor: pointer; margin: 0 4px 4px 0;
+    align-self: center; line-height: 1.4; letter-spacing: 0.04em;
+  }
+  .ws-fs:hover { background: var(--bg4); border-color: var(--purple); color: var(--purple2); }
+  .ws-fs.active { background: var(--purple3); border-color: var(--purple); color: var(--purple2); }
+
+  /* ─── Workspace ────────────────────────────────────────── */
+  #ws { position: relative; overflow: hidden; }
+  .panel { position: absolute; inset: 0; display: none; }
+  .panel.active { display: block; }
+
+  /* Setup tab */
+  #setup { padding: 20px; overflow-y: auto; }
+  #setup h2 { color: var(--purple2); font-size: 13px; letter-spacing: 0.04em; margin-bottom: 12px; font-family: 'Syne', sans-serif; }
+  #setup .section { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-bottom: 14px; max-width: 720px; }
+  .drop-zone {
+    border: 2px dashed var(--border2); border-radius: 6px; padding: 30px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: all 0.15s;
+    background: rgba(139, 92, 246, 0.02);
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--purple); color: var(--purple2); background: rgba(139, 92, 246, 0.06); }
+  .drop-zone .big { font-size: 24px; margin-bottom: 6px; }
+  .drop-zone .small { font-size: 11px; }
+  #target-list { list-style: none; margin-top: 12px; }
+  #target-list li {
+    display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+    margin-bottom: 6px; font-size: 11px;
+  }
+  #target-list .thumb { width: 40px; height: 54px; object-fit: cover; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); }
+  #target-list .meta { flex: 1; }
+  #target-list .meta .name { font-weight: 700; color: var(--text); }
+  #target-list .meta .stats { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  #target-list .status { font-size: 10px; color: var(--muted); padding: 2px 6px; border-radius: 3px; }
+  #target-list .status.uploaded { background: rgba(74, 222, 128, 0.1); color: var(--green); border: 1px solid rgba(74, 222, 128, 0.3); }
+  #target-list .status.local { background: rgba(251, 191, 36, 0.1); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+
+  /* Spatial / Preview iframes */
+  #spatial-frame, #preview-frame { width: 100%; height: 100%; border: none; background: #060810; display: block; }
+
+  /* Hierarchy tab — mirrors studio hierarchy aesthetic */
+  #hierarchy { padding: 20px; overflow-y: auto; }
+  #hierarchy h2 { color: var(--purple2); font-size: 13px; letter-spacing: 0.04em; margin-bottom: 12px; font-family: 'Syne', sans-serif; }
+  .hier-empty { padding: 30px; text-align: center; color: var(--muted); font-size: 11px; background: var(--bg2); border: 1px dashed var(--border); border-radius: 6px; max-width: 720px; }
+  .hier-tree { max-width: 720px; }
+  .hier-target {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .hier-target-head {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: rgba(34, 211, 238, 0.04); border-bottom: 1px solid var(--border);
+  }
+  .hier-target-head .icon { color: var(--cyan); font-size: 14px; }
+  .hier-target-head .name { color: var(--text); font-weight: 700; font-size: 12px; }
+  .hier-target-head .badge { font-size: 9px; color: var(--cyan); padding: 1px 6px; background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.3); border-radius: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .hier-target-head .thumb { width: 28px; height: 38px; object-fit: cover; border-radius: 3px; border: 1px solid var(--border); }
+  .hier-anchor {
+    padding: 8px 12px 8px 28px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .hier-anchor:first-of-type { border-top: none; }
+  .hier-anchor-head { display: flex; align-items: center; gap: 8px; }
+  .hier-anchor-head .icon { color: var(--green); font-size: 12px; }
+  .hier-anchor-head .name { color: var(--text2); font-weight: 600; font-size: 11px; }
+  .hier-anchor-head .pos { color: var(--faint); font-size: 9px; margin-left: auto; }
+  .hier-comp {
+    margin-left: 22px; padding: 4px 8px; border-radius: 3px;
+    background: rgba(255,255,255,0.02); border-left: 2px solid var(--purple);
+    font-size: 10px; color: var(--muted); display: flex; gap: 6px;
+  }
+  .hier-comp .ck { color: var(--purple2); font-weight: 700; font-family: 'Syne', sans-serif; letter-spacing: 0.04em; }
+  .hier-comp .cv { color: var(--text2); }
+  .hier-orphan {
+    background: rgba(248, 113, 113, 0.05); border: 1px solid rgba(248, 113, 113, 0.2);
+    border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; font-size: 11px; color: var(--red);
+  }
+  .hier-orphan .name { font-weight: 700; }
+  .hier-summary {
+    margin-bottom: 12px; display: flex; gap: 10px; font-size: 11px; color: var(--muted);
+  }
+  .hier-summary span { padding: 4px 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; }
+  .hier-summary strong { color: var(--text); }
+
+  /* Diagnose tab */
+  #diagnose { padding: 14px; overflow-y: auto; font-size: 11px; line-height: 1.6; }
+  #diagnose h3 { color: var(--purple2); font-size: 11px; letter-spacing: 0.04em; margin: 12px 0 6px; text-transform: uppercase; }
+  #diagnose pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 10px; overflow-x: auto; color: var(--text2); white-space: pre-wrap; word-break: break-all; max-height: 240px; overflow-y: auto; }
+  #diagnose .row { display: flex; gap: 10px; margin-bottom: 4px; }
+  #diagnose .k { color: var(--muted); min-width: 180px; }
+  #diagnose .v { color: var(--text2); }
+  .ok-text { color: var(--green); }
+  .bad-text { color: var(--red); }
+
+  /* Modals */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex;
+    align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 24px; min-width: 360px; max-width: 90vw; }
+  .modal h3 { color: var(--purple2); font-size: 13px; margin-bottom: 12px; font-family: 'Syne', sans-serif; letter-spacing: 0.04em; }
+  .modal input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; margin-bottom: 12px; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #qr-img { background: white; padding: 8px; border-radius: 4px; margin: 12px 0; display: inline-block; }
+  #qr-url { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 11px; margin-bottom: 12px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--purple);
+    color: var(--text); padding: 10px 16px; border-radius: 6px; font-size: 12px; z-index: 200;
+    pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.ok { border-left-color: var(--green); }
+  .toast.err { border-left-color: var(--red); }
+
+  /* Fullscreen */
+  body.fullscreen { grid-template-rows: var(--tabs-h) 1fr; }
+  body.fullscreen #toolbar { display: none; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span class="title">4E SPATIAL RUNTIME · TEST HOST</span>
+  <span class="pid">project: <strong id="pid-text">spatial-test</strong></span>
+  <span class="deploy-pill" id="deploy-pill" title="Player file (player-spatial.html) deployment status. Click to re-check.">checking…</span>
+  <span class="spacer"></span>
+  <button class="btn" id="btn-token" title="GitHub Personal Access Token">🔑</button>
+  <button class="btn primary" id="btn-publish" disabled>▶ Publish to test app</button>
+  <button class="btn" id="btn-qr" disabled>📱 QR</button>
+</div>
+
+<div id="tabs">
+  <button class="tab active" data-tab="setup">Setup</button>
+  <button class="tab" data-tab="spatial">Spatial</button>
+  <button class="tab" data-tab="hierarchy">Hierarchy</button>
+  <button class="tab" data-tab="preview">Preview</button>
+  <button class="tab" data-tab="diagnose">Diagnose</button>
+  <div class="spacer"></div>
+  <button class="ws-fs" id="ws-fs-btn" title="Fullscreen workspace">⛶</button>
+</div>
+
+<div id="ws">
+  <!-- ─── SETUP ────────────────────────────────────────── -->
+  <div class="panel active" data-panel="setup" id="setup">
+    <h2>Image Targets</h2>
+    <div class="section">
+      <div class="drop-zone" id="drop-zone">
+        <div class="big">+</div>
+        <div>Drop image targets here, or click to choose</div>
+        <div class="small">PNG / JPG · min 480×640 · auto-cropped to 3:4 portrait</div>
+      </div>
+      <input type="file" id="fi-target" accept="image/*" multiple style="display:none">
+      <ul id="target-list"></ul>
+    </div>
+    <div class="section">
+      <h2 style="font-size:11px;margin-bottom:6px">Workflow</h2>
+      <div style="font-size:11px;color:var(--muted);line-height:1.7">
+        1. Add at least <strong style="color:var(--text2)">2 image targets</strong> here.<br>
+        2. Switch to <strong style="color:var(--text2)">Spatial</strong> tab. Targets appear in the editor's anchor dropdown — pick one per anchor.<br>
+        3. Configure path + traveller properties for each leg.<br>
+        4. Click <strong style="color:var(--text2)">Publish to test app</strong> in the toolbar.<br>
+        5. Open <strong style="color:var(--text2)">Preview</strong> tab to test in browser, or <strong style="color:var(--text2)">📱 QR</strong> to scan onto your phone.<br>
+        6. Use <strong style="color:var(--text2)">Diagnose</strong> tab to copy state for debugging.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SPATIAL ──────────────────────────────────────── -->
+  <div class="panel" data-panel="spatial">
+    <iframe id="spatial-frame" src=""></iframe>
+  </div>
+
+  <!-- ─── HIERARCHY ────────────────────────────────────── -->
+  <div class="panel" data-panel="hierarchy" id="hierarchy">
+    <h2>Project Hierarchy</h2>
+    <div class="hier-summary" id="hier-summary"></div>
+    <div id="hier-tree"></div>
+  </div>
+
+  <!-- ─── PREVIEW ──────────────────────────────────────── -->
+  <div class="panel" data-panel="preview">
+    <iframe id="preview-frame" src="" allow="camera; microphone"></iframe>
+  </div>
+
+  <!-- ─── DIAGNOSE ─────────────────────────────────────── -->
+  <div class="panel" data-panel="diagnose" id="diagnose">
+    <h3>Project</h3>
+    <div class="row"><span class="k">Project ID</span><span class="v">spatial-test</span></div>
+    <div class="row"><span class="k">GitHub asset path</span><span class="v">assets/spatial-test/</span></div>
+    <div class="row"><span class="k">Player URL</span><span class="v" id="diag-player-url">—</span></div>
+    <div class="row"><span class="k">Token configured</span><span class="v" id="diag-token-status">checking…</span></div>
+    <div class="row"><span class="k">Player deployed</span><span class="v" id="diag-deploy-status">checking…</span></div>
+
+    <h3>Image Targets</h3>
+    <div class="row"><span class="k">Count</span><span class="v" id="diag-target-count">0</span></div>
+    <pre id="diag-targets">[]</pre>
+
+    <h3>Spatial Editor State</h3>
+    <div class="row"><span class="k">Iframe loaded</span><span class="v" id="diag-spatial-loaded">no</span></div>
+    <div class="row"><span class="k">Handshake</span><span class="v" id="diag-spatial-handshake">pending</span></div>
+    <div class="row"><span class="k">Last journey received</span><span class="v" id="diag-journey-time">—</span></div>
+    <pre id="diag-journey">(none)</pre>
+
+    <h3>Publish Log</h3>
+    <pre id="diag-log">(no publish yet)</pre>
+
+    <div style="margin-top:12px">
+      <button class="btn" id="btn-copy-diag">📋 Copy diagnostics to clipboard</button>
+      <button class="btn" id="btn-clear-targets">🗑 Clear all targets (local)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Token modal -->
+<div class="modal-overlay hidden" id="modal-token">
+  <div class="modal">
+    <h3>GitHub Token</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">Paste your fine-grained Personal Access Token with <code>contents:write</code> on the studio repo. Stored in <code>localStorage</code> (same key as the studio).</p>
+    <input type="password" id="token-input" placeholder="github_pat_xxxxx…" autocomplete="off">
+    <div class="actions">
+      <button class="btn" id="token-cancel">Cancel</button>
+      <button class="btn primary" id="token-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR modal -->
+<div class="modal-overlay hidden" id="modal-qr">
+  <div class="modal" style="text-align:center">
+    <h3>Scan to test on phone</h3>
+    <div id="qr-img"></div>
+    <input id="qr-url" readonly>
+    <div class="actions">
+      <button class="btn" id="qr-copy">Copy URL</button>
+      <button class="btn" id="qr-open">Open in tab</button>
+      <button class="btn primary" id="qr-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// 4E Spatial Runtime — Test Host
+// Self-contained: only depends on config.js (loaded above) for the
+// shared GitHub + Firebase config. Studio modules are NOT loaded
+// here; everything used is inlined to keep this page truly isolated.
+// ═══════════════════════════════════════════════════════════
+
+const PROJECT_ID = 'spatial-test';
+const ASSET_BASE = `assets/${PROJECT_ID}`;
+const TOKEN_KEY = '4e-ar-gh-token';
+const SPATIAL_SRC = '../spatial/spatial-v7.html';
+const PLAYER_SRC = `../player-spatial.html?id=${PROJECT_ID}`;
+
+const state = {
+  targets: [],          // { id, name, _luminanceDataUrl, _thumbnailDataUrl, originalUrl, luminanceUrl, thumbnailUrl, properties }
+  journey: null,        // last received journey from spatial editor
+  spatialReady: false,
+  publishUrl: null,
+  log: [],
+};
+
+// ─── Helpers ─────────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
+function toast(msg, kind) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(() => t.classList.remove('show'), 2400);
+}
+function logLine(s) {
+  const ts = new Date().toLocaleTimeString();
+  state.log.push(`[${ts}] ${s}`);
+  if (state.log.length > 100) state.log.shift();
+  $('diag-log').textContent = state.log.join('\n');
+  console.log('[Host]', s);
+}
+
+// ─── GitHub upload (inlined from studio/modules/github.js) ──
+async function ghUpload(path, b64) {
+  const cfg = window.AR_GITHUB_CONFIG || {};
+  const token = localStorage.getItem(TOKEN_KEY) || cfg.token || '';
+  if (!token) throw new Error('GitHub token not set');
+  const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}`;
+  const headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+  let sha;
+  try {
+    const check = await fetch(apiUrl + '?ref=' + cfg.branch, { headers });
+    if (check.ok) sha = (await check.json()).sha;
+  } catch (_) {}
+  const body = { message: `Spatial test host: ${path}`, branch: cfg.branch, content: b64 };
+  if (sha) body.sha = sha;
+  const resp = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.message || 'GitHub upload failed (' + resp.status + ')');
+  }
+  return `https://${cfg.owner}.github.io/${cfg.repo}/${path}`;
+}
+
+function tokenStatus() {
+  const cfg = window.AR_GITHUB_CONFIG || {};
+  const token = localStorage.getItem(TOKEN_KEY) || cfg.token || '';
+  $('diag-token-status').innerHTML = token
+    ? '<span class="ok-text">✓ configured</span>'
+    : '<span class="bad-text">✗ not set — click 🔑 in toolbar</span>';
+  return !!token;
+}
+
+// ─── Image processing (inlined essentials from targets.js) ──
+function fileToImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = e => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+function autoCrop(img, targetAspect = 3/4) {
+  const a = img.width / img.height;
+  let sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (a > targetAspect) { sw = img.height * targetAspect; sx = (img.width - sw) / 2; }
+  else if (a < targetAspect) { sh = img.width / targetAspect; sy = (img.height - sh) / 2; }
+  return { sx, sy, sw, sh };
+}
+async function processTargetFile(file) {
+  const img = await fileToImage(file);
+  if (img.width < 480 || img.height < 480) {
+    throw new Error('Image too small (min 480×640)');
+  }
+  const crop = autoCrop(img);
+  // Luminance — 480×640 grayscale
+  const lc = document.createElement('canvas'); lc.width = 480; lc.height = 640;
+  const lctx = lc.getContext('2d', { willReadFrequently: true });
+  lctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, 480, 640);
+  const data = lctx.getImageData(0, 0, 480, 640);
+  for (let i = 0; i < data.data.length; i += 4) {
+    const y = 0.299 * data.data[i] + 0.587 * data.data[i+1] + 0.114 * data.data[i+2];
+    data.data[i] = data.data[i+1] = data.data[i+2] = y;
+  }
+  lctx.putImageData(data, 0, 0);
+  // Thumbnail — 263×350 RGB
+  const tc = document.createElement('canvas'); tc.width = 263; tc.height = 350;
+  tc.getContext('2d').drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, 263, 350);
+  // Original (passthrough at original size, JPEG)
+  const oc = document.createElement('canvas'); oc.width = crop.sw; oc.height = crop.sh;
+  oc.getContext('2d').drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+  const id = 'tgt_' + Math.random().toString(36).slice(2, 10);
+  const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+  return {
+    id,
+    name: cleanName || id,
+    type: 'PLANAR',
+    properties: { widthM: 0.1 },
+    _luminanceDataUrl: lc.toDataURL('image/jpeg', 0.9),
+    _thumbnailDataUrl: tc.toDataURL('image/jpeg', 0.85),
+    _originalDataUrl: oc.toDataURL('image/jpeg', 0.92),
+    originalUrl: '', luminanceUrl: '', thumbnailUrl: '',
+  };
+}
+
+// ─── Tab switching ────────────────────────────────────────────
+const tabs = document.querySelectorAll('.tab');
+const panels = document.querySelectorAll('.panel');
+tabs.forEach(t => t.addEventListener('click', () => {
+  const name = t.dataset.tab;
+  tabs.forEach(x => x.classList.toggle('active', x === t));
+  panels.forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+  if (name === 'spatial') ensureSpatialFrame();
+  if (name === 'preview') ensurePreviewFrame();
+}));
+
+// ─── Spatial iframe + handshake ───────────────────────────────
+let spatialFrame = null;
+function ensureSpatialFrame() {
+  if (spatialFrame) return;
+  const ifr = $('spatial-frame');
+  ifr.src = SPATIAL_SRC;
+  spatialFrame = ifr;
+  $('diag-spatial-loaded').innerHTML = '<span class="ok-text">yes</span>';
+  logLine('spatial iframe src set');
+}
+function ensurePreviewFrame() {
+  const ifr = $('preview-frame');
+  if (!ifr.src || !ifr.src.includes(PROJECT_ID)) {
+    ifr.src = PLAYER_SRC + '&t=' + Date.now();  // bust cache
+    logLine('preview iframe (re)loaded: ' + ifr.src);
+  }
+}
+
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === '4e-spatial-ready') {
+    state.spatialReady = true;
+    $('diag-spatial-handshake').innerHTML = '<span class="ok-text">ready</span>';
+    logLine('spatial handshake: ready');
+    sendProjectToSpatial();
+  } else if (d.type === '4e-spatial-journey') {
+    state.journey = d.journey || d.payload || null;
+    $('diag-journey-time').textContent = new Date().toLocaleTimeString();
+    $('diag-journey').textContent = JSON.stringify(state.journey, null, 2);
+    logLine('journey received: ' + (state.journey ? `${(state.journey.anchors||[]).length} anchors` : 'empty'));
+    toast('Journey saved (host received) ✓', 'ok');
+    refreshPublishButton();
+    renderHierarchy();
+  }
+});
+
+function sendProjectToSpatial() {
+  if (!state.spatialReady || !spatialFrame || !spatialFrame.contentWindow) return;
+  const project = {
+    id: PROJECT_ID,
+    name: 'Spatial Test',
+    trackingMode: 'image',
+    targets: state.targets.map(t => ({
+      id: t.id, name: t.name, widthM: 0.1,
+      thumbnailUrl: t._thumbnailDataUrl || t.thumbnailUrl || ''
+    })),
+    objects: [],     // host has no scene objects yet
+  };
+  spatialFrame.contentWindow.postMessage({ type: '4e-spatial-project', project }, '*');
+  logLine(`pushed project to spatial (targets=${state.targets.length})`);
+}
+
+// ─── Setup tab — uploads, list, drop zone ───────────────────
+const dz = $('drop-zone');
+const fi = $('fi-target');
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', async e => {
+  e.preventDefault(); dz.classList.remove('dragover');
+  for (const file of e.dataTransfer.files) await addTargetFile(file);
+});
+fi.addEventListener('change', async e => {
+  for (const file of e.target.files) await addTargetFile(file);
+  e.target.value = '';
+});
+async function addTargetFile(file) {
+  if (!file.type.startsWith('image/')) { toast('Not an image: ' + file.name, 'err'); return; }
+  try {
+    const tgt = await processTargetFile(file);
+    state.targets.push(tgt);
+    renderTargetList();
+    refreshPublishButton();
+    sendProjectToSpatial();
+    toast('Added: ' + tgt.name, 'ok');
+    logLine('target added: ' + tgt.name);
+  } catch (err) {
+    toast('Failed: ' + err.message, 'err');
+    logLine('target add failed: ' + err.message);
+  }
+}
+function renderTargetList() {
+  const list = $('target-list');
+  list.innerHTML = '';
+  state.targets.forEach((t, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <img class="thumb" src="${t._thumbnailDataUrl || ''}">
+      <div class="meta">
+        <div class="name">${t.name}</div>
+        <div class="stats">id: ${t.id} · widthM: ${t.properties.widthM}</div>
+      </div>
+      <span class="status ${t.luminanceUrl ? 'uploaded' : 'local'}">${t.luminanceUrl ? '☁ uploaded' : '◌ local'}</span>
+      <button class="btn warn" data-i="${i}">✕</button>
+    `;
+    li.querySelector('button').addEventListener('click', () => {
+      state.targets.splice(i, 1);
+      renderTargetList();
+      refreshPublishButton();
+      sendProjectToSpatial();
+    });
+    list.appendChild(li);
+  });
+  $('diag-target-count').textContent = state.targets.length;
+  $('diag-targets').textContent = JSON.stringify(state.targets.map(t => ({ id: t.id, name: t.name, uploaded: !!t.luminanceUrl })), null, 2);
+  renderHierarchy();
+}
+
+// ─── Hierarchy view — targets → anchors → components ────────
+function renderHierarchy() {
+  const tree = $('hier-tree');
+  const summary = $('hier-summary');
+  const anchors = (state.journey && state.journey.anchors) || [];
+  const tgtCount = state.targets.length;
+  const anchorCount = anchors.length;
+  const assignedCount = anchors.filter(a => a.it && a.it.assigned && a.it.id).length;
+
+  summary.innerHTML = '<span>Targets: <strong>' + tgtCount + '</strong></span>' +
+    '<span>Anchors: <strong>' + anchorCount + '</strong></span>' +
+    '<span>Bound: <strong>' + assignedCount + '</strong> / ' + anchorCount + '</span>' +
+    (state.journey ? '<span>Sequence: <strong>' + ((state.journey.sequence || []).length) + '</strong> steps</span>' : '');
+
+  if (tgtCount === 0 && anchorCount === 0) {
+    tree.innerHTML = '<div class="hier-empty">Add image targets in <strong>Setup</strong>, then build a journey in <strong>Spatial</strong>. Click <strong>💾 Save</strong> in the spatial editor to populate this view.</div>';
+    return;
+  }
+  if (anchorCount === 0) {
+    tree.innerHTML = '<div class="hier-empty">' + tgtCount + ' image target(s) ready. Open <strong>Spatial</strong>, assign targets to anchors, click <strong>💾 Save</strong>.</div>';
+    return;
+  }
+
+  // Group anchors by their assigned target id
+  const byTarget = new Map();      // tgtId → [anchor, …]
+  const orphanAnchors = [];        // anchors with no target assigned
+  for (const a of anchors) {
+    if (a.it && a.it.assigned && a.it.id) {
+      if (!byTarget.has(a.it.id)) byTarget.set(a.it.id, []);
+      byTarget.get(a.it.id).push(a);
+    } else {
+      orphanAnchors.push(a);
+    }
+  }
+
+  const html = ['<div class="hier-tree">'];
+  // Render each target with its anchors
+  for (const t of state.targets) {
+    const list = byTarget.get(t.id) || [];
+    html.push('<div class="hier-target">');
+    html.push('<div class="hier-target-head">' +
+      (t._thumbnailDataUrl || t.thumbnailUrl ? '<img class="thumb" src="' + (t._thumbnailDataUrl || t.thumbnailUrl) + '">' : '<span class="icon">🎯</span>') +
+      '<span class="name">' + escHtml(t.name) + '</span>' +
+      '<span class="badge">image target</span>' +
+      '<span style="margin-left:auto;font-size:9px;color:var(--muted)">' + list.length + ' anchor' + (list.length !== 1 ? 's' : '') + '</span>' +
+    '</div>');
+    if (list.length === 0) {
+      html.push('<div class="hier-anchor"><div style="font-size:10px;color:var(--faint);font-style:italic">No anchors bound</div></div>');
+    } else {
+      for (const a of list) {
+        const persist = !!(a.slam && a.slam.persist);
+        const frames = (a.slam && a.slam.frames) || 30;
+        html.push('<div class="hier-anchor">');
+        html.push('<div class="hier-anchor-head"><span class="icon">📍</span><span class="name">' + escHtml(a.name) + '</span><span class="pos">id=' + escHtml(a.id) + '</span></div>');
+        html.push('<div class="hier-comp"><span class="ck">image-target</span><span class="cv">target: ' + escHtml(t.name) + ' · widthM: ' + (a.it.widthM || 0.1) + '</span></div>');
+        if (persist) {
+          html.push('<div class="hier-comp"><span class="ck">image-to-slam</span><span class="cv">persist: true · frames: ' + frames + '</span></div>');
+        }
+        html.push('</div>');
+      }
+    }
+    html.push('</div>');
+  }
+
+  // Orphan anchors (assigned to no target)
+  if (orphanAnchors.length) {
+    for (const a of orphanAnchors) {
+      html.push('<div class="hier-orphan"><span class="name">⚠ ' + escHtml(a.name) + '</span> — no image target assigned (will not appear in published app)</div>');
+    }
+  }
+
+  // Targets that have no thumbnail yet (still loading) — irrelevant if all targets render fine
+
+  // Show the journey sequence as a chip row at the bottom for reference
+  if (state.journey && state.journey.sequence && state.journey.sequence.length) {
+    const nameOf = id => (anchors.find(a => a.id === id) || {}).name || id;
+    html.push('<div style="margin-top:14px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px">');
+    html.push('<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Journey sequence' + (state.journey.loop ? ' (looping)' : '') + '</div>');
+    html.push('<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px">');
+    state.journey.sequence.forEach((id, i) => {
+      if (i > 0) html.push('<span style="color:var(--purple)">→</span>');
+      html.push('<span style="padding:3px 8px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.3);color:var(--green);border-radius:3px">' + escHtml(nameOf(id)) + '</span>');
+    });
+    if (state.journey.loop && state.journey.sequence.length > 1) {
+      html.push('<span style="color:var(--purple)">↻</span>');
+    }
+    html.push('</div></div>');
+  }
+
+  html.push('</div>');
+  tree.innerHTML = html.join('');
+}
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function refreshPublishButton() {
+  const reasons = [];
+  if (state.targets.length < 2) reasons.push('Add at least 2 image targets');
+  if (!tokenStatus()) reasons.push('Set GitHub token (🔑)');
+  if (state.deployStatus === 'missing') reasons.push('player-spatial.html not deployed yet');
+  const ok = reasons.length === 0;
+  $('btn-publish').disabled = !ok;
+  $('btn-publish').title = ok
+    ? 'Upload assets + journey JSON to GitHub, then open the live player'
+    : reasons.join(' · ');
+  $('btn-qr').disabled = !state.publishUrl || state.deployStatus !== 'ok';
+}
+
+// ─── Deploy-status check ────────────────────────────────────
+// HEAD-fetch the live player URL to confirm player-spatial.html is
+// reachable on Firebase. If the file isn't deployed, scanning a QR
+// code resolves to a 404 — gating Publish + QR here prevents that
+// dead-end. Click the pill in the toolbar to re-check after a deploy.
+state.deployStatus = 'checking';      // 'checking' | 'ok' | 'missing' | 'unknown'
+async function checkDeployStatus() {
+  const pill = $('deploy-pill');
+  pill.className = 'deploy-pill';
+  pill.textContent = 'checking…';
+  state.deployStatus = 'checking';
+  refreshPublishButton();
+  const playerUrl = `${window.AR_BASE_URL}/player-spatial.html`;
+  try {
+    const resp = await fetch(playerUrl, { method: 'HEAD', cache: 'no-store' });
+    if (resp.ok) {
+      state.deployStatus = 'ok';
+      pill.className = 'deploy-pill ok';
+      pill.textContent = '✓ player live';
+      pill.title = 'player-spatial.html is reachable at ' + playerUrl + ' (HTTP ' + resp.status + ') — click to re-check';
+    } else {
+      state.deployStatus = 'missing';
+      pill.className = 'deploy-pill bad';
+      pill.textContent = '✗ player not deployed (' + resp.status + ')';
+      pill.title = 'player-spatial.html returned HTTP ' + resp.status + ' — push to Firebase first';
+    }
+  } catch (e) {
+    state.deployStatus = 'unknown';
+    pill.className = 'deploy-pill warn';
+    pill.textContent = '? deploy unknown';
+    pill.title = 'Could not reach ' + playerUrl + ': ' + (e.message || e) + ' — click to retry';
+  }
+  refreshPublishButton();
+  const diagEl = $('diag-deploy-status');
+  if (diagEl) {
+    if (state.deployStatus === 'ok') diagEl.innerHTML = '<span class="ok-text">✓ live at ' + playerUrl + '</span>';
+    else if (state.deployStatus === 'missing') diagEl.innerHTML = '<span class="bad-text">✗ not deployed (404)</span>';
+    else diagEl.innerHTML = '<span style="color:var(--amber)">? unknown — ' + playerUrl + '</span>';
+  }
+  logLine('deploy status: ' + state.deployStatus);
+}
+$('deploy-pill').addEventListener('click', checkDeployStatus);
+
+// ─── Token modal ────────────────────────────────────────────
+$('btn-token').addEventListener('click', () => {
+  $('token-input').value = localStorage.getItem(TOKEN_KEY) || '';
+  $('modal-token').classList.remove('hidden');
+});
+$('token-cancel').addEventListener('click', () => $('modal-token').classList.add('hidden'));
+$('token-save').addEventListener('click', () => {
+  const v = $('token-input').value.trim();
+  if (!v) { toast('Token cannot be empty', 'err'); return; }
+  localStorage.setItem(TOKEN_KEY, v);
+  $('modal-token').classList.add('hidden');
+  tokenStatus();
+  refreshPublishButton();
+  toast('Token saved ✓', 'ok');
+});
+
+// ─── Publish flow ───────────────────────────────────────────
+$('btn-publish').addEventListener('click', publish);
+async function publish() {
+  if (!tokenStatus()) { toast('Set GitHub token first', 'err'); return; }
+  if (state.targets.length < 2) { toast('Need at least 2 targets', 'err'); return; }
+  const btn = $('btn-publish');
+  btn.disabled = true; btn.textContent = '⏳ Publishing…';
+  logLine('publish started');
+  try {
+    // Upload each target's three image variants
+    for (const t of state.targets) {
+      const safeName = t.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (!t.luminanceUrl) {
+        t.luminanceUrl = await ghUpload(`${ASSET_BASE}/targets/${safeName}_luminance.jpg`, t._luminanceDataUrl.split(',')[1]);
+        logLine('uploaded luminance: ' + t.name);
+      }
+      if (!t.thumbnailUrl) {
+        t.thumbnailUrl = await ghUpload(`${ASSET_BASE}/targets/${safeName}_thumbnail.jpg`, t._thumbnailDataUrl.split(',')[1]);
+        logLine('uploaded thumbnail: ' + t.name);
+      }
+      if (!t.originalUrl) {
+        t.originalUrl = await ghUpload(`${ASSET_BASE}/targets/${safeName}_original.jpg`, t._originalDataUrl.split(',')[1]);
+        logLine('uploaded original: ' + t.name);
+      }
+    }
+    renderTargetList();
+    // Build the project JSON the player will read
+    const projectJson = {
+      id: PROJECT_ID,
+      name: 'Spatial Test',
+      version: 1,
+      kind: 'spatial-runtime-test',
+      trackingMode: 'image',
+      targets: state.targets.map(t => ({
+        id: t.id, name: t.name, type: 'PLANAR',
+        properties: t.properties,
+        originalUrl: t.originalUrl,
+        luminanceUrl: t.luminanceUrl,
+        thumbnailUrl: t.thumbnailUrl,
+        objectIds: [],   // populated from journey below
+      })),
+      journey: state.journey || null,
+      generatedAt: new Date().toISOString(),
+    };
+    // If we have a journey, project anchors → objects (empty primitives bound to targets)
+    if (state.journey && state.journey.anchors) {
+      const objects = [];
+      for (const a of state.journey.anchors) {
+        if (!a.it || !a.it.assigned || !a.it.id) continue;
+        objects.push({
+          id: 'obj_' + a.id,
+          name: a.name,
+          type: 'primitive',
+          primitiveType: 'empty',
+          targetId: a.it.id,
+          imageToSlam: !!(a.slam && a.slam.persist),
+          spatialAnchorId: a.id,
+          transform: { position: a.pos || { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
+          visible: true,
+        });
+        // add to target.objectIds
+        const tgt = projectJson.targets.find(x => x.id === a.it.id);
+        if (tgt) tgt.objectIds.push('obj_' + a.id);
+      }
+      projectJson.objects = objects;
+    } else {
+      projectJson.objects = [];
+    }
+    // Upload the JSON
+    const projectJsonStr = JSON.stringify(projectJson, null, 2);
+    const projectJsonB64 = btoa(unescape(encodeURIComponent(projectJsonStr)));
+    await ghUpload(`${ASSET_BASE}/project.json`, projectJsonB64);
+    logLine('uploaded project.json');
+    state.publishUrl = `${window.AR_BASE_URL}/player-spatial.html?id=${PROJECT_ID}&t=${Date.now()}`;
+    $('diag-player-url').innerHTML = `<a href="${state.publishUrl}" target="_blank" style="color:var(--purple2)">${state.publishUrl}</a>`;
+    btn.textContent = '✓ Published — open Preview or QR';
+    setTimeout(() => { btn.textContent = '▶ Publish to test app'; refreshPublishButton(); }, 2400);
+    toast('Published ✓ — switch to Preview tab or scan QR', 'ok');
+    logLine('publish complete: ' + state.publishUrl);
+    $('btn-qr').disabled = false;
+    // Hot-reload preview if on Preview tab
+    const previewIfr = $('preview-frame');
+    if (previewIfr.src) previewIfr.src = PLAYER_SRC + '&t=' + Date.now();
+  } catch (err) {
+    btn.textContent = '✗ Failed';
+    setTimeout(() => { btn.textContent = '▶ Publish to test app'; refreshPublishButton(); }, 2400);
+    toast('Publish failed: ' + err.message, 'err');
+    logLine('publish failed: ' + err.message);
+  }
+}
+
+// ─── QR modal ──────────────────────────────────────────────
+let qrInstance = null;
+$('btn-qr').addEventListener('click', () => {
+  if (!state.publishUrl) { toast('Publish first', 'err'); return; }
+  $('qr-url').value = state.publishUrl;
+  if (qrInstance) { qrInstance.clear(); $('qr-img').innerHTML = ''; }
+  qrInstance = new QRCode($('qr-img'), { text: state.publishUrl, width: 220, height: 220 });
+  $('modal-qr').classList.remove('hidden');
+});
+$('qr-close').addEventListener('click', () => $('modal-qr').classList.add('hidden'));
+$('qr-copy').addEventListener('click', () => { navigator.clipboard.writeText($('qr-url').value); toast('URL copied', 'ok'); });
+$('qr-open').addEventListener('click', () => window.open($('qr-url').value, '_blank'));
+
+// ─── Diagnose tab actions ──────────────────────────────────
+$('btn-copy-diag').addEventListener('click', () => {
+  const out = [
+    '# 4E Spatial Runtime Test Host — Diagnose',
+    'Generated: ' + new Date().toISOString(),
+    'Project ID: ' + PROJECT_ID,
+    'Player URL: ' + (state.publishUrl || '(not yet published)'),
+    'Token configured: ' + (localStorage.getItem(TOKEN_KEY) ? 'yes' : 'no'),
+    '',
+    'Targets (' + state.targets.length + '):',
+    JSON.stringify(state.targets.map(t => ({ id: t.id, name: t.name, uploaded: !!t.luminanceUrl })), null, 2),
+    '',
+    'Journey:',
+    state.journey ? JSON.stringify(state.journey, null, 2) : '(none)',
+    '',
+    'Log:',
+    state.log.join('\n'),
+  ].join('\n');
+  navigator.clipboard.writeText(out);
+  toast('Diagnostics copied', 'ok');
+});
+$('btn-clear-targets').addEventListener('click', () => {
+  if (!confirm('Clear all targets from this session? (GitHub uploads will not be deleted)')) return;
+  state.targets = [];
+  renderTargetList();
+  refreshPublishButton();
+  sendProjectToSpatial();
+  toast('Targets cleared', 'ok');
+});
+
+// ─── Fullscreen ────────────────────────────────────────────
+$('ws-fs-btn').addEventListener('click', () => {
+  const on = !document.body.classList.contains('fullscreen');
+  document.body.classList.toggle('fullscreen', on);
+  $('ws-fs-btn').textContent = on ? '⛶ Exit' : '⛶';
+  $('ws-fs-btn').classList.toggle('active', on);
+  // Nudge spatial iframe to resize
+  setTimeout(() => {
+    if (spatialFrame && spatialFrame.contentWindow) {
+      try { spatialFrame.contentWindow.postMessage({ type: '4e-spatial-resize' }, '*'); } catch (_) {}
+    }
+  }, 250);
+});
+
+// ─── Init ──────────────────────────────────────────────────
+tokenStatus();
+renderTargetList();
+checkDeployStatus();   // refreshPublishButton called inside, after status known
+logLine('host ready · project=' + PROJECT_ID);
+</script>
+</body>
+</html>
