@@ -17,9 +17,12 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.3.0">
+<meta name="test-rig-version" content="0.4.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
+<!-- Particle engine (pure Three.js, no A-Frame wrapper) — shared with
+     spatial-v7.html. Provides mkPS, tickPS, rmPS, PPRESETS, DEF_P. -->
+<script src="particle-engine.js"></script>
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -249,30 +252,107 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 
       <!-- ─── TRAVELLER TAB ─────────────────────────────── -->
       <div class="sec active" data-sec="traveller">
-        <h4>Shape</h4>
-        <div class="jr-chip-grid" id="jr-m-shapes">
-          <button class="jr-chip amber active" data-v="sphere">sphere</button>
-          <button class="jr-chip amber" data-v="cube">cube</button>
-          <button class="jr-chip amber" data-v="torus">torus</button>
-          <button class="jr-chip amber" data-v="cone">cone</button>
-          <button class="jr-chip amber" data-v="diamond">diamond</button>
-          <button class="jr-chip amber" data-v="ring">ring</button>
+        <h4>Type</h4>
+        <div class="jr-chip-grid" id="jr-m-tv-type">
+          <button class="jr-chip amber active" data-v="object">Object</button>
+          <button class="jr-chip cyan" data-v="particles">Particles</button>
         </div>
 
-        <h4>Appearance</h4>
-        <label>Color</label>
-        <input type="color" id="jr-m-color" value="#ffc400">
-        <label>Scale <span class="v" id="jr-m-scale-v">1.0×</span></label>
-        <input type="range" id="jr-m-scale" min="0.3" max="2.5" step="0.1" value="1.0">
+        <!-- Object settings (shown when type=object) -->
+        <div id="jr-m-obj-settings">
+          <h4>Shape</h4>
+          <div class="jr-chip-grid" id="jr-m-shapes">
+            <button class="jr-chip amber active" data-v="sphere">sphere</button>
+            <button class="jr-chip amber" data-v="cube">cube</button>
+            <button class="jr-chip amber" data-v="torus">torus</button>
+            <button class="jr-chip amber" data-v="cone">cone</button>
+            <button class="jr-chip amber" data-v="diamond">diamond</button>
+            <button class="jr-chip amber" data-v="ring">ring</button>
+          </div>
+          <h4>Appearance</h4>
+          <label>Color</label>
+          <input type="color" id="jr-m-color" value="#ffc400">
+          <label>Scale <span class="v" id="jr-m-scale-v">1.0×</span></label>
+          <input type="range" id="jr-m-scale" min="0.3" max="2.5" step="0.1" value="1.0">
+          <h4>Trail</h4>
+          <label class="jr-toggle">
+            <input type="checkbox" id="jr-m-trail" checked>
+            <span class="sw"></span>
+            Trail enabled
+          </label>
+          <label>Trail length <span class="v" id="jr-m-trail-len-v">45</span></label>
+          <input type="range" id="jr-m-trail-len" min="5" max="120" step="5" value="45">
+        </div>
 
-        <h4>Trail</h4>
-        <label class="jr-toggle">
-          <input type="checkbox" id="jr-m-trail" checked>
-          <span class="sw"></span>
-          Trail enabled
-        </label>
-        <label>Trail length <span class="v" id="jr-m-trail-len-v">45</span></label>
-        <input type="range" id="jr-m-trail-len" min="5" max="120" step="5" value="45">
+        <!-- Particle settings (shown when type=particles) -->
+        <div id="jr-m-particle-settings" style="display:none">
+          <h4>Preset</h4>
+          <div class="jr-preset-grid" id="jr-m-particle-pick">
+            <div class="jr-preset active" data-preset="swarm"><span class="icon">🐝</span>Swarm</div>
+            <div class="jr-preset" data-preset="smoke"><span class="icon">💨</span>Smoke</div>
+            <div class="jr-preset" data-preset="fire"><span class="icon">🔥</span>Fire</div>
+            <div class="jr-preset" data-preset="liquid"><span class="icon">💧</span>Liquid</div>
+            <div class="jr-preset" data-preset="sparkle"><span class="icon">✨</span>Sparkle</div>
+            <div class="jr-preset" data-preset="dust"><span class="icon">🌫</span>Dust</div>
+            <div class="jr-preset" data-preset="electric"><span class="icon">⚡</span>Electric</div>
+            <div class="jr-preset" data-preset="snow"><span class="icon">❄</span>Snow</div>
+            <div class="jr-preset" data-preset="explosion"><span class="icon">💥</span>Explosion</div>
+            <div class="jr-preset" data-preset="fireflies"><span class="icon">🪲</span>Fireflies</div>
+            <div class="jr-preset" data-preset="nebula"><span class="icon">🌌</span>Nebula</div>
+            <div class="jr-preset" data-preset="rain"><span class="icon">🌧</span>Rain</div>
+            <div class="jr-preset" data-preset="confetti"><span class="icon">🎉</span>Confetti</div>
+            <div class="jr-preset" data-preset="void"><span class="icon">🕳</span>Void</div>
+            <div class="jr-preset" data-preset="embers"><span class="icon">🪨</span>Embers</div>
+            <div class="jr-preset" data-preset="bubbles"><span class="icon">🫧</span>Bubbles</div>
+            <div class="jr-preset" data-preset="aurora"><span class="icon">🌈</span>Aurora</div>
+            <div class="jr-preset" data-preset="portal"><span class="icon">🌀</span>Portal</div>
+            <div class="jr-preset" data-preset="plasma"><span class="icon">⚛</span>Plasma</div>
+            <div class="jr-preset" data-preset="comet"><span class="icon">☄</span>Comet</div>
+          </div>
+          <h4>Parameters</h4>
+          <label>Count <span class="v" id="jr-p-count-v">60</span></label>
+          <input type="range" id="jr-p-count" min="10" max="200" step="5" value="60">
+          <label>Emission rate <span class="v" id="jr-p-rate-v">20</span></label>
+          <input type="range" id="jr-p-rate" min="1" max="100" step="1" value="20">
+          <label>Lifetime <span class="v" id="jr-p-life-v">1.5 – 2.8s</span></label>
+          <input type="range" id="jr-p-life-min" min="0.2" max="6" step="0.1" value="1.5" style="width:48%;display:inline-block">
+          <input type="range" id="jr-p-life-max" min="0.2" max="8" step="0.1" value="2.8" style="width:48%;display:inline-block;float:right">
+          <label>Speed <span class="v" id="jr-p-speed-v">0.5 – 1.5</span></label>
+          <input type="range" id="jr-p-speed-min" min="0" max="5" step="0.1" value="0.5" style="width:48%;display:inline-block">
+          <input type="range" id="jr-p-speed-max" min="0" max="8" step="0.1" value="1.5" style="width:48%;display:inline-block;float:right">
+          <label>Spread <span class="v" id="jr-p-spread-v">90°</span></label>
+          <input type="range" id="jr-p-spread" min="0" max="360" step="5" value="90">
+          <label>Size start → end <span class="v" id="jr-p-size-v">0.10 → 0.04</span></label>
+          <input type="range" id="jr-p-size-start" min="0.01" max="1" step="0.01" value="0.1" style="width:48%;display:inline-block">
+          <input type="range" id="jr-p-size-end" min="0.01" max="1" step="0.01" value="0.04" style="width:48%;display:inline-block;float:right">
+          <label>Color start</label>
+          <input type="color" id="jr-p-color-start" value="#ffc400">
+          <label>Color end</label>
+          <input type="color" id="jr-p-color-end" value="#ff6600">
+          <label>Opacity start → end <span class="v" id="jr-p-opacity-v">1.0 → 0.0</span></label>
+          <input type="range" id="jr-p-opacity-start" min="0" max="1" step="0.05" value="1" style="width:48%;display:inline-block">
+          <input type="range" id="jr-p-opacity-end" min="0" max="1" step="0.05" value="0" style="width:48%;display:inline-block;float:right">
+          <label>Turbulence <span class="v" id="jr-p-turb-v">0.5</span></label>
+          <input type="range" id="jr-p-turb" min="0" max="8" step="0.1" value="0.5">
+          <label>Gravity <span class="v" id="jr-p-gravity-v">0.0</span></label>
+          <input type="range" id="jr-p-gravity" min="-3" max="3" step="0.1" value="0">
+          <label>Drag <span class="v" id="jr-p-drag-v">0.98</span></label>
+          <input type="range" id="jr-p-drag" min="0.8" max="1" step="0.005" value="0.98">
+          <label>Emit shape</label>
+          <div class="jr-chip-grid" id="jr-p-emit-shape">
+            <button class="jr-chip active" data-v="sphere">sphere</button>
+            <button class="jr-chip" data-v="ring">ring</button>
+            <button class="jr-chip" data-v="cone">cone</button>
+            <button class="jr-chip" data-v="box">box</button>
+          </div>
+          <label>Emit radius <span class="v" id="jr-p-radius-v">0.35</span></label>
+          <input type="range" id="jr-p-radius" min="0.05" max="2" step="0.05" value="0.35">
+          <label>Blending</label>
+          <div class="jr-chip-grid" id="jr-p-blending">
+            <button class="jr-chip active" data-v="additive">additive</button>
+            <button class="jr-chip" data-v="normal">normal</button>
+          </div>
+        </div>
       </div>
 
       <!-- ─── PATH TAB ──────────────────────────────────── -->
@@ -296,6 +376,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
           <button class="jr-chip cyan active" data-v="smooth">smooth</button>
           <button class="jr-chip cyan" data-v="arc">high arc</button>
           <button class="jr-chip cyan" data-v="straight">straight</button>
+          <button class="jr-chip cyan" data-v="noise">noise</button>
         </div>
 
         <h4>Loop</h4>
@@ -345,30 +426,8 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
           <div class="jr-preset" data-preset="playful"><span class="icon">🎈</span>Playful</div>
         </div>
 
-        <h4>Particle presets</h4>
-        <p style="font-size:10px;color:#475569;margin-bottom:8px">Coming soon — port of the spatial editor's 20 particle presets (swarm, smoke, fire, electric, snow, nebula, etc.)</p>
-        <div class="jr-preset-grid" id="jr-m-particle-presets" style="opacity:0.35;pointer-events:none">
-          <div class="jr-preset"><span class="icon">🐝</span>Swarm</div>
-          <div class="jr-preset"><span class="icon">💨</span>Smoke</div>
-          <div class="jr-preset"><span class="icon">🔥</span>Fire</div>
-          <div class="jr-preset"><span class="icon">💧</span>Liquid</div>
-          <div class="jr-preset"><span class="icon">✨</span>Sparkle</div>
-          <div class="jr-preset"><span class="icon">🌫</span>Dust</div>
-          <div class="jr-preset"><span class="icon">⚡</span>Electric</div>
-          <div class="jr-preset"><span class="icon">❄</span>Snow</div>
-          <div class="jr-preset"><span class="icon">💥</span>Explosion</div>
-          <div class="jr-preset"><span class="icon">🪲</span>Fireflies</div>
-          <div class="jr-preset"><span class="icon">🌌</span>Nebula</div>
-          <div class="jr-preset"><span class="icon">🌧</span>Rain</div>
-          <div class="jr-preset"><span class="icon">🎉</span>Confetti</div>
-          <div class="jr-preset"><span class="icon">🕳</span>Void</div>
-          <div class="jr-preset"><span class="icon">🪨</span>Embers</div>
-          <div class="jr-preset"><span class="icon">🫧</span>Bubbles</div>
-          <div class="jr-preset"><span class="icon">🌈</span>Aurora</div>
-          <div class="jr-preset"><span class="icon">🌀</span>Portal</div>
-          <div class="jr-preset"><span class="icon">⚛</span>Plasma</div>
-          <div class="jr-preset"><span class="icon">☄</span>Comet</div>
-        </div>
+        <h4>Quick tip</h4>
+        <p style="font-size:10px;color:#475569;line-height:1.6">Switch to the <strong style="color:#cbd5e1">Traveller</strong> tab and select <strong style="color:#22d3ee">Particles</strong> to access all 20 particle presets with full parameter controls — same as the spatial editor.</p>
       </div>
 
     </div>
@@ -1280,6 +1339,13 @@ if (typeof AFRAME !== 'undefined') {
       scene3.add(this.pathGroup);
       scene3.add(this.travContainer);
 
+      // Particle state — managed alongside the mesh traveller.
+      // When type='particles', we create a particle system at the
+      // traveller container position and tick it each frame.
+      this._particleSystem = null;
+      this._particleCfg = { ...DEF_P };
+      this._particleTime = 0;
+
       this.rebuildTraveller();
 
       // xrimagefound handler — capture world transform per-anchor on
@@ -1426,13 +1492,28 @@ if (typeof AFRAME !== 'undefined') {
         if (!fa || !ta || !fa.locked || !ta.locked) continue;
         const fp = fa.worldPos, tp = ta.worldPos;
         const cShape = this.settings.path.curve || 'smooth';
+        const d = fp.distanceTo(tp);
         let curvePts;
         if (cShape === 'straight') {
           curvePts = [fp, tp];
         } else if (cShape === 'arc') {
           const mid = fp.clone().lerp(tp, 0.5);
-          mid.y += fp.distanceTo(tp) * 0.35;
+          mid.y += d * 0.35;
           curvePts = [fp, mid, tp];
+        } else if (cShape === 'noise') {
+          curvePts = [];
+          const time = this._particleTime || 0;
+          for (let i = 0; i <= 14; i++) {
+            const t = i / 14;
+            const p = fp.clone().lerp(tp, t);
+            const env = Math.sin(t * Math.PI);
+            if (i > 0 && i < 14) {
+              p.y += Math.sin(t * 9 + time * 2) * 0.48 * env;
+              p.x += Math.cos(t * 6 + time * 1.5) * 0.32 * env;
+              p.z += Math.sin(t * 5 + time * 1.2) * 0.26 * env;
+            }
+            curvePts.push(p);
+          }
         } else {
           const mid = fp.clone().lerp(tp, 0.5);
           mid.y += 0.08;
@@ -1454,12 +1535,24 @@ if (typeof AFRAME !== 'undefined') {
     },
 
     rebuildTraveller() {
+      // Clean up existing mesh traveller
       while (this.travContainer.children.length) {
         const c = this.travContainer.children[0];
         this.travContainer.remove(c);
         c.traverse(x => { x.geometry?.dispose(); x.material?.dispose?.(); });
       }
-      this.travContainer.add(this.makeTraveller());
+      // Clean up particle system (lives at scene level, not container)
+      if (this._particleSystem) {
+        rmPS(this._particleSystem, this.el.object3D);
+        this._particleSystem = null;
+      }
+      if (this.settings.traveller.type === 'particles') {
+        // Create particle system at scene root (particles move via
+        // tickPS origin parameter, not by parenting to travContainer)
+        this._particleSystem = mkPS(this._particleCfg, this.el.object3D);
+      } else {
+        this.travContainer.add(this.makeTraveller());
+      }
     },
 
     EASINGS: {
@@ -1474,6 +1567,15 @@ if (typeof AFRAME !== 'undefined') {
     tick() {
       if (!this._clock) return;
       const dt = Math.min(this._clock.getDelta(), 0.05);
+      this._particleTime = (this._particleTime || 0) + dt;
+      // Noise paths need continuous rebuilding (they're time-animated)
+      if ((this.settings.path.curve === 'noise') && this.curves.length > 0 && this.lockedCount >= 2) {
+        this._noiseRebuildAcc = (this._noiseRebuildAcc || 0) + dt;
+        if (this._noiseRebuildAcc > 0.05) {
+          this._noiseRebuildAcc = 0;
+          this.rebuildPaths();
+        }
+      }
       // Animate traveller along the available curves
       if (this.curves.length > 0) {
         const dur = this.settings.path.duration / 1000;
@@ -1488,6 +1590,10 @@ if (typeof AFRAME !== 'undefined') {
         this.travContainer.position.copy(pos);
         const ahead = ec.curve.getPoint(Math.min(1, ease(this.edgeT) + 0.04));
         this.travContainer.lookAt(ahead);
+        // Tick particle system at traveller position
+        if (this._particleSystem) {
+          tickPS(this._particleSystem, dt, { x: pos.x, y: pos.y, z: pos.z }, this._particleTime);
+        }
       }
       // Anchor billboards face the camera
       const cam = this.el.camera;
@@ -1577,7 +1683,84 @@ if (typeof AFRAME !== 'undefined') {
         });
       }
 
-      // ─── Traveller tab ─────────────────────────────────
+      // ─── Traveller tab — type toggle ─────────────────────
+      self.settings.traveller.type = self.settings.traveller.type || 'object';
+      chipGrid('jr-m-tv-type', () => self.settings.traveller.type, v => {
+        self.settings.traveller.type = v;
+        $$('jr-m-obj-settings').style.display = v === 'object' ? 'block' : 'none';
+        $$('jr-m-particle-settings').style.display = v === 'particles' ? 'block' : 'none';
+        self.rebuildTraveller();
+      }, null);
+      $$('jr-m-obj-settings').style.display = self.settings.traveller.type === 'object' ? 'block' : 'none';
+      $$('jr-m-particle-settings').style.display = self.settings.traveller.type === 'particles' ? 'block' : 'none';
+
+      // Particle preset buttons
+      function applyParticleCfg(cfg) {
+        self._particleCfg = { ...DEF_P, ...cfg };
+        self.rebuildTraveller();
+        syncParticleUI();
+      }
+      function syncParticleUI() {
+        const c = self._particleCfg;
+        $$('jr-p-count').value = c.count; $$('jr-p-count-v').textContent = c.count;
+        $$('jr-p-rate').value = c.emissionRate; $$('jr-p-rate-v').textContent = c.emissionRate;
+        $$('jr-p-life-min').value = c.lifetimeMin; $$('jr-p-life-max').value = c.lifetimeMax;
+        $$('jr-p-life-v').textContent = c.lifetimeMin.toFixed(1) + ' – ' + c.lifetimeMax.toFixed(1) + 's';
+        $$('jr-p-speed-min').value = c.speedMin; $$('jr-p-speed-max').value = c.speedMax;
+        $$('jr-p-speed-v').textContent = c.speedMin.toFixed(1) + ' – ' + c.speedMax.toFixed(1);
+        $$('jr-p-spread').value = c.spread; $$('jr-p-spread-v').textContent = c.spread + '°';
+        $$('jr-p-size-start').value = c.sizeStart; $$('jr-p-size-end').value = c.sizeEnd;
+        $$('jr-p-size-v').textContent = c.sizeStart.toFixed(2) + ' → ' + c.sizeEnd.toFixed(2);
+        $$('jr-p-color-start').value = c.colorStart; $$('jr-p-color-end').value = c.colorEnd;
+        $$('jr-p-opacity-start').value = c.opacityStart; $$('jr-p-opacity-end').value = c.opacityEnd;
+        $$('jr-p-opacity-v').textContent = c.opacityStart.toFixed(1) + ' → ' + c.opacityEnd.toFixed(1);
+        $$('jr-p-turb').value = c.turbulence; $$('jr-p-turb-v').textContent = c.turbulence.toFixed(1);
+        $$('jr-p-gravity').value = c.gravity || 0; $$('jr-p-gravity-v').textContent = (c.gravity || 0).toFixed(1);
+        $$('jr-p-drag').value = c.drag; $$('jr-p-drag-v').textContent = c.drag.toFixed(3);
+        $$('jr-p-radius').value = c.emitRadius; $$('jr-p-radius-v').textContent = c.emitRadius.toFixed(2);
+        chipGrid('jr-p-emit-shape', () => c.emitShape, v => { self._particleCfg.emitShape = v; applyParticleCfg(self._particleCfg); }, null);
+        chipGrid('jr-p-blending', () => c.blending, v => { self._particleCfg.blending = v; applyParticleCfg(self._particleCfg); }, null);
+      }
+      document.querySelectorAll('#jr-m-particle-pick .jr-preset').forEach(p => {
+        p.addEventListener('click', () => {
+          const key = p.dataset.preset;
+          const preset = typeof PPRESETS !== 'undefined' && PPRESETS[key];
+          if (!preset) return;
+          document.querySelectorAll('#jr-m-particle-pick .jr-preset').forEach(x => x.classList.remove('active'));
+          p.classList.add('active');
+          applyParticleCfg(preset.c);
+        });
+      });
+      // Per-parameter sliders — update cfg and rebuild on change
+      const pSlider = (id, field, parse, fmtId, fmt) => {
+        const el = $$(id);
+        if (!el) return;
+        el.addEventListener('input', () => {
+          self._particleCfg[field] = parse(el.value);
+          if (fmtId) $$(fmtId).textContent = fmt ? fmt(self._particleCfg) : el.value;
+          applyParticleCfg(self._particleCfg);
+        });
+      };
+      pSlider('jr-p-count', 'count', Number, 'jr-p-count-v');
+      pSlider('jr-p-rate', 'emissionRate', Number, 'jr-p-rate-v');
+      pSlider('jr-p-life-min', 'lifetimeMin', Number, 'jr-p-life-v', c => c.lifetimeMin.toFixed(1)+' – '+c.lifetimeMax.toFixed(1)+'s');
+      pSlider('jr-p-life-max', 'lifetimeMax', Number, 'jr-p-life-v', c => c.lifetimeMin.toFixed(1)+' – '+c.lifetimeMax.toFixed(1)+'s');
+      pSlider('jr-p-speed-min', 'speedMin', Number, 'jr-p-speed-v', c => c.speedMin.toFixed(1)+' – '+c.speedMax.toFixed(1));
+      pSlider('jr-p-speed-max', 'speedMax', Number, 'jr-p-speed-v', c => c.speedMin.toFixed(1)+' – '+c.speedMax.toFixed(1));
+      pSlider('jr-p-spread', 'spread', Number, 'jr-p-spread-v', c => c.spread+'°');
+      pSlider('jr-p-size-start', 'sizeStart', Number, 'jr-p-size-v', c => c.sizeStart.toFixed(2)+' → '+c.sizeEnd.toFixed(2));
+      pSlider('jr-p-size-end', 'sizeEnd', Number, 'jr-p-size-v', c => c.sizeStart.toFixed(2)+' → '+c.sizeEnd.toFixed(2));
+      $$('jr-p-color-start').addEventListener('input', e => { self._particleCfg.colorStart = e.target.value; applyParticleCfg(self._particleCfg); });
+      $$('jr-p-color-end').addEventListener('input', e => { self._particleCfg.colorEnd = e.target.value; applyParticleCfg(self._particleCfg); });
+      pSlider('jr-p-opacity-start', 'opacityStart', Number, 'jr-p-opacity-v', c => c.opacityStart.toFixed(1)+' → '+c.opacityEnd.toFixed(1));
+      pSlider('jr-p-opacity-end', 'opacityEnd', Number, 'jr-p-opacity-v', c => c.opacityStart.toFixed(1)+' → '+c.opacityEnd.toFixed(1));
+      pSlider('jr-p-turb', 'turbulence', Number, 'jr-p-turb-v', c => c.turbulence.toFixed(1));
+      pSlider('jr-p-gravity', 'gravity', Number, 'jr-p-gravity-v', c => (c.gravity||0).toFixed(1));
+      pSlider('jr-p-drag', 'drag', Number, 'jr-p-drag-v', c => c.drag.toFixed(3));
+      pSlider('jr-p-radius', 'emitRadius', Number, 'jr-p-radius-v', c => c.emitRadius.toFixed(2));
+      syncParticleUI();
+
+      // ─── Traveller tab — object controls ─────────────────
       chipGrid('jr-m-shapes', () => self.settings.traveller.shape, v => { self.settings.traveller.shape = v; }, () => self.rebuildTraveller());
       $$('jr-m-color').value = self.settings.traveller.color;
       $$('jr-m-color').addEventListener('input', e => { self.settings.traveller.color = e.target.value; self.rebuildTraveller(); });
