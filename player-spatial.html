@@ -17,7 +17,7 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.1.1">
+<meta name="test-rig-version" content="0.2.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -68,6 +68,33 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 #anim-bar{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:auto}
 .anim-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:5px 13px;border-radius:18px;font-size:11px;font-family:'Syne',sans-serif;cursor:pointer}
 .anim-pill.active{background:var(--purple);border-color:var(--purple)}
+/* ─── Journey runtime UI ─────────────────────────────────────
+   Only shown for projects that include APP.journey (spatial-test
+   for now). Hidden otherwise so other published apps are unaffected.
+   Mobile-first sizing — buttons stay clickable on small screens. */
+#jr-ui{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}
+#jr-ui.show{display:block}
+.jr-side{position:absolute;top:74px;right:12px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
+.jr-btn{width:46px;height:46px;border-radius:23px;background:rgba(10,14,26,.78);border:1px solid rgba(167,139,250,.45);color:#a78bfa;font-size:18px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-family:inherit;transition:all .15s}
+.jr-btn:hover,.jr-btn:active{background:rgba(139,92,246,.25);color:#fff}
+.jr-btn.off{color:#475569;border-color:#2d384a}
+.jr-status-pill{position:absolute;top:14px;left:14px;pointer-events:auto;background:rgba(10,14,26,.78);border:1px solid rgba(74,222,128,.4);color:#4ade80;padding:5px 10px;border-radius:12px;font-size:11px;font-family:ui-monospace,monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.jr-status-pill.warn{border-color:rgba(251,191,36,.4);color:#fbbf24}
+.jr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:auto}
+.jr-modal-overlay.hidden{display:none}
+.jr-modal{background:#121826;border:1px solid #1e2838;border-radius:12px;padding:18px;width:min(360px,92vw);max-height:80vh;overflow-y:auto;color:#e2e8f0;font-family:ui-monospace,monospace}
+.jr-modal h3{color:#a78bfa;font-size:12px;letter-spacing:.04em;margin-bottom:10px;text-transform:uppercase}
+.jr-modal label{display:block;font-size:11px;color:#64748b;margin:10px 0 4px}
+.jr-modal input[type=range]{width:100%;accent-color:#8b5cf6}
+.jr-modal input[type=color]{width:100%;height:32px;background:transparent;border:1px solid #1e2838;border-radius:4px;cursor:pointer}
+.jr-modal select{width:100%;background:#060810;border:1px solid #1e2838;color:#e2e8f0;padding:6px 8px;border-radius:4px;font-family:inherit;font-size:11px}
+.jr-modal select option{background:#0a0e1a;color:#e2e8f0}
+.jr-modal .v{color:#cbd5e1;font-size:11px;float:right}
+.jr-modal-close{margin-top:14px;width:100%;padding:10px;background:#8b5cf6;border:none;color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}
+#jr-debug{position:fixed;bottom:10px;left:10px;background:rgba(10,14,26,.85);border:1px solid #1e2838;border-radius:5px;padding:8px 10px;font-size:10px;color:#94a3b8;line-height:1.6;font-family:ui-monospace,monospace;z-index:25;display:none;max-width:280px;pointer-events:none}
+#jr-debug.show{display:block}
+#jr-debug .k{color:#64748b;display:inline-block;min-width:90px}
+#jr-debug .v{color:#cbd5e1}
 </style>
 <script>
 // ─── Sync splash primer ─────────────────────────────────
@@ -162,6 +189,52 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
        to the parent studio window when running in the preview iframe. -->
   <button id="preview-diagnose-btn" style="position:fixed;bottom:12px;right:12px;padding:6px 10px;background:rgba(15,20,36,0.85);color:#d4daf0;border:1px solid #2a3456;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;pointer-events:auto;z-index:20;display:none" onclick="diagnosePreview()" title="Dump scene diagnostic CSV">🔍 Diagnose</button>
   <div id="anim-bar"></div>
+</div>
+
+<!-- ─── Journey runtime UI overlay ──────────────────────────────
+     Shown only when APP.journey is set (spatial-runtime test app).
+     Buttons: 🛣 paths · 📍 anchors · ⚙ settings · 🎯 calibrate.
+     The journey-runtime A-Frame component reads/writes from here. -->
+<div id="jr-ui">
+  <div class="jr-status-pill" id="jr-status">Locked: 0 / 0</div>
+  <div class="jr-side">
+    <button class="jr-btn" id="jr-btn-paths" title="Show / hide path lines">🛣</button>
+    <button class="jr-btn" id="jr-btn-anchors" title="Show / hide anchor billboards">📍</button>
+    <button class="jr-btn" id="jr-btn-settings" title="Path + traveller settings">⚙</button>
+    <button class="jr-btn" id="jr-btn-calibrate" title="Re-search image targets">🎯</button>
+  </div>
+</div>
+<div id="jr-debug"></div>
+
+<!-- Settings modal -->
+<div class="jr-modal-overlay hidden" id="jr-modal">
+  <div class="jr-modal">
+    <h3>Traveller</h3>
+    <label>Shape</label>
+    <select id="jr-m-shape">
+      <option value="sphere">sphere</option>
+      <option value="cube">cube</option>
+      <option value="torus">torus</option>
+      <option value="cone">cone</option>
+      <option value="diamond">diamond</option>
+      <option value="ring">ring</option>
+    </select>
+    <label>Color</label>
+    <input type="color" id="jr-m-color" value="#ffc400">
+    <label>Scale <span class="v" id="jr-m-scale-v">1.0×</span></label>
+    <input type="range" id="jr-m-scale" min="0.3" max="2.5" step="0.1" value="1.0">
+    <h3 style="margin-top:14px">Path</h3>
+    <label>Duration per leg <span class="v" id="jr-m-dur-v">2000ms</span></label>
+    <input type="range" id="jr-m-dur" min="500" max="6000" step="100" value="2000">
+    <label>Easing</label>
+    <select id="jr-m-easing">
+      <option value="linear">linear</option>
+      <option value="easeInOut">easeInOut</option>
+      <option value="easeIn">easeIn</option>
+      <option value="easeOut">easeOut</option>
+    </select>
+    <button class="jr-modal-close" id="jr-m-close">Close</button>
+  </div>
 </div>
 
 <script>
@@ -1006,6 +1079,295 @@ if (typeof AFRAME !== 'undefined') {
       if (sceneEl.hasLoaded) attach();
       else sceneEl.addEventListener('loaded', attach);
     }
+  });
+
+  // ─── journey-runtime ────────────────────────────────────
+  // The spatial-runtime renderer. Attached to <a-scene> when the
+  // project has APP.journey. Builds anchor billboards + path curves
+  // + traveller; populates anchor world positions from xrimagefound;
+  // wires the floating AR UI buttons + settings modal.
+  AFRAME.registerComponent('journey-runtime', {
+    init() {
+      const sceneEl = this.el;
+      this.journey = (window.APP && window.APP.journey) || null;
+      if (!this.journey || !this.journey.anchors || this.journey.anchors.length < 2) {
+        console.log('[journey-runtime] no journey or <2 anchors — disabling');
+        return;
+      }
+      // Resolve target name per anchor (xrimagefound delivers .name; we
+      // need the name string, not the studio's tgt_xxxx id).
+      const targets = (window.APP.targets || []);
+      this.anchors = this.journey.anchors.map(a => {
+        const tgt = (a.it && a.it.id) ? targets.find(t => t.id === a.it.id) : null;
+        return {
+          id: a.id,
+          name: a.name,
+          targetName: tgt ? tgt.name : null,
+          worldPos: null,        // populated when target found
+          locked: false,
+          billboard: null,
+        };
+      });
+      this.lockedCount = 0;
+      this.totalCount = this.anchors.length;
+
+      // Settings — defaults from journey.globalTraveller
+      const gtv = this.journey.globalTraveller || {};
+      this.settings = {
+        traveller: {
+          shape: gtv.type || 'sphere',
+          color: gtv.color || '#ffc400',
+          scale: gtv.scale || 1.0,
+        },
+        path: { duration: 2000, easing: 'linear' },
+        pathsVisible: true,
+        anchorsVisible: true,
+      };
+
+      this.curves = [];
+      this.edgeIdx = 0;
+      this.edgeT = 0;
+
+      // Three.js groups attached to the scene root
+      const scene3 = sceneEl.object3D;
+      this.anchorGroup = new THREE.Group();
+      this.pathGroup = new THREE.Group();
+      this.travContainer = new THREE.Group();
+      scene3.add(this.anchorGroup);
+      scene3.add(this.pathGroup);
+      scene3.add(this.travContainer);
+
+      this.rebuildTraveller();
+
+      // xrimagefound handler — capture world transform per-anchor on
+      // first detection. After that, the position is "world-locked".
+      this._onFound = (e) => {
+        const d = e && e.detail;
+        if (!d) return;
+        for (const a of this.anchors) {
+          if (a.locked) continue;
+          if (!a.targetName || d.name !== a.targetName) continue;
+          // Compose a Vector3 from the image-found world pose
+          a.worldPos = new THREE.Vector3().copy(d.position);
+          a.locked = true;
+          this.lockedCount++;
+          console.log('[journey-runtime] locked', a.name, 'at', d.name, a.worldPos.toArray());
+          this.rebuildAnchors();
+          this.rebuildPaths();
+          this.updateStatus();
+          break;
+        }
+      };
+      const attach = () => sceneEl.addEventListener('xrimagefound', this._onFound);
+      if (sceneEl.hasLoaded) attach(); else sceneEl.addEventListener('loaded', attach);
+
+      // Show UI overlay
+      const ui = document.getElementById('jr-ui');
+      if (ui) ui.classList.add('show');
+      this.wireUI();
+      this.updateStatus();
+
+      // Debug overlay (?debug=1 URL flag)
+      if (new URLSearchParams(location.search).get('debug') === '1') {
+        document.getElementById('jr-debug').classList.add('show');
+      }
+
+      this._clock = new THREE.Clock();
+    },
+
+    // ─── Three.js builders (mirrors docs/journey-runtime-test.html) ──
+    makeAnchorBillboard(name) {
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+      const ctx = cv.getContext('2d');
+      ctx.strokeStyle = 'rgba(0,229,255,0.55)';
+      ctx.lineWidth = 5; ctx.strokeRect(20, 20, 216, 216);
+      ctx.fillStyle = 'rgba(0,229,255,0.10)'; ctx.fillRect(20, 20, 216, 216);
+      ctx.fillStyle = '#00e5ff';
+      ctx.font = "bold 22px ui-monospace, 'Space Mono', monospace";
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(name, 128, 128);
+      ctx.strokeStyle = 'rgba(0,229,255,0.45)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(128, 64); ctx.lineTo(128, 90);
+      ctx.moveTo(128, 192); ctx.lineTo(128, 166);
+      ctx.moveTo(64, 128); ctx.lineTo(90, 128);
+      ctx.moveTo(192, 128); ctx.lineTo(166, 128);
+      ctx.stroke();
+      const tex = new THREE.CanvasTexture(cv);
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+      return new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), mat);
+    },
+    makeTraveller() {
+      const G = {
+        sphere:  new THREE.SphereGeometry(0.04, 24, 24),
+        cube:    new THREE.BoxGeometry(0.06, 0.06, 0.06),
+        torus:   new THREE.TorusGeometry(0.035, 0.012, 10, 28),
+        cone:    new THREE.ConeGeometry(0.035, 0.07, 14),
+        diamond: new THREE.OctahedronGeometry(0.045),
+        ring:    new THREE.TorusGeometry(0.045, 0.008, 8, 32),
+      };
+      const c = new THREE.Color(this.settings.traveller.color);
+      const mat = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.4, roughness: 0.2, metalness: 0.5 });
+      const m = new THREE.Mesh(G[this.settings.traveller.shape] || G.sphere, mat);
+      m.scale.setScalar(this.settings.traveller.scale);
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 16, 16),
+        new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.12 })
+      );
+      m.add(halo);
+      return m;
+    },
+
+    rebuildAnchors() {
+      // Clear & rebuild billboards for locked anchors only
+      while (this.anchorGroup.children.length) {
+        const c = this.anchorGroup.children[0];
+        this.anchorGroup.remove(c);
+        c.geometry?.dispose();
+        if (c.material) { c.material.map?.dispose(); c.material.dispose(); }
+      }
+      for (const a of this.anchors) {
+        a.billboard = null;
+        if (!a.locked || !a.worldPos) continue;
+        const m = this.makeAnchorBillboard(a.name);
+        m.position.copy(a.worldPos);
+        m.visible = this.settings.anchorsVisible;
+        this.anchorGroup.add(m);
+        a.billboard = m;
+      }
+    },
+
+    rebuildPaths() {
+      while (this.pathGroup.children.length) {
+        const c = this.pathGroup.children[0];
+        this.pathGroup.remove(c);
+        c.geometry?.dispose(); c.material?.dispose();
+      }
+      this.curves = [];
+      if (!this.settings.pathsVisible) return;
+      const seq = this.journey.sequence || this.anchors.map(a => a.id);
+      const pairs = [];
+      for (let i = 0; i < seq.length - 1; i++) pairs.push([seq[i], seq[i + 1]]);
+      if (this.journey.loop && seq.length > 1) pairs.push([seq[seq.length - 1], seq[0]]);
+      for (const [fromId, toId] of pairs) {
+        const fa = this.anchors.find(a => a.id === fromId);
+        const ta = this.anchors.find(a => a.id === toId);
+        if (!fa || !ta || !fa.locked || !ta.locked) continue;
+        const fp = fa.worldPos, tp = ta.worldPos;
+        const mid = fp.clone().lerp(tp, 0.5); mid.y += 0.08;
+        const curve = new THREE.CatmullRomCurve3([fp, mid, tp]);
+        this.curves.push({ from: fromId, to: toId, curve });
+        const pts = curve.getPoints(64);
+        this.pathGroup.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.7 })
+        ));
+        const dots = pts.filter((_, i) => i % 4 === 0);
+        this.pathGroup.add(new THREE.Points(
+          new THREE.BufferGeometry().setFromPoints(dots),
+          new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.012, transparent: true, opacity: 0.55, sizeAttenuation: true })
+        ));
+      }
+    },
+
+    rebuildTraveller() {
+      while (this.travContainer.children.length) {
+        const c = this.travContainer.children[0];
+        this.travContainer.remove(c);
+        c.traverse(x => { x.geometry?.dispose(); x.material?.dispose?.(); });
+      }
+      this.travContainer.add(this.makeTraveller());
+    },
+
+    EASINGS: {
+      linear:    t => t,
+      easeIn:    t => t * t,
+      easeOut:   t => 1 - (1 - t) * (1 - t),
+      easeInOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+    },
+
+    tick() {
+      if (!this._clock) return;
+      const dt = Math.min(this._clock.getDelta(), 0.05);
+      // Animate traveller along the available curves
+      if (this.curves.length > 0) {
+        const dur = this.settings.path.duration / 1000;
+        this.edgeT += dt / dur;
+        while (this.edgeT >= 1) {
+          this.edgeT -= 1;
+          this.edgeIdx = (this.edgeIdx + 1) % this.curves.length;
+        }
+        const ease = this.EASINGS[this.settings.path.easing] || this.EASINGS.linear;
+        const ec = this.curves[this.edgeIdx];
+        const pos = ec.curve.getPoint(ease(this.edgeT));
+        this.travContainer.position.copy(pos);
+        const ahead = ec.curve.getPoint(Math.min(1, ease(this.edgeT) + 0.04));
+        this.travContainer.lookAt(ahead);
+      }
+      // Anchor billboards face the camera
+      const cam = this.el.camera;
+      if (cam) {
+        const camPos = new THREE.Vector3();
+        cam.getWorldPosition(camPos);
+        for (const a of this.anchors) {
+          if (a.billboard) a.billboard.lookAt(camPos);
+        }
+      }
+      // Debug overlay update — cheap, only if visible
+      const dbg = document.getElementById('jr-debug');
+      if (dbg && dbg.classList.contains('show')) {
+        dbg.innerHTML = '<div><span class="k">locked</span><span class="v">' + this.lockedCount + ' / ' + this.totalCount + '</span></div>' +
+          '<div><span class="k">curves</span><span class="v">' + this.curves.length + '</span></div>' +
+          '<div><span class="k">edge</span><span class="v">' + this.edgeIdx + ' · ' + Math.round(this.edgeT * 100) + '%</span></div>' +
+          '<div><span class="k">traveller</span><span class="v">' + this.settings.traveller.shape + '</span></div>' +
+          '<div><span class="k">duration</span><span class="v">' + this.settings.path.duration + 'ms</span></div>';
+      }
+    },
+
+    updateStatus() {
+      const el = document.getElementById('jr-status');
+      if (!el) return;
+      el.textContent = 'Locked: ' + this.lockedCount + ' / ' + this.totalCount;
+      el.classList.toggle('warn', this.lockedCount < 2);
+    },
+
+    wireUI() {
+      const self = this;
+      const $$ = id => document.getElementById(id);
+      const refreshBtns = () => {
+        $$('jr-btn-paths').classList.toggle('off', !self.settings.pathsVisible);
+        $$('jr-btn-anchors').classList.toggle('off', !self.settings.anchorsVisible);
+      };
+      $$('jr-btn-paths').addEventListener('click', () => {
+        self.settings.pathsVisible = !self.settings.pathsVisible;
+        self.rebuildPaths(); refreshBtns();
+      });
+      $$('jr-btn-anchors').addEventListener('click', () => {
+        self.settings.anchorsVisible = !self.settings.anchorsVisible;
+        for (const a of self.anchors) if (a.billboard) a.billboard.visible = self.settings.anchorsVisible;
+        refreshBtns();
+      });
+      $$('jr-btn-calibrate').addEventListener('click', () => {
+        // Reset locks; the next xrimagefound will re-populate them
+        for (const a of self.anchors) { a.locked = false; a.worldPos = null; a.billboard = null; }
+        self.lockedCount = 0;
+        self.rebuildAnchors(); self.rebuildPaths(); self.updateStatus();
+      });
+      $$('jr-btn-settings').addEventListener('click', () => $$('jr-modal').classList.remove('hidden'));
+      $$('jr-m-close').addEventListener('click', () => $$('jr-modal').classList.add('hidden'));
+      // Settings inputs
+      $$('jr-m-shape').value = self.settings.traveller.shape;
+      $$('jr-m-color').value = self.settings.traveller.color;
+      $$('jr-m-scale').value = self.settings.traveller.scale;
+      $$('jr-m-dur').value = self.settings.path.duration;
+      $$('jr-m-easing').value = self.settings.path.easing;
+      $$('jr-m-shape').addEventListener('change', e => { self.settings.traveller.shape = e.target.value; self.rebuildTraveller(); });
+      $$('jr-m-color').addEventListener('input', e => { self.settings.traveller.color = e.target.value; self.rebuildTraveller(); });
+      $$('jr-m-scale').addEventListener('input', e => { self.settings.traveller.scale = parseFloat(e.target.value); $$('jr-m-scale-v').textContent = (+e.target.value).toFixed(1) + '×'; self.rebuildTraveller(); });
+      $$('jr-m-dur').addEventListener('input', e => { self.settings.path.duration = parseInt(e.target.value); $$('jr-m-dur-v').textContent = e.target.value + 'ms'; });
+      $$('jr-m-easing').addEventListener('change', e => self.settings.path.easing = e.target.value);
+      refreshBtns();
+    },
   });
 
   // ─── tap-to-spawn ──────────────────────────────────────
@@ -2106,7 +2468,7 @@ function buildImageNative(objects) {
   // place) or any drag-on-ground gesture (xrextras-hold-drag needs
   // SLAM plane detection to follow a finger). When none of these are
   // present, world tracking stays off for faster image-only init.
-  const needsWorld = objects.some(o =>
+  const needsWorld = APP.journey ? true : objects.some(o =>
     o.imageToSlam ||
     (o.interactions && o.interactions.holdDrag));
   const xrwebAttr = needsWorld
@@ -2124,6 +2486,7 @@ function buildImageNative(objects) {
     <a-scene
       xrextras-gesture-detector
       xrweb="${xrwebAttr}"
+      ${APP.journey ? 'journey-runtime' : ''}
       renderer="colorManagement: true; physicallyCorrectLights: true; sortObjects: true"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
