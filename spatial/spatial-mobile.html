@@ -3957,23 +3957,25 @@ function App() {
     } catch (_) {}
   }, [selected]);
   // ─── Firestore real-time journey sync ─────────────────
+  const _lastAppliedTs = useRef('');
+  const _lastSavedTs = useRef('');
   useEffect(() => {
     const handler = (e) => {
       const j = e.detail;
       if (!j || !j.anchors) return;
-      const incoming = JSON.stringify(j.anchors.map(a => a.id + a.it?.id));
-      const current = JSON.stringify(anchors.map(a => a.id + a.it?.id));
-      if (incoming === current) return;
+      if (j.generatedAt && j.generatedAt === _lastSavedTs.current) return;
+      if (j.generatedAt && j.generatedAt === _lastAppliedTs.current) return;
+      _lastAppliedTs.current = j.generatedAt || '';
       console.log('[Spatial] real-time sync: updating from Firestore');
       if (j.anchors) setAnchors(j.anchors);
       if (j.sequence) setJourney(j.sequence);
       if (j.loop !== undefined) setLoopJ(!!j.loop);
       if (j.globalTraveller) setGlobalTv(prev => ({ ...prev, ...j.globalTraveller }));
-      if (j.paths) setPathConfigs(j.paths);
+      if (j.paths && Object.keys(j.paths).length > 0) setPathConfigs(j.paths);
     };
     window.addEventListener('firestore-journey-update', handler);
     return () => window.removeEventListener('firestore-journey-update', handler);
-  }, [anchors]);
+  }, []);
   useEffect(() => {
     animRef.current.restart = true;
   }, [journey, loopJ]);
@@ -4949,6 +4951,7 @@ function App() {
       globalTraveller: { ...globalTv },
       paths: JSON.parse(JSON.stringify(pathConfigs)),
     };
+    _lastSavedTs.current = payload.generatedAt;
     if (window._4E_saveJourney) {
       window._4E_saveJourney(payload);
     } else if (IS_IFRAMED) {

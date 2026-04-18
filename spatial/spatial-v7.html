@@ -3784,30 +3784,30 @@ function App() {
     } catch (_) {}
   }, [selected]);
   // ─── Firestore real-time journey sync ─────────────────
-  // When another editor (preview, player, another browser tab) saves
-  // a journey to Firestore, this listener fires and updates our
-  // React state. No postMessage relay needed — pure Firestore.
-  const _syncingFromFirestoreRef = useRef(false);
+  // When another editor saves to Firestore, this listener updates
+  // our React state. Uses generatedAt timestamp to skip our own
+  // saves (each save generates a unique ISO timestamp).
+  const _lastAppliedTs = useRef('');
+  const _lastSavedTs = useRef('');
   useEffect(() => {
     const handler = (e) => {
       const j = e.detail;
       if (!j || !j.anchors) return;
-      // Compare to current state to avoid echoing our own saves
-      const incoming = JSON.stringify(j.anchors.map(a => a.id + a.it?.id));
-      const current = JSON.stringify(anchors.map(a => a.id + a.it?.id));
-      if (incoming === current) return;
-      console.log('[Spatial] real-time sync: updating from Firestore');
-      _syncingFromFirestoreRef.current = true;
+      // Skip if this is our own save echoing back
+      if (j.generatedAt && j.generatedAt === _lastSavedTs.current) return;
+      // Skip if we already applied this exact update
+      if (j.generatedAt && j.generatedAt === _lastAppliedTs.current) return;
+      _lastAppliedTs.current = j.generatedAt || '';
+      console.log('[Spatial] real-time sync: updating from Firestore (' + (j.generatedAt || '?') + ')');
       if (j.anchors) setAnchors(j.anchors);
       if (j.sequence) setJourney(j.sequence);
       if (j.loop !== undefined) setLoopJ(!!j.loop);
       if (j.globalTraveller) setGlobalTv(prev => ({ ...prev, ...j.globalTraveller }));
-      if (j.paths) setPathConfigs(j.paths);
-      requestAnimationFrame(() => { _syncingFromFirestoreRef.current = false; });
+      if (j.paths && Object.keys(j.paths).length > 0) setPathConfigs(j.paths);
     };
     window.addEventListener('firestore-journey-update', handler);
     return () => window.removeEventListener('firestore-journey-update', handler);
-  }, [anchors]);
+  }, []);
 
   useEffect(() => {
     animRef.current.restart = true;
@@ -4741,6 +4741,8 @@ function App() {
       globalTraveller: { ...globalTv },
       paths: JSON.parse(JSON.stringify(pathConfigs)), // deep copy, strips undefined
     };
+    // Track our own save timestamp so the Firestore listener skips the echo
+    _lastSavedTs.current = payload.generatedAt;
     // Save directly to Firestore (single source of truth)
     if (window._4E_saveJourney) {
       window._4E_saveJourney(payload);
