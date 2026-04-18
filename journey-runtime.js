@@ -415,18 +415,44 @@ function _injectJRUI() {
       this.lockedCount = 0;
       this.totalCount = this.anchors.length;
 
-      // Settings — defaults from journey.globalTraveller
+      // Settings — read FULL config from saved journey so every property
+      // the user set in the spatial editor is applied on first load.
       const gtv = this.journey.globalTraveller || {};
+      const paths = this.journey.paths || {};
+      const firstPathKey = Object.keys(paths)[0];
+      const firstPath = firstPathKey ? paths[firstPathKey] : {};
+
       this.settings = {
         traveller: {
+          // 'object' or 'particles' — drives which renderer we use
+          type: (gtv.type === 'particles' || (firstPath.legTvType === 'particles')) ? 'particles' : 'object',
           shape: gtv.type || 'sphere',
           color: gtv.color || '#ffc400',
-          scale: gtv.scale || 1.0,
+          scale: gtv.scale != null ? gtv.scale : 1.0,
         },
-        path: { duration: 2000, easing: 'linear' },
+        trail: gtv.trail !== false,
+        trailLen: gtv.trailLen || 45,
+        path: {
+          duration: firstPath.duration || 2000,
+          easing: firstPath.easing || 'linear',
+          curve: firstPath.shape || 'smooth',
+        },
         pathsVisible: true,
         anchorsVisible: true,
+        travellerVisible: true,
       };
+
+      // Particle config — read from journey if traveller type is particles
+      this._particleSystem = null;
+      this._particleCfg = { ...(typeof DEF_P !== 'undefined' ? DEF_P : {}) };
+      this._particleTime = 0;
+      if (firstPath.legTvParticles && typeof firstPath.legTvParticles === 'object') {
+        this._particleCfg = { ...this._particleCfg, ...firstPath.legTvParticles };
+      }
+
+      // Store full paths for per-leg rendering (future: each leg gets
+      // its own duration/easing/traveller)
+      this._journeyPaths = paths;
 
       this.curves = [];
       this.edgeIdx = 0;
@@ -848,41 +874,59 @@ function _injectJRUI() {
         }
 
         // Receive the COMPLETE updated journey from the editor.
-        // This includes every spatial property — anchors, sequence,
-        // loop, globalTraveller, and per-path configs with duration,
-        // easing, curve shape, leg traveller type/object/particles.
+        // Apply EVERY field so the live AR scene matches the editor.
         if (d.type === '4e-spatial-journey' && d.journey) {
           console.log('[journey-runtime] received journey update from in-app editor');
           const j = d.journey;
 
-          // Update the live runtime — traveller
+          // ── Global traveller (type, shape, color, scale, trail) ──
           if (j.globalTraveller) {
-            Object.assign(self.settings.traveller, {
-              type: j.globalTraveller.type === 'particles' ? 'particles' : 'object',
-              shape: j.globalTraveller.type || self.settings.traveller.shape,
-              color: j.globalTraveller.color || self.settings.traveller.color,
-              scale: j.globalTraveller.scale != null ? j.globalTraveller.scale : self.settings.traveller.scale,
-            });
-            self.settings.trail = j.globalTraveller.trail !== false;
-            self.settings.trailLen = j.globalTraveller.trailLen || 45;
-            self.rebuildTraveller();
+            const gt = j.globalTraveller;
+            self.settings.traveller.type = (gt.type === 'particles') ? 'particles' : 'object';
+            self.settings.traveller.shape = gt.type || 'sphere';
+            self.settings.traveller.color = gt.color || '#ffc400';
+            self.settings.traveller.scale = gt.scale != null ? gt.scale : 1.0;
+            self.settings.trail = gt.trail !== false;
+            self.settings.trailLen = gt.trailLen || 45;
           }
 
-          // Update the live runtime — path settings from first edge
-          const pathKeys = j.paths ? Object.keys(j.paths) : [];
+          // ── Per-leg path configs (duration, easing, curve shape) ──
+          const paths = j.paths || {};
+          self._journeyPaths = paths;
+          const pathKeys = Object.keys(paths);
           if (pathKeys.length > 0) {
-            const firstCfg = j.paths[pathKeys[0]];
-            if (firstCfg.duration) self.settings.path.duration = firstCfg.duration;
-            if (firstCfg.easing) self.settings.path.easing = firstCfg.easing;
-            if (firstCfg.shape) self.settings.path.curve = firstCfg.shape;
-            self.rebuildPaths();
+            const firstCfg = paths[pathKeys[0]];
+            self.settings.path.duration = firstCfg.duration || 2000;
+            self.settings.path.easing = firstCfg.easing || 'linear';
+            self.settings.path.curve = firstCfg.shape || 'smooth';
           }
 
-          // Update loop
+          // ── Per-leg traveller override (inherit/object/particles) ──
+          // Check if any leg uses particles — if so, switch to particle mode
+          for (const pk of pathKeys) {
+            const pc = paths[pk];
+            if (pc.legTvType === 'particles' && pc.legTvParticles) {
+              self.settings.traveller.type = 'particles';
+              self._particleCfg = { ...(typeof DEF_P !== 'undefined' ? DEF_P : {}), ...pc.legTvParticles };
+              break;
+            }
+            if (pc.legTvType === 'object' && pc.legTvObject) {
+              self.settings.traveller.type = 'object';
+              self.settings.traveller.shape = pc.legTvObject.meshType || 'sphere';
+              self.settings.traveller.color = pc.legTvObject.color || '#ffc400';
+              self.settings.traveller.scale = pc.legTvObject.scale || 1.0;
+              break;
+            }
+          }
+
+          // ── Loop ──
           if (j.loop !== undefined) {
             self.journey.loop = !!j.loop;
-            self.rebuildPaths();
           }
+
+          // ── Rebuild everything with the new config ──
+          self.rebuildTraveller();
+          self.rebuildPaths();
 
           // Store on APP for persistence
           if (window.APP) {
