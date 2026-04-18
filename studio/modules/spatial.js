@@ -70,11 +70,16 @@ Studio.Spatial = {
     Studio.EventBus.on('target:changed', () => this._sendProject());
 
     // ─── Two-way selection sync ────────────────────────────
-    // When an anchor object is selected in the hierarchy, tell the
-    // spatial editor to select the corresponding anchor. And vice
-    // versa: when the spatial editor selects an anchor, select the
-    // matching object in the studio hierarchy.
+    // Guard flag prevents infinite echo: studio selects → posts to
+    // spatial → spatial selects → posts back to studio → would
+    // re-select and post again. The flag breaks the loop.
+    let _syncingFromSpatial = false;
+
+    // Studio hierarchy → spatial: post the anchor id so the editor
+    // highlights it. Skipped when the selection originated FROM the
+    // spatial editor (the flag is set in the message handler below).
     Studio.EventBus.on('object:selected', ({ id }) => {
+      if (_syncingFromSpatial) return;
       const obj = Studio.Project.getObject(id);
       if (obj && obj.spatialAnchorId && this._ready && this._iframe?.contentWindow) {
         try {
@@ -87,7 +92,8 @@ Studio.Spatial = {
     });
 
     // Spatial editor → studio: anchor selected in spatial, select
-    // the corresponding object in the hierarchy.
+    // the corresponding object in the hierarchy. Sets the guard flag
+    // so the object:selected handler above doesn't echo back.
     window.addEventListener('message', (e2) => {
       const d2 = e2.data;
       if (!d2 || d2.type !== '4e-spatial-selection') return;
@@ -95,9 +101,14 @@ Studio.Spatial = {
       if (!anchorId) return;
       const obj = (Studio.Project.state.objects || []).find(o => o.spatialAnchorId === anchorId);
       if (obj) {
+        _syncingFromSpatial = true;
         Studio.Viewport.selectObject(obj.id);
         Studio.Hierarchy.render();
         Studio.Inspector.render(obj.id);
+        // Clear after a microtask so any synchronous event listeners
+        // triggered by selectObject see the flag, but it's cleaned
+        // up before the next user interaction.
+        queueMicrotask(() => { _syncingFromSpatial = false; });
       }
     });
 

@@ -3750,21 +3750,30 @@ function App() {
     return () => window.removeEventListener('studio-project-update', h);
   }, []);
   // ─── Two-way selection sync ─────────────────────────────
-  // Studio hierarchy → spatial: select the matching anchor when the
-  // user clicks an anchor object in the studio's hierarchy panel.
+  // Guard ref prevents infinite echo: studio posts selection →
+  // we setSelected → useEffect posts back → studio would re-post.
+  const _syncFromStudioRef = useRef(false);
+
+  // Studio hierarchy → spatial: select the matching anchor.
+  // Sets the guard so the outgoing useEffect below doesn't echo.
   useEffect(() => {
     const handler = (e) => {
       const anchorId = e.detail;
       if (anchorId && anchors.find(a => a.id === anchorId)) {
+        _syncFromStudioRef.current = true;
         setSelected({ type: 'anchor', id: anchorId });
+        // Clear after a frame so the outgoing effect sees the flag
+        requestAnimationFrame(() => { _syncFromStudioRef.current = false; });
       }
     };
     window.addEventListener('studio-select-anchor', handler);
     return () => window.removeEventListener('studio-select-anchor', handler);
   }, [anchors]);
-  // Spatial → studio: when anchor is selected here, tell the parent
-  // so the studio can highlight the matching object in the hierarchy.
+
+  // Spatial → studio: when anchor is selected here BY THE USER
+  // (not by a sync message), tell the parent. Guard prevents echo.
   useEffect(() => {
+    if (_syncFromStudioRef.current) return;
     if (!IS_IFRAMED || selected.type !== 'anchor' || !selected.id) return;
     try {
       window.parent.postMessage({ type: '4e-spatial-selection', anchorId: selected.id }, '*');
