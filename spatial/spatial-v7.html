@@ -3684,6 +3684,27 @@ function App() {
     window.addEventListener('studio-project-update', h);
     return () => window.removeEventListener('studio-project-update', h);
   }, []);
+  // ─── Two-way selection sync ─────────────────────────────
+  // Studio hierarchy → spatial: select the matching anchor when the
+  // user clicks an anchor object in the studio's hierarchy panel.
+  useEffect(() => {
+    const handler = (e) => {
+      const anchorId = e.detail;
+      if (anchorId && anchors.find(a => a.id === anchorId)) {
+        setSelected({ type: 'anchor', id: anchorId });
+      }
+    };
+    window.addEventListener('studio-select-anchor', handler);
+    return () => window.removeEventListener('studio-select-anchor', handler);
+  }, [anchors]);
+  // Spatial → studio: when anchor is selected here, tell the parent
+  // so the studio can highlight the matching object in the hierarchy.
+  useEffect(() => {
+    if (!IS_IFRAMED || selected.type !== 'anchor' || !selected.id) return;
+    try {
+      window.parent.postMessage({ type: '4e-spatial-selection', anchorId: selected.id }, '*');
+    } catch (_) {}
+  }, [selected]);
   useEffect(() => {
     animRef.current.restart = true;
   }, [journey, loopJ]);
@@ -5258,6 +5279,14 @@ window.STUDIO_PROJECT = null;
 window.addEventListener('message', (e) => {
   const d = e.data;
   if (!d || typeof d !== 'object') return;
+  if (d.type === '4e-spatial-select') {
+    // Studio hierarchy → spatial: select the matching anchor
+    const anchorId = d.anchorId;
+    if (anchorId) {
+      window.dispatchEvent(new CustomEvent('studio-select-anchor', { detail: anchorId }));
+    }
+    return;
+  }
   if (d.type === '4e-spatial-project') {
     window.STUDIO_PROJECT = d.project || null;
     // Notify in-app React subscribers so open inspectors re-render

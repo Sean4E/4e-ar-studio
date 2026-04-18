@@ -69,6 +69,38 @@ Studio.Spatial = {
     Studio.EventBus.on('object:removed', () => this._sendProject());
     Studio.EventBus.on('target:changed', () => this._sendProject());
 
+    // ─── Two-way selection sync ────────────────────────────
+    // When an anchor object is selected in the hierarchy, tell the
+    // spatial editor to select the corresponding anchor. And vice
+    // versa: when the spatial editor selects an anchor, select the
+    // matching object in the studio hierarchy.
+    Studio.EventBus.on('object:selected', ({ id }) => {
+      const obj = Studio.Project.getObject(id);
+      if (obj && obj.spatialAnchorId && this._ready && this._iframe?.contentWindow) {
+        try {
+          this._iframe.contentWindow.postMessage({
+            type: '4e-spatial-select',
+            anchorId: obj.spatialAnchorId,
+          }, '*');
+        } catch (_) {}
+      }
+    });
+
+    // Spatial editor → studio: anchor selected in spatial, select
+    // the corresponding object in the hierarchy.
+    window.addEventListener('message', (e2) => {
+      const d2 = e2.data;
+      if (!d2 || d2.type !== '4e-spatial-selection') return;
+      const anchorId = d2.anchorId;
+      if (!anchorId) return;
+      const obj = (Studio.Project.state.objects || []).find(o => o.spatialAnchorId === anchorId);
+      if (obj) {
+        Studio.Viewport.selectObject(obj.id);
+        Studio.Hierarchy.render();
+        Studio.Inspector.render(obj.id);
+      }
+    });
+
     Studio.log('Spatial module ready');
   },
 
