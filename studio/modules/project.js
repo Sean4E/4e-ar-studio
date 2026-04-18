@@ -308,6 +308,13 @@ Studio.Project = {
         properties: JSON.parse(JSON.stringify(t.properties)),
         originalUrl: t.originalUrl, luminanceUrl: t.luminanceUrl,
         thumbnailUrl: t.thumbnailUrl, objectIds: [...(t.objectIds || [])],
+        // Persist the Canvas-generated thumbnail data URL so the spatial
+        // editor can show target thumbnails on anchor billboards even
+        // before publishing (which uploads to GitHub). ~15-30KB per
+        // target; well within Firestore's 1MB doc limit for typical
+        // projects (4 targets ≈ 100KB).
+        _thumbnailDataUrl: t._thumbnailDataUrl || '',
+        _luminanceDataUrl: t._luminanceDataUrl || '',
       })),
       prefabs: (s.prefabs || []).map(p => ({
         id: p.id, name: p.name, glbUrl: p.glbUrl, thumbUrl: p.thumbUrl || '',
@@ -367,7 +374,11 @@ Studio.Project = {
       properties: t.properties || {},
       originalUrl: t.originalUrl || '', luminanceUrl: t.luminanceUrl || '',
       thumbnailUrl: t.thumbnailUrl || '', objectIds: t.objectIds || [],
-      _imageFile: null, _luminanceDataUrl: '', _thumbnailDataUrl: '',
+      _imageFile: null,
+      // Restore persisted data URLs so thumbnails survive reload
+      // without requiring a publish. Falls back to empty if not saved.
+      _luminanceDataUrl: t._luminanceDataUrl || '',
+      _thumbnailDataUrl: t._thumbnailDataUrl || '',
     }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };

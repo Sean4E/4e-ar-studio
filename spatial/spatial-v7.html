@@ -3649,8 +3649,38 @@ function App() {
   }, [pathConfigs]);
   // Studio pushes target thumbnails via postMessage — mark scene dirty
   // so rebuildAnchors re-scans thumbnail URLs on the next frame.
+  // ALSO restores the saved journey state on first connect (if the
+  // project has a saved journey from a previous session). Only runs
+  // once — subsequent pushes are target/object updates, not restores.
+  const restoredRef = useRef(false);
   useEffect(() => {
-    const h = () => { dirtyRef.current.scene = true; };
+    const h = () => {
+      dirtyRef.current.scene = true;
+      // Restore journey state from studio on first connect ONLY
+      if (!restoredRef.current && window.STUDIO_PROJECT && window.STUDIO_PROJECT.journey) {
+        restoredRef.current = true;
+        const j = window.STUDIO_PROJECT.journey;
+        console.log('[Spatial] restoring saved journey:', (j.anchors || []).length, 'anchors');
+        // Restore anchors (overwrite defaults with saved state)
+        if (j.anchors && j.anchors.length > 0) {
+          setAnchors(j.anchors);
+        }
+        // Restore journey sequence
+        if (j.sequence && j.sequence.length > 0) {
+          setJourney(j.sequence);
+        }
+        // Restore loop setting
+        if (j.loop !== undefined) setLoopJ(!!j.loop);
+        // Restore global traveller
+        if (j.globalTraveller) {
+          setGlobalTv(prev => ({ ...prev, ...j.globalTraveller }));
+        }
+        // Restore per-path configs
+        if (j.paths && Object.keys(j.paths).length > 0) {
+          setPathConfigs(j.paths);
+        }
+      }
+    };
     window.addEventListener('studio-project-update', h);
     return () => window.removeEventListener('studio-project-update', h);
   }, []);

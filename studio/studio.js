@@ -85,9 +85,18 @@ Studio.setTrackingMode = function(mode) {
   Studio.Project.state.trackingMode = mode;
   Studio.Project.markDirty();
   document.querySelectorAll('#tracking-mode .tb-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  // Show/hide target button
+  // Show/hide target button + image-only workspace tabs
   const targetBtn = document.getElementById('tb-add-target');
   if (targetBtn) targetBtn.style.display = mode === 'image' ? '' : 'none';
+  // Targets + Spatial tabs only make sense for image-target projects.
+  // Spatial journeys are built on image-target-to-SLAM anchoring;
+  // showing them for Surface/Face/Hand projects is misleading.
+  document.querySelectorAll('.ws-tab[data-tab="targets"], .ws-tab[data-tab="spatial"]')
+    .forEach(t => t.style.display = mode === 'image' ? '' : 'none');
+  // If the user was on a hidden tab, switch to scene
+  if (mode !== 'image' && (Studio.currentTab === 'targets' || Studio.currentTab === 'spatial')) {
+    Studio.switchTab('scene');
+  }
   // Target plane visibility
   if (Studio.Viewport.targetPlane) {
     Studio.Viewport.targetPlane.visible = mode === 'image';
