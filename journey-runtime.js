@@ -488,6 +488,10 @@ function _injectJRUI() {
           console.log('[journey-runtime] locked', a.name, 'at', d.name, a.worldPos.toArray());
           this.rebuildAnchors();
           this.rebuildPaths();
+          // Rebuild traveller when we first have curves (≥2 locked
+          // anchors). Before this, the traveller exists but can't
+          // move — it sits at origin invisible to the user.
+          if (this.lockedCount >= 2) this.rebuildTraveller();
           this.updateStatus();
           break;
         }

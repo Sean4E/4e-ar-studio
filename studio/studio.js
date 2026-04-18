@@ -274,19 +274,18 @@ Studio._loadProjectById = async function(id) {
   // no reload needed. This makes the spatial editor a true single
   // source of truth across all surfaces.
   Studio._unsubFirestore = Studio.Firebase.listen(id, (remoteData) => {
-    // Only update journeys — don't overwrite the entire project state
-    // (the user might have unsaved local edits to other fields).
     const remoteJourneys = remoteData.journeys || [];
     const localJourneys = Studio.Project.state.journeys || [];
-    // Compare timestamps to avoid echoing our own saves
-    const remoteTs = remoteData.updatedAt?.toMillis?.() || 0;
-    const localTs = Studio.Project._lastSaveTs || 0;
-    if (remoteTs > localTs && JSON.stringify(remoteJourneys) !== JSON.stringify(localJourneys)) {
-      Studio.Project.state.journeys = remoteJourneys.map(j => JSON.parse(JSON.stringify(j)));
-      Studio.log('[Sync] journey updated from remote (preview/player save)');
-      // Re-push to the spatial editor if it's open
+    const remoteStr = JSON.stringify(remoteJourneys);
+    const localStr = JSON.stringify(localJourneys);
+    // Only update if the journey content actually changed (prevents
+    // echoing our own saves). No timestamp comparison needed — pure
+    // content check is simpler and more reliable.
+    if (remoteStr !== localStr) {
+      Studio.Project.state.journeys = JSON.parse(remoteStr);
+      Studio.log('[Sync] journey updated from remote');
+      Studio.toast('Journey synced from app ✓', 'ok');
       if (Studio.Spatial._ready) Studio.Spatial._sendProject();
-      // Re-render hierarchy to reflect any anchor changes
       Studio.Hierarchy.render();
     }
   });
