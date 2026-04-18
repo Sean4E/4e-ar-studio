@@ -3932,7 +3932,9 @@ function App() {
             opacity: .2,
             side: THREE.DoubleSide
           });
-          g.add(new THREE.Mesh(new THREE.RingGeometry(.84, .95, 48), ringMat));
+          const ringMesh = new THREE.Mesh(new THREE.RingGeometry(.84, .95, 48), ringMat);
+          ringMesh.position.z = 0.003;  // slight offset to avoid z-fighting with the anchor plane
+          g.add(ringMesh);
           const selRingMat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
@@ -3940,6 +3942,7 @@ function App() {
             side: THREE.DoubleSide
           });
           const selRing = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.2, 48), selRingMat);
+          selRing.position.z = 0.004;  // in front of the inner ring
           selRing.visible = false;
           g.add(selRing);
           const hitMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), new THREE.MeshBasicMaterial({
