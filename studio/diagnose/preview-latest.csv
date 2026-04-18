@@ -1,15 +1,15 @@
 # 4E Player Preview Diagnose,
-# Generated,2026-04-18T22:27:38.363Z
-# Player version,3.14.5
+# Generated,2026-04-18T22:40:33.392Z
+# Player version,3.14.6
 # Preview mode,true
 # Renderer autoClear,true
 # Renderer sortObjects,true
 # Renderer shadowMap,true
 ,
 index,name,type,uuid,visible,renderOrder,frustumCulled,castShadow,receiveShadow,depth,parentChain,parentElTag,parentElId,parentElClass,posX,posY,posZ,scaleX,scaleY,scaleZ,matType,colorWrite,depthWrite,depthTest,transparent,opacity,side
-0,(unnamed),Mesh,964FA470,true,0,true,true,true,2,Group > Scene,a-box,ground,cantap,0.000,0.000,0.000,1.000,1.000,1.000,ShadowMaterial,true,true,true,true,0,Front
-1,(unnamed),Mesh,FF121810,true,0,true,false,false,2,Group > Scene,,,,-0.675,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
-2,(unnamed),Mesh,484393AE,true,0,true,false,false,2,Group > Scene,,,,-0.225,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
-3,(unnamed),Mesh,579F39A7,true,0,true,false,false,2,Group > Scene,,,,0.225,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
-4,(unnamed),Mesh,6544C99F,true,0,true,false,false,2,Group > Scene,,,,0.675,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
-5,(unnamed),Mesh,6C3537BC,false,0,true,false,false,1,Scene,,,,0.000,0.000,0.000,1.000,1.000,1.000,RawShaderMaterial,true,true,true,false,1,Double
+0,(unnamed),Mesh,E3BB400A,true,0,true,true,true,2,Group > Scene,a-box,ground,cantap,0.000,0.000,0.000,1.000,1.000,1.000,ShadowMaterial,true,true,true,true,0,Front
+1,(unnamed),Mesh,57E4F2CA,true,0,true,false,false,2,Group > Scene,,,,-0.675,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
+2,(unnamed),Mesh,D24CD503,true,0,true,false,false,2,Group > Scene,,,,-0.225,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
+3,(unnamed),Mesh,57C41686,true,0,true,false,false,2,Group > Scene,,,,0.225,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
+4,(unnamed),Mesh,1E28CFFD,true,0,true,false,false,2,Group > Scene,,,,0.675,0.000,-1.200,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.9,Double
+5,(unnamed),Mesh,F34FBF51,false,0,true,false,false,1,Scene,,,,0.000,0.000,0.000,1.000,1.000,1.000,RawShaderMaterial,true,true,true,false,1,Double
