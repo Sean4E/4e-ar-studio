@@ -75,7 +75,7 @@ const JR_CSS = `
 #jr-editor-overlay{position:fixed;inset:0;z-index:200;background:#060810;display:none}
 #jr-editor-overlay.open{display:block}
 #jr-editor-iframe{width:100%;height:100%;border:none;background:#060810}
-#jr-editor-close{position:fixed;top:6px;right:6px;z-index:210;width:36px;height:36px;border-radius:18px;background:rgba(10,14,26,.85);border:1px solid rgba(248,113,113,.4);color:#f87171;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#jr-editor-close{position:fixed;bottom:60px;right:14px;z-index:210;width:48px;height:48px;border-radius:24px;background:rgba(248,113,113,.15);border:2px solid rgba(248,113,113,.5);color:#f87171;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
 `;
 
 if (!document.getElementById('jr-injected-css')) {
