@@ -942,9 +942,12 @@ function _injectJRUI() {
           if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
             try {
               const db = firebase.firestore();
+              // Clean undefined values — Firestore rejects them.
+              // JSON round-trip strips undefined keys cleanly.
+              const cleanJ = JSON.parse(JSON.stringify(j));
               console.log('[journey-runtime] writing journeys to Firestore doc: ' + appId);
               db.collection('ar_apps').doc(appId).update({
-                journeys: [j],
+                journeys: [cleanJ],
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
               }).then(() => {
                 console.log('[journey-runtime] ✓ journey saved to Firestore');

@@ -1767,10 +1767,10 @@ function buildEdgeCfg(gj) {
     legTvType: gj.tvType,
     legTvParticles: gj.tvType === "particles" ? {
       ...gj.particleConfig
-    } : undefined,
+    } : null,
     legTvObject: gj.tvType === "object" ? {
       ...gj.tvObject
-    } : undefined
+    } : null
   };
 }
 const Btn = ({
@@ -3469,7 +3469,7 @@ function PathInspector({
     onClick: () => updLTV("legTvObject", {
       ...ltv.object,
       meshType: t,
-      source: undefined
+      source: null
     })
   }, t))), React.createElement(Cpk, {
     label: "Color",
