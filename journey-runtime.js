@@ -467,12 +467,9 @@ function _injectJRUI() {
       scene3.add(this.pathGroup);
       scene3.add(this.travContainer);
 
-      // Particle state — managed alongside the mesh traveller.
-      // When type='particles', we create a particle system at the
-      // traveller container position and tick it each frame.
-      this._particleSystem = null;
-      this._particleCfg = { ...DEF_P };
-      this._particleTime = 0;
+      // NOTE: particle state (_particleSystem, _particleCfg, _particleTime)
+      // is already initialised above (lines 446-451) from the saved journey.
+      // Do NOT re-initialise here — that would overwrite the journey config.
 
       this.rebuildTraveller();
 
@@ -516,6 +513,7 @@ function _injectJRUI() {
         setTimeout(() => {
           this.rebuildAnchors();
           this.rebuildPaths();
+          this.rebuildTraveller();
           this.updateStatus();
           // Camera preview: nudge the A-Frame camera so the row is in view.
           const cam = sceneEl.camera;
@@ -936,20 +934,28 @@ function _injectJRUI() {
 
           // Persist to Firestore — write the FULL journey so every
           // property round-trips to the studio and other devices.
+          // Persist to Firestore so the change is global.
           const appId = window.APP && window.APP.id;
+          console.log('[journey-runtime] save check: appId=' + appId +
+            ', firebase=' + (typeof firebase !== 'undefined') +
+            ', firestore=' + !!(typeof firebase !== 'undefined' && firebase.firestore));
           if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
             try {
-              firebase.firestore().collection('ar_apps').doc(appId).update({
+              const db = firebase.firestore();
+              console.log('[journey-runtime] writing journeys to Firestore doc: ' + appId);
+              db.collection('ar_apps').doc(appId).update({
                 journeys: [j],
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
               }).then(() => {
-                console.log('[journey-runtime] journey saved to Firestore ✓');
+                console.log('[journey-runtime] ✓ journey saved to Firestore');
               }).catch(err => {
-                console.warn('[journey-runtime] Firestore save failed:', err.message);
+                console.error('[journey-runtime] ✗ Firestore save failed:', err.message, err);
               });
             } catch (e) {
-              console.warn('[journey-runtime] Firestore save error:', e.message);
+              console.error('[journey-runtime] ✗ Firestore save exception:', e.message, e);
             }
+          } else {
+            console.warn('[journey-runtime] ✗ cannot save — appId:', appId, 'firebase:', typeof firebase);
           }
         }
       });
