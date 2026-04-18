@@ -212,6 +212,9 @@ Studio.saveProject = async function() {
 
   try {
     await Studio.Firebase.save(state.id, data);
+    // Track our own save timestamp so the real-time listener can
+    // distinguish our writes from remote writes (preview/player).
+    Studio.Project._lastSaveTs = Date.now();
     state.dirty = false;
     Studio.Hierarchy._updateStatus();
     Studio.toast('Saved ✓', 'ok');
@@ -245,9 +248,17 @@ Studio.openProject = async function() {
   }
 };
 
+// Unsubscribe function for the current project's real-time listener.
+// Called before opening a different project or on page unload.
+Studio._unsubFirestore = null;
+
 Studio._loadProjectById = async function(id) {
   const data = await Studio.Firebase.load(id);
   if (!data) { Studio.toast('Project not found', 'err'); return; }
+
+  // Stop listening to the previous project (if any)
+  if (Studio._unsubFirestore) { Studio._unsubFirestore(); Studio._unsubFirestore = null; }
+
   Studio.Project.state.id = id;
   Studio.Project.deserialize(data);
   document.getElementById('tb-name').value = Studio.Project.state.name;
@@ -255,6 +266,30 @@ Studio._loadProjectById = async function(id) {
   Studio.setTrackingMode(Studio.Project.state.trackingMode);
   Studio.log('Opened: ' + Studio.Project.state.name);
   Studio.toast('Opened: ' + Studio.Project.state.name, 'ok');
+
+  // ─── Real-time sync ─────────────────────────────────────
+  // Subscribe to Firestore changes on this project. When any other
+  // client (preview player, published player's in-app editor, another
+  // browser tab) writes journeys[], the studio picks it up live —
+  // no reload needed. This makes the spatial editor a true single
+  // source of truth across all surfaces.
+  Studio._unsubFirestore = Studio.Firebase.listen(id, (remoteData) => {
+    // Only update journeys — don't overwrite the entire project state
+    // (the user might have unsaved local edits to other fields).
+    const remoteJourneys = remoteData.journeys || [];
+    const localJourneys = Studio.Project.state.journeys || [];
+    // Compare timestamps to avoid echoing our own saves
+    const remoteTs = remoteData.updatedAt?.toMillis?.() || 0;
+    const localTs = Studio.Project._lastSaveTs || 0;
+    if (remoteTs > localTs && JSON.stringify(remoteJourneys) !== JSON.stringify(localJourneys)) {
+      Studio.Project.state.journeys = remoteJourneys.map(j => JSON.parse(JSON.stringify(j)));
+      Studio.log('[Sync] journey updated from remote (preview/player save)');
+      // Re-push to the spatial editor if it's open
+      if (Studio.Spatial._ready) Studio.Spatial._sendProject();
+      // Re-render hierarchy to reflect any anchor changes
+      Studio.Hierarchy.render();
+    }
+  });
 };
 
 Studio.publishProject = async function() {

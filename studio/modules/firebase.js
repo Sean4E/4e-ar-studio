@@ -49,6 +49,25 @@ Studio.Firebase = {
   },
 
   /**
+   * Subscribe to real-time updates on a project document.
+   * When any client (studio, preview player, published player) writes
+   * to the document, this callback fires within ~1 second. Used to
+   * keep the studio's journey state in sync with in-app editor saves.
+   * Call unsubscribe() to stop listening.
+   * @param {string} id — document id
+   * @param {function} callback — receives the updated data object
+   * @returns {function} unsubscribe function
+   */
+  listen(id, callback) {
+    if (!this._db) return () => {};
+    return this._db.collection(this._collection).doc(id).onSnapshot(snap => {
+      if (snap.exists) callback(snap.data());
+    }, err => {
+      Studio.log('Firebase: listen error — ' + err.message);
+    });
+  },
+
+  /**
    * Load a single project by id.
    * @param {string} id
    * @returns {Promise<object|null>}
