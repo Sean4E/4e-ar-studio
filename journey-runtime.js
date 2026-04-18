@@ -71,6 +71,11 @@ const JR_CSS = `
 .jr-modal-close{width:100%;padding:14px;background:#8b5cf6;border:none;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;letter-spacing:.02em}
 #jr-debug{position:fixed;bottom:10px;left:10px;background:rgba(10,14,26,.85);border:1px solid #1e2838;border-radius:5px;padding:8px 10px;font-size:10px;color:#94a3b8;line-height:1.6;font-family:ui-monospace,monospace;z-index:25;display:none;max-width:280px;pointer-events:none}
 #jr-debug.show{display:block}
+/* In-app spatial editor overlay — full-screen iframe */
+#jr-editor-overlay{position:fixed;inset:0;z-index:200;background:#060810;display:none}
+#jr-editor-overlay.open{display:block}
+#jr-editor-iframe{width:100%;height:100%;border:none;background:#060810}
+#jr-editor-close{position:fixed;top:6px;right:6px;z-index:210;width:36px;height:36px;border-radius:18px;background:rgba(10,14,26,.85);border:1px solid rgba(248,113,113,.4);color:#f87171;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 `;
 
 if (!document.getElementById('jr-injected-css')) {
@@ -363,6 +368,11 @@ const JR_HTML = `
       <button class="jr-modal-close" id="jr-m-close">Close</button>
     </div>
   </div>
+</div>
+<!-- In-app spatial editor — replaces the settings modal on mobile -->
+<div id="jr-editor-overlay">
+  <iframe id="jr-editor-iframe" src="" allow="camera; microphone"></iframe>
+  <button id="jr-editor-close">✕</button>
 </div>
 `;
 
@@ -775,7 +785,101 @@ function _injectJRUI() {
         self.lockedCount = 0;
         self.rebuildAnchors(); self.rebuildPaths(); self.updateStatus();
       });
-      $$('jr-btn-settings').addEventListener('click', () => $$('jr-modal').classList.remove('hidden'));
+      // ─── In-app spatial editor (replaces modal on mobile) ──
+      // On mobile (< 768px), the ⚙ button opens the full-screen
+      // spatial-mobile editor iframe. On desktop, it opens the
+      // traditional settings modal. The editor receives the current
+      // project data and posts changes back for live updates.
+      const isMobileDevice = window.innerWidth < 768 || 'ontouchstart' in window;
+      const editorOverlay = $$('jr-editor-overlay');
+      const editorIframe = $$('jr-editor-iframe');
+      const editorClose = $$('jr-editor-close');
+
+      if (isMobileDevice && editorOverlay && editorIframe) {
+        // Determine the editor URL — relative to the player
+        const editorUrl = (window.AR_BASE_URL || window.location.origin) + '/spatial/spatial-mobile.html';
+
+        $$('jr-btn-settings').addEventListener('click', () => {
+          editorOverlay.classList.add('open');
+          if (!editorIframe.src || !editorIframe.src.includes('spatial-mobile')) {
+            editorIframe.src = editorUrl;
+          }
+        });
+
+        if (editorClose) {
+          editorClose.addEventListener('click', () => {
+            editorOverlay.classList.remove('open');
+          });
+        }
+
+        // Listen for the editor's ready signal, then send project data
+        window.addEventListener('message', (ev) => {
+          const d = ev.data;
+          if (!d || typeof d !== 'object') return;
+
+          if (d.type === '4e-spatial-ready' && editorIframe.contentWindow) {
+            // Send the current project state to the editor
+            const _A = window.APP || {};
+            editorIframe.contentWindow.postMessage({
+              type: '4e-spatial-project',
+              project: {
+                id: _A.id || null,
+                name: _A.name || '',
+                trackingMode: 'image',
+                targets: (_A.targets || []).map(t => ({
+                  id: t.id, name: t.name || '',
+                  widthM: t.properties?.widthM || 0.1,
+                  thumbnailUrl: t.thumbnailUrl || t.luminanceUrl || '',
+                })),
+                objects: [],
+                journey: _A.journey || null,
+              }
+            }, '*');
+            console.log('[journey-runtime] sent project to in-app editor');
+          }
+
+          // Receive updated journey from the editor
+          if (d.type === '4e-spatial-journey' && d.journey) {
+            console.log('[journey-runtime] received journey update from in-app editor');
+            const j = d.journey;
+            // Update the live runtime settings from the journey
+            if (j.globalTraveller) {
+              Object.assign(self.settings.traveller, {
+                shape: j.globalTraveller.type || self.settings.traveller.shape,
+                color: j.globalTraveller.color || self.settings.traveller.color,
+                scale: j.globalTraveller.scale || self.settings.traveller.scale,
+              });
+              self.rebuildTraveller();
+            }
+            // Store updated journey on APP for persistence
+            if (window.APP) {
+              window.APP.journey = j;
+              window.APP.journeys = [j];
+            }
+            // Persist to Firestore so the change is global (visible
+            // in the studio on next load, and on any other device).
+            const appId = window.APP && window.APP.id;
+            if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
+              try {
+                const db = firebase.firestore();
+                db.collection('ar_apps').doc(appId).update({
+                  journeys: [j],
+                  updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                  console.log('[journey-runtime] journey saved to Firestore ✓');
+                }).catch(err => {
+                  console.warn('[journey-runtime] Firestore save failed:', err.message);
+                });
+              } catch (e) {
+                console.warn('[journey-runtime] Firestore save error:', e.message);
+              }
+            }
+          }
+        });
+      } else {
+        // Desktop: use the traditional settings modal
+        $$('jr-btn-settings').addEventListener('click', () => $$('jr-modal').classList.remove('hidden'));
+      }
       $$('jr-m-close').addEventListener('click', () => $$('jr-modal').classList.add('hidden'));
 
       // ─── Chip grid helper ───────────────────────────────
