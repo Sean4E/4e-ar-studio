@@ -12,9 +12,17 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.12.18">
+<meta name="version" content="3.13.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
+<!-- Particle engine (pure Three.js) — used by journey-runtime for
+     spatial projects that use particle travellers. No-op if no
+     journey is set on the project. -->
+<script src="particle-engine.js"></script>
+<!-- Journey runtime (self-contained A-Frame component + UI overlay).
+     Only activates when APP.journey has ≥2 anchors. No-op for
+     non-spatial projects. -->
+<script src="journey-runtime.js"></script>
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -1233,6 +1241,10 @@ async function init() {
 
     APP = doc.data();
     APP.id = appId;
+    // Map journeys array to singular journey (consumed by journey-runtime)
+    APP.journey = (APP.journeys && APP.journeys[0]) || null;
+    // Expose on window so external scripts (journey-runtime.js) can read it
+    window.APP = APP;
 
     // PWA: inject per-project manifest + touch icon + theme color, register SW
     applyPWA(APP);
@@ -2048,7 +2060,7 @@ function buildImageNative(objects) {
   // place) or any drag-on-ground gesture (xrextras-hold-drag needs
   // SLAM plane detection to follow a finger). When none of these are
   // present, world tracking stays off for faster image-only init.
-  const needsWorld = objects.some(o =>
+  const needsWorld = APP.journey ? true : objects.some(o =>
     o.imageToSlam ||
     (o.interactions && o.interactions.holdDrag));
   const xrwebAttr = needsWorld
@@ -2066,6 +2078,7 @@ function buildImageNative(objects) {
     <a-scene
       xrextras-gesture-detector
       xrweb="${xrwebAttr}"
+      ${APP.journey ? 'journey-runtime' : ''}
       renderer="colorManagement: true; physicallyCorrectLights: true; sortObjects: true"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"

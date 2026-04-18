@@ -50,6 +50,13 @@ Studio.Project = {
 
     media: [],  // uploaded audio/video/image files { name, url, type }
 
+    // Spatial journeys — authored in the Spatial tab, saved via
+    // postMessage from spatial-v7.html. Array for future multi-journey
+    // support; currently only journeys[0] is populated. The journey
+    // data drives the journey-runtime A-Frame component in the
+    // published player — see player-v2.html.
+    journeys: [],
+
     // Uploaded 3D models, Unity-style. Each prefab is a SOURCE; scene
     // objects reference it via `prefabId` and can be instantiated
     // multiple times with independent transforms / targetIds /
@@ -113,6 +120,7 @@ Studio.Project = {
       primitiveColor: null,
       prefabId: null,      // reference into state.prefabs for model instances
       glbUrl: '',          // legacy / denormalised; always matches prefab.glbUrl when prefabId is set
+      spatialAnchorId: null, // set by Spatial tab save-back — links this object to a journey anchor
       file: null,         // transient (legacy direct-upload path)
       visible: true,
       targetId: null,      // which image target this object belongs to
@@ -230,6 +238,57 @@ Studio.Project = {
     return this.state.objects.find(o => o.id === id) || null;
   },
 
+  // ─── Journey (spatial tab save-back) ──────────────────
+  // Stores the journey and auto-creates / updates empty objects for
+  // each anchor that has an image target assigned. This automates
+  // the manual steps: add empty → assign target → enable SLAM.
+  setJourney(journeyData) {
+    if (!journeyData) return;
+    // Store the journey (only one for now — overwrites any previous)
+    this.state.journeys = [journeyData];
+
+    // Auto-create or update anchor objects
+    const anchors = journeyData.anchors || [];
+    for (const anchor of anchors) {
+      if (!anchor.it || !anchor.it.assigned || !anchor.it.id) continue;
+
+      // Find existing object for this anchor (by spatialAnchorId)
+      let obj = this.state.objects.find(o => o.spatialAnchorId === anchor.id);
+      if (obj) {
+        // Update existing — target might have changed
+        obj.name = anchor.name;
+        obj.targetId = anchor.it.id;
+        obj.imageToSlam = !!(anchor.slam && anchor.slam.persist);
+      } else {
+        // Create new empty object for this anchor
+        obj = this.createObject({
+          name: anchor.name,
+          type: 'primitive',
+          primitiveType: 'empty',
+          targetId: anchor.it.id,
+          imageToSlam: !!(anchor.slam && anchor.slam.persist),
+          spatialAnchorId: anchor.id,
+          visible: true,
+        });
+        this.state.objects.push(obj);
+        Studio.EventBus.emit('object:added', { object: obj });
+      }
+
+      // Ensure the object is in the target's objectIds array
+      const target = this.state.targets.find(t => t.id === anchor.it.id);
+      if (target) {
+        if (!target.objectIds) target.objectIds = [];
+        if (!target.objectIds.includes(obj.id)) {
+          target.objectIds.push(obj.id);
+        }
+      }
+    }
+
+    this.markDirty();
+    Studio.EventBus.emit('journey:saved', { journey: journeyData });
+    Studio.EventBus.emit('target:changed'); // triggers hierarchy re-render
+  },
+
   // ─── Serialization ─────────────────────────────────────
   serialize() {
     const s = this.state;
@@ -259,7 +318,7 @@ Studio.Project = {
         id: o.id, name: o.name, type: o.type,
         primitiveType: o.primitiveType || null, primitiveColor: o.primitiveColor || null,
         prefabId: o.prefabId || null,
-        glbUrl: o.glbUrl,
+        glbUrl: o.glbUrl, spatialAnchorId: o.spatialAnchorId || null,
         visible: o.visible, targetId: o.targetId, imageToSlam: !!o.imageToSlam,
         parentId: o.parentId, sortOrder: o.sortOrder,
         transform: JSON.parse(JSON.stringify(o.transform)),
@@ -279,6 +338,7 @@ Studio.Project = {
         showSubtitle: s.splash.showSubtitle, gradient: s.splash.gradient,
         duration: s.splash.duration || 3
       },
+      journeys: (s.journeys || []).map(j => JSON.parse(JSON.stringify(j))),
       media: (s.media || []).map(m => ({ name: m.name, url: m.url, type: m.type })),
       pwa: {
         icon192Url: s.pwa?.icon192Url || '',
@@ -311,6 +371,7 @@ Studio.Project = {
     }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
+    s.journeys = (data.journeys || []).map(j => JSON.parse(JSON.stringify(j)));
     s.media = (data.media || []).map(m => ({ name: m.name, url: m.url, type: m.type }));
     s.pwa = {
       icon192Url: data.pwa?.icon192Url || '',
@@ -339,7 +400,7 @@ Studio.Project = {
         s.objects.push(this.createObject({
           id: od.id, name: od.name, type: od.type || 'model',
           primitiveType: od.primitiveType || null, primitiveColor: od.primitiveColor || null,
-          prefabId: od.prefabId || null,
+          prefabId: od.prefabId || null, spatialAnchorId: od.spatialAnchorId || null,
           glbUrl: od.glbUrl, visible: od.visible !== false,
           targetId: od.targetId || null, imageToSlam: !!od.imageToSlam,
           parentId: od.parentId, sortOrder: od.sortOrder || 0,

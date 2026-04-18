@@ -17,12 +17,13 @@
      docs/spatial-runtime-host.html and bumps separately from
      player-v2.html. The deploy-status check in the host compares
      this value against its own to flag stale deploys. -->
-<meta name="test-rig-version" content="0.4.6">
+<meta name="test-rig-version" content="0.5.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Particle engine (pure Three.js, no A-Frame wrapper) — shared with
      spatial-v7.html. Provides mkPS, tickPS, rmPS, PPRESETS, DEF_P. -->
 <script src="particle-engine.js"></script>
+<script src="journey-runtime.js"></script>
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -2268,6 +2269,11 @@ async function init() {
       return;
     }
   }
+
+  // Map journeys array to singular journey (consumed by journey-runtime)
+  APP.journey = (APP.journeys && APP.journeys[0]) || APP.journey || null;
+  // Expose on window so external scripts (journey-runtime.js) can read it
+  window.APP = APP;
 
   // From here on, both branches share the same APP shape and can use
   // the same downstream init pipeline.

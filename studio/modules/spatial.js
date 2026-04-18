@@ -38,14 +38,22 @@ Studio.Spatial = {
         this._ready = true;
         this._sendProject();
       } else if (d.type === '4e-spatial-journey') {
-        // Save-back from the spatial editor. Full integration with
-        // Studio.Project (auto-create anchor empties + persist journey
-        // to project state) is a coming phase. For now, log + toast so
-        // the Save button doesn't appear silently broken.
-        const j = d.journey || d.payload || {};
-        const n = (j.anchors || []).length;
-        Studio.log(`[Spatial] journey received — ${n} anchors (preview only; persistence coming)`);
-        Studio.toast(`Journey received (${n} anchors) — full save coming next`, 'ok');
+        // Real save-back from the spatial editor. Stores the journey
+        // in project.state.journeys[] and auto-creates/updates empty
+        // objects for each anchor that has an image target assigned
+        // (with targetId + imageToSlam set). This automates the manual
+        // steps: add empty → assign target → enable SLAM.
+        const j = d.journey || d.payload;
+        if (j) {
+          Studio.Project.setJourney(j);
+          const n = (j.anchors || []).length;
+          const bound = (j.anchors || []).filter(a => a.it && a.it.assigned).length;
+          Studio.log(`[Spatial] journey saved — ${n} anchors, ${bound} bound to targets`);
+          Studio.toast(`Journey saved ✓ (${bound} anchor${bound !== 1 ? 's' : ''} bound)`, 'ok');
+          // Re-render hierarchy + assets to show the new anchor objects
+          if (Studio.Hierarchy?.render) Studio.Hierarchy.render();
+          if (Studio.Assets?.render) Studio.Assets.render();
+        }
       }
     });
 
@@ -92,6 +100,10 @@ Studio.Spatial = {
       id: s.id || null,
       name: s.name || '',
       trackingMode: s.trackingMode || 'slam',
+      // Saved journey — the spatial editor restores anchors, sequence,
+      // path configs, and global traveller from this on reconnect so
+      // the user's work persists across tab switches and reloads.
+      journey: (s.journeys && s.journeys[0]) || null,
       // Image targets that can be bound to anchors.
       targets: (s.targets || []).map(t => ({
         id: t.id,
