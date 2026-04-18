@@ -576,6 +576,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   Studio.VERSION = (document.querySelector('meta[name="version"]')?.content) || 'dev';
   Studio.log('4E AR Studio v' + Studio.VERSION + ' ready');
 
+  // Apply initial tracking mode tab visibility (default is 'slam' which
+  // should hide Targets + Spatial tabs on boot). Without this, all tabs
+  // are visible until the user clicks a mode button.
+  Studio.setTrackingMode(Studio.Project.state.trackingMode);
+
   // Token indicator in the toolbar — reflects whether this origin has
   // a saved token. After a hosting change (GH Pages → Firebase) this
   // button will show unchecked so you know to paste the token in.
