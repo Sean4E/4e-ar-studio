@@ -543,26 +543,48 @@ function _injectJRUI() {
     },
 
     // ─── Three.js builders (mirrors docs/journey-runtime-test.html) ──
-    makeAnchorBillboard(name) {
+    makeAnchorBillboard(name, thumbnailUrl) {
       const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
       const ctx = cv.getContext('2d');
-      ctx.strokeStyle = 'rgba(0,229,255,0.55)';
-      ctx.lineWidth = 5; ctx.strokeRect(20, 20, 216, 216);
-      ctx.fillStyle = 'rgba(0,229,255,0.10)'; ctx.fillRect(20, 20, 216, 216);
-      ctx.fillStyle = '#00e5ff';
-      ctx.font = "bold 22px ui-monospace, 'Space Mono', monospace";
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(name, 128, 128);
-      ctx.strokeStyle = 'rgba(0,229,255,0.45)'; ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(128, 64); ctx.lineTo(128, 90);
-      ctx.moveTo(128, 192); ctx.lineTo(128, 166);
-      ctx.moveTo(64, 128); ctx.lineTo(90, 128);
-      ctx.moveTo(192, 128); ctx.lineTo(166, 128);
-      ctx.stroke();
       const tex = new THREE.CanvasTexture(cv);
       const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
-      return new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), mat);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), mat);
+
+      // Draw the billboard — if thumbnailUrl is available, draw the
+      // image as a background then overlay the name + crosshair.
+      const drawFrame = (img) => {
+        ctx.clearRect(0, 0, 256, 256);
+        if (img) {
+          ctx.globalAlpha = 0.6;
+          ctx.drawImage(img, 20, 20, 216, 216);
+          ctx.globalAlpha = 1;
+        }
+        ctx.strokeStyle = 'rgba(0,229,255,0.55)';
+        ctx.lineWidth = 5; ctx.strokeRect(20, 20, 216, 216);
+        if (!img) { ctx.fillStyle = 'rgba(0,229,255,0.10)'; ctx.fillRect(20, 20, 216, 216); }
+        ctx.fillStyle = '#00e5ff';
+        ctx.font = "bold 22px ui-monospace, 'Space Mono', monospace";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(name, 128, 240);
+        ctx.strokeStyle = 'rgba(0,229,255,0.45)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(128, 64); ctx.lineTo(128, 90);
+        ctx.moveTo(128, 192); ctx.lineTo(128, 166);
+        ctx.moveTo(64, 128); ctx.lineTo(90, 128);
+        ctx.moveTo(192, 128); ctx.lineTo(166, 128);
+        ctx.stroke();
+        tex.needsUpdate = true;
+      };
+      // Draw immediately without image
+      drawFrame(null);
+      // If thumbnail URL, load and redraw with image
+      if (thumbnailUrl) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => drawFrame(img);
+        img.src = thumbnailUrl;
+      }
+      return mesh;
     },
     makeTraveller() {
       const G = {
@@ -596,7 +618,13 @@ function _injectJRUI() {
       for (const a of this.anchors) {
         a.billboard = null;
         if (!a.locked || !a.worldPos) continue;
-        const m = this.makeAnchorBillboard(a.name);
+        // Resolve thumbnail URL for this anchor's assigned image target
+        const _APP = window.APP || {};
+        const jAnch = (this.journey.anchors || []).find(ja => ja.id === a.id);
+        const tgtId = jAnch && jAnch.it && jAnch.it.id;
+        const tgt = tgtId ? (_APP.targets || []).find(t => t.id === tgtId) : null;
+        const thumbUrl = tgt ? (tgt._thumbnailDataUrl || tgt.thumbnailUrl || tgt.luminanceUrl || '') : '';
+        const m = this.makeAnchorBillboard(a.name, thumbUrl);
         m.position.copy(a.worldPos);
         m.visible = this.settings.anchorsVisible;
         this.anchorGroup.add(m);
@@ -809,9 +837,22 @@ function _injectJRUI() {
         refreshBtns();
       });
       $$('jr-btn-calibrate').addEventListener('click', () => {
+        // Clean up particles before resetting (prevents tickPS crash)
+        if (self._particleSystem) {
+          try { rmPS(self._particleSystem, self.el.object3D); } catch(_){}
+          self._particleSystem = null;
+        }
+        // Reset all locks
         for (const a of self.anchors) { a.locked = false; a.worldPos = null; a.billboard = null; }
         self.lockedCount = 0;
-        self.rebuildAnchors(); self.rebuildPaths(); self.updateStatus();
+        self.curves = [];
+        self.edgeIdx = 0;
+        self.edgeT = 0;
+        // Hide traveller until 2+ anchors lock again
+        self.travContainer.position.set(0, -999, 0);
+        self.rebuildAnchors();
+        self.rebuildPaths();
+        self.updateStatus();
       });
       // ─── In-app spatial editor (replaces settings modal) ────
       // The ⚙ button opens the full spatial-mobile editor as a

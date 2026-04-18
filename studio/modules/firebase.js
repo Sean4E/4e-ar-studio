@@ -59,9 +59,13 @@ Studio.Firebase = {
    * @returns {function} unsubscribe function
    */
   listen(id, callback) {
-    if (!this._db) return () => {};
+    if (!this._db) { Studio.log('Firebase: listen skipped — db not ready'); return () => {}; }
+    Studio.log('Firebase: subscribing to onSnapshot for ' + id);
     return this._db.collection(this._collection).doc(id).onSnapshot(snap => {
-      if (snap.exists) callback(snap.data());
+      if (snap.exists) {
+        Studio.log('Firebase: onSnapshot fired (source=' + (snap.metadata.hasPendingWrites ? 'local' : 'server') + ')');
+        callback(snap.data());
+      }
     }, err => {
       Studio.log('Firebase: listen error — ' + err.message);
     });
