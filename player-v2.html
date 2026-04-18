@@ -15,14 +15,6 @@
 <meta name="version" content="3.13.0">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
-<!-- Particle engine (pure Three.js) — used by journey-runtime for
-     spatial projects that use particle travellers. No-op if no
-     journey is set on the project. -->
-<script src="particle-engine.js"></script>
-<!-- Journey runtime (self-contained A-Frame component + UI overlay).
-     Only activates when APP.journey has ≥2 anchors. No-op for
-     non-spatial projects. -->
-<script src="journey-runtime.js"></script>
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -32,6 +24,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" async crossorigin="anonymous" data-preload-chunks="slam,face"></script>
 <!-- Animation mixer for GLB animations -->
 <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+<!-- Particle engine + journey runtime — loaded AFTER A-Frame so
+     AFRAME.registerComponent is available. Only activates when
+     APP.journey has ≥2 anchors. No-op for non-spatial projects. -->
+<script src="particle-engine.js"></script>
+<script src="journey-runtime.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--navy:#060a18;--purple:#8b5cf6;--text:#e2e8f0;--muted:#8899b0}
