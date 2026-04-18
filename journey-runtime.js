@@ -785,102 +785,130 @@ function _injectJRUI() {
         self.lockedCount = 0;
         self.rebuildAnchors(); self.rebuildPaths(); self.updateStatus();
       });
-      // ─── In-app spatial editor (replaces modal on mobile) ──
-      // On mobile (< 768px), the ⚙ button opens the full-screen
-      // spatial-mobile editor iframe. On desktop, it opens the
-      // traditional settings modal. The editor receives the current
-      // project data and posts changes back for live updates.
-      const isMobileDevice = window.innerWidth < 768 || 'ontouchstart' in window;
+      // ─── In-app spatial editor (replaces settings modal) ────
+      // The ⚙ button opens the full spatial-mobile editor as a
+      // full-screen iframe on ALL devices (mobile + desktop). The old
+      // settings modal is no longer used — the spatial editor IS the
+      // settings interface. Changes save to Firestore for global sync.
       const editorOverlay = $$('jr-editor-overlay');
       const editorIframe = $$('jr-editor-iframe');
       const editorClose = $$('jr-editor-close');
+      const editorUrl = (window.AR_BASE_URL || window.location.origin) + '/spatial/spatial-mobile.html';
 
-      if (isMobileDevice && editorOverlay && editorIframe) {
-        // Determine the editor URL — relative to the player
-        const editorUrl = (window.AR_BASE_URL || window.location.origin) + '/spatial/spatial-mobile.html';
+      $$('jr-btn-settings').addEventListener('click', () => {
+        if (!editorOverlay) return;
+        editorOverlay.classList.add('open');
+        if (!editorIframe.src || !editorIframe.src.includes('spatial-mobile')) {
+          editorIframe.src = editorUrl;
+        }
+      });
 
-        $$('jr-btn-settings').addEventListener('click', () => {
-          editorOverlay.classList.add('open');
-          if (!editorIframe.src || !editorIframe.src.includes('spatial-mobile')) {
-            editorIframe.src = editorUrl;
-          }
+      if (editorClose) {
+        editorClose.addEventListener('click', () => {
+          editorOverlay.classList.remove('open');
         });
+      }
 
-        if (editorClose) {
-          editorClose.addEventListener('click', () => {
-            editorOverlay.classList.remove('open');
-          });
+      // Listen for the editor's ready signal, then send FULL project data
+      window.addEventListener('message', (ev) => {
+        const d = ev.data;
+        if (!d || typeof d !== 'object') return;
+
+        if (d.type === '4e-spatial-ready' && editorIframe && editorIframe.contentWindow) {
+          // Send the complete project state to the editor — every
+          // value that the spatial editor can display or modify.
+          const _A = window.APP || {};
+          const j = _A.journey || null;
+          editorIframe.contentWindow.postMessage({
+            type: '4e-spatial-project',
+            project: {
+              id: _A.id || null,
+              name: _A.name || '',
+              trackingMode: 'image',
+              targets: (_A.targets || []).map(t => ({
+                id: t.id, name: t.name || '',
+                widthM: t.properties?.widthM || 0.1,
+                thumbnailUrl: t._thumbnailDataUrl || t.thumbnailUrl || t.luminanceUrl || '',
+              })),
+              objects: (_A.objects || []).filter(o =>
+                (o.type === 'primitive' && o.primitiveType !== 'empty') || o.glbUrl || o.prefabId
+              ).map(o => ({
+                id: o.id, name: o.name || '', kind: o.type === 'primitive' ? 'primitive' : 'model',
+                primitiveType: o.primitiveType || null, glbUrl: o.glbUrl || null,
+                color: o.primitiveColor || null, clips: o.clips || [],
+              })),
+              // Send the FULL journey so the editor restores every
+              // property: anchors, sequence, loop, globalTraveller,
+              // per-path configs (duration, easing, shape, legTvType,
+              // legTvObject, legTvParticles).
+              journey: j,
+            }
+          }, '*');
+          console.log('[journey-runtime] sent full project to in-app editor');
         }
 
-        // Listen for the editor's ready signal, then send project data
-        window.addEventListener('message', (ev) => {
-          const d = ev.data;
-          if (!d || typeof d !== 'object') return;
+        // Receive the COMPLETE updated journey from the editor.
+        // This includes every spatial property — anchors, sequence,
+        // loop, globalTraveller, and per-path configs with duration,
+        // easing, curve shape, leg traveller type/object/particles.
+        if (d.type === '4e-spatial-journey' && d.journey) {
+          console.log('[journey-runtime] received journey update from in-app editor');
+          const j = d.journey;
 
-          if (d.type === '4e-spatial-ready' && editorIframe.contentWindow) {
-            // Send the current project state to the editor
-            const _A = window.APP || {};
-            editorIframe.contentWindow.postMessage({
-              type: '4e-spatial-project',
-              project: {
-                id: _A.id || null,
-                name: _A.name || '',
-                trackingMode: 'image',
-                targets: (_A.targets || []).map(t => ({
-                  id: t.id, name: t.name || '',
-                  widthM: t.properties?.widthM || 0.1,
-                  thumbnailUrl: t.thumbnailUrl || t.luminanceUrl || '',
-                })),
-                objects: [],
-                journey: _A.journey || null,
-              }
-            }, '*');
-            console.log('[journey-runtime] sent project to in-app editor');
+          // Update the live runtime — traveller
+          if (j.globalTraveller) {
+            Object.assign(self.settings.traveller, {
+              type: j.globalTraveller.type === 'particles' ? 'particles' : 'object',
+              shape: j.globalTraveller.type || self.settings.traveller.shape,
+              color: j.globalTraveller.color || self.settings.traveller.color,
+              scale: j.globalTraveller.scale != null ? j.globalTraveller.scale : self.settings.traveller.scale,
+            });
+            self.settings.trail = j.globalTraveller.trail !== false;
+            self.settings.trailLen = j.globalTraveller.trailLen || 45;
+            self.rebuildTraveller();
           }
 
-          // Receive updated journey from the editor
-          if (d.type === '4e-spatial-journey' && d.journey) {
-            console.log('[journey-runtime] received journey update from in-app editor');
-            const j = d.journey;
-            // Update the live runtime settings from the journey
-            if (j.globalTraveller) {
-              Object.assign(self.settings.traveller, {
-                shape: j.globalTraveller.type || self.settings.traveller.shape,
-                color: j.globalTraveller.color || self.settings.traveller.color,
-                scale: j.globalTraveller.scale || self.settings.traveller.scale,
+          // Update the live runtime — path settings from first edge
+          const pathKeys = j.paths ? Object.keys(j.paths) : [];
+          if (pathKeys.length > 0) {
+            const firstCfg = j.paths[pathKeys[0]];
+            if (firstCfg.duration) self.settings.path.duration = firstCfg.duration;
+            if (firstCfg.easing) self.settings.path.easing = firstCfg.easing;
+            if (firstCfg.shape) self.settings.path.curve = firstCfg.shape;
+            self.rebuildPaths();
+          }
+
+          // Update loop
+          if (j.loop !== undefined) {
+            self.journey.loop = !!j.loop;
+            self.rebuildPaths();
+          }
+
+          // Store on APP for persistence
+          if (window.APP) {
+            window.APP.journey = j;
+            window.APP.journeys = [j];
+          }
+
+          // Persist to Firestore — write the FULL journey so every
+          // property round-trips to the studio and other devices.
+          const appId = window.APP && window.APP.id;
+          if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
+            try {
+              firebase.firestore().collection('ar_apps').doc(appId).update({
+                journeys: [j],
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              }).then(() => {
+                console.log('[journey-runtime] journey saved to Firestore ✓');
+              }).catch(err => {
+                console.warn('[journey-runtime] Firestore save failed:', err.message);
               });
-              self.rebuildTraveller();
-            }
-            // Store updated journey on APP for persistence
-            if (window.APP) {
-              window.APP.journey = j;
-              window.APP.journeys = [j];
-            }
-            // Persist to Firestore so the change is global (visible
-            // in the studio on next load, and on any other device).
-            const appId = window.APP && window.APP.id;
-            if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
-              try {
-                const db = firebase.firestore();
-                db.collection('ar_apps').doc(appId).update({
-                  journeys: [j],
-                  updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
-                  console.log('[journey-runtime] journey saved to Firestore ✓');
-                }).catch(err => {
-                  console.warn('[journey-runtime] Firestore save failed:', err.message);
-                });
-              } catch (e) {
-                console.warn('[journey-runtime] Firestore save error:', e.message);
-              }
+            } catch (e) {
+              console.warn('[journey-runtime] Firestore save error:', e.message);
             }
           }
-        });
-      } else {
-        // Desktop: use the traditional settings modal
-        $$('jr-btn-settings').addEventListener('click', () => $$('jr-modal').classList.remove('hidden'));
-      }
-      $$('jr-m-close').addEventListener('click', () => $$('jr-modal').classList.add('hidden'));
+        }
+      });
 
       // ─── Chip grid helper ───────────────────────────────
       function chipGrid(containerId, getValue, setValue, rebuild) {
