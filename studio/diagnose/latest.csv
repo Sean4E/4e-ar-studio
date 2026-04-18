@@ -1,18 +1,18 @@
 # 4E Studio Scene Diagnose,
-# Generated,2026-04-15T21:23:34.405Z
-# Studio version,3.12.13
+# Generated,2026-04-18T18:30:11.255Z
+# Studio version,3.13.0
 # Renderer autoClear,true
 # Renderer sortObjects,true
 # Renderer shadowMap,true
 # Renderer outputColorSpace,srgb
 # Camera position,0 1.5000000000000002 3
 ,
-# Project id,(unsaved)
+# Project id,mo4o7fjnvyab7e
 # Project name,Untitled
 # Tracking mode,image
-# Image targets,0
-# Objects,0
-# Journeys,0
+# Image targets,4
+# Objects,4
+# Journeys,1
 ,
 # Spatial tab active,true
 # Spatial iframe,loaded
@@ -21,8 +21,8 @@
 # Spatial iframe clientW,1056
 # Spatial iframe clientH,439
 # Spatial iframe rect,1056x439
-# Spatial canvas attr,1262x717
-# Spatial canvas style,1010px x 574px
+# Spatial canvas attr,662x437
+# Spatial canvas style,100% x 100%
 # Spatial iframeWin inner,1056x439
 # Studio fullscreen,false
 # Viewport container rect,1056x439
@@ -87,3 +87,7 @@ index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow
 56,START,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 57,END,Mesh,,false,Infinity,true,false,false,0.000,0.000,0.000,0.743,0.743,0.743,LineBasicMaterial,true,false,false,true,0.5,Front
 58,(unnamed),TransformControlsPlane,,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.1,Double
+59,(unnamed),Mesh,,true,0,true,false,false,-3.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+60,(unnamed),Mesh,,true,0,true,false,false,-1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+61,(unnamed),Mesh,,true,0,true,false,false,1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+62,(unnamed),Mesh,,true,0,true,false,false,3.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
