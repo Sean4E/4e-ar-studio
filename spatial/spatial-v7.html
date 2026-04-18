@@ -39,6 +39,75 @@ select option{background:#0a1020;color:#ccc;}
 </head>
 <body>
 <div id="root"></div>
+<!-- Firebase — direct Firestore read/write for journey data.
+     The spatial editor is the ONLY source of truth for journeys.
+     Every connected editor (studio, preview, published player)
+     subscribes to onSnapshot and gets updates within ~1 second. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="../config.js"></script>
+<script>
+// ─── Firestore journey sync ─────────────────────────────
+// Initialise Firebase for direct read/write. The project ID
+// comes from the host (studio/player) via postMessage, or from
+// a ?projectId= URL parameter for standalone use.
+window._4E_FS = { db: null, projectId: null, unsubscribe: null };
+(function() {
+  try {
+    const cfg = window.AR_FIREBASE_CONFIG;
+    if (cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_')) {
+      if (!firebase.apps.length) firebase.initializeApp(cfg);
+      window._4E_FS.db = firebase.firestore();
+    }
+  } catch(e) { console.warn('[Spatial] Firebase init:', e.message); }
+  // Check URL param
+  const urlId = new URLSearchParams(location.search).get('projectId');
+  if (urlId) window._4E_FS.projectId = urlId;
+})();
+
+// Save journey directly to Firestore (called from React saveJourney)
+window._4E_saveJourney = function(journey) {
+  const fs = window._4E_FS;
+  if (!fs.db || !fs.projectId) {
+    console.warn('[Spatial] cannot save — no db or projectId');
+    // Fall back to postMessage for hosts that don't use Firestore
+    if (window.parent !== window) {
+      try { window.parent.postMessage({ type: '4e-spatial-journey', journey: journey }, '*'); } catch(_){}
+    }
+    return;
+  }
+  const clean = JSON.parse(JSON.stringify(journey));
+  fs.db.collection('ar_apps').doc(fs.projectId).update({
+    journeys: [clean],
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    console.log('[Spatial] ✓ journey saved to Firestore: ' + fs.projectId);
+  }).catch(err => {
+    console.error('[Spatial] ✗ Firestore save failed:', err.message);
+  });
+  // Also post to parent (studio needs to know for hierarchy update)
+  if (window.parent !== window) {
+    try { window.parent.postMessage({ type: '4e-spatial-journey', journey: journey }, '*'); } catch(_){}
+  }
+};
+
+// Subscribe to real-time journey updates from Firestore.
+// Called once when the project ID is known.
+window._4E_subscribeJourney = function(callback) {
+  const fs = window._4E_FS;
+  if (!fs.db || !fs.projectId) return;
+  if (fs.unsubscribe) fs.unsubscribe();
+  fs.unsubscribe = fs.db.collection('ar_apps').doc(fs.projectId).onSnapshot(snap => {
+    if (!snap.exists) return;
+    const data = snap.data();
+    const journey = (data.journeys && data.journeys[0]) || null;
+    if (journey) callback(journey);
+  }, err => {
+    console.warn('[Spatial] onSnapshot error:', err.message);
+  });
+  console.log('[Spatial] subscribed to Firestore journey: ' + fs.projectId);
+};
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!-- GLTFLoader (r128-compatible UMD build) — lets the editor render
      project objects with real GLB meshes instead of the placeholder cube. -->
@@ -3714,6 +3783,32 @@ function App() {
       window.parent.postMessage({ type: '4e-spatial-selection', anchorId: selected.id }, '*');
     } catch (_) {}
   }, [selected]);
+  // ─── Firestore real-time journey sync ─────────────────
+  // When another editor (preview, player, another browser tab) saves
+  // a journey to Firestore, this listener fires and updates our
+  // React state. No postMessage relay needed — pure Firestore.
+  const _syncingFromFirestoreRef = useRef(false);
+  useEffect(() => {
+    const handler = (e) => {
+      const j = e.detail;
+      if (!j || !j.anchors) return;
+      // Compare to current state to avoid echoing our own saves
+      const incoming = JSON.stringify(j.anchors.map(a => a.id + a.it?.id));
+      const current = JSON.stringify(anchors.map(a => a.id + a.it?.id));
+      if (incoming === current) return;
+      console.log('[Spatial] real-time sync: updating from Firestore');
+      _syncingFromFirestoreRef.current = true;
+      if (j.anchors) setAnchors(j.anchors);
+      if (j.sequence) setJourney(j.sequence);
+      if (j.loop !== undefined) setLoopJ(!!j.loop);
+      if (j.globalTraveller) setGlobalTv(prev => ({ ...prev, ...j.globalTraveller }));
+      if (j.paths) setPathConfigs(j.paths);
+      requestAnimationFrame(() => { _syncingFromFirestoreRef.current = false; });
+    };
+    window.addEventListener('firestore-journey-update', handler);
+    return () => window.removeEventListener('firestore-journey-update', handler);
+  }, [anchors]);
+
   useEffect(() => {
     animRef.current.restart = true;
   }, [journey, loopJ]);
@@ -4631,7 +4726,6 @@ function App() {
   // via `4e-spatial-journey` and decides what to persist / instantiate.
   const [saveBlinking, setSaveBlinking] = useState(false);
   const saveJourney = useCallback(() => {
-    if (!IS_IFRAMED) return;
     const payload = {
       version: 1,
       generatedAt: new Date().toISOString(),
@@ -4639,21 +4733,23 @@ function App() {
         id: a.id,
         name: a.name,
         pos: a.pos,
-        it: a.it,
-        slam: a.slam,
+        it: { ...a.it },     // deep copy to preserve all fields
+        slam: { ...a.slam },  // deep copy
       })),
       sequence: [...journey],
       loop: !!loopJ,
-      globalTraveller: globalTv,
-      paths: { ...pathConfigs },
+      globalTraveller: { ...globalTv },
+      paths: JSON.parse(JSON.stringify(pathConfigs)), // deep copy, strips undefined
     };
-    try {
-      window.parent.postMessage({ type: '4e-spatial-journey', journey: payload }, '*');
-      setSaveBlinking(true);
-      setTimeout(() => setSaveBlinking(false), 900);
-    } catch (e) {
-      console.warn('[Spatial] save failed:', e && e.message);
+    // Save directly to Firestore (single source of truth)
+    if (window._4E_saveJourney) {
+      window._4E_saveJourney(payload);
+    } else if (IS_IFRAMED) {
+      // Fallback for hosts without Firestore
+      try { window.parent.postMessage({ type: '4e-spatial-journey', journey: payload }, '*'); } catch(_){}
     }
+    setSaveBlinking(true);
+    setTimeout(() => setSaveBlinking(false), 900);
   }, [anchors, journey, loopJ, pathConfigs, globalTv]);
   const addAnchor = useCallback(() => {
     const id = newId();
@@ -5302,14 +5398,23 @@ window.addEventListener('message', (e) => {
   }
   if (d.type === '4e-spatial-project') {
     window.STUDIO_PROJECT = d.project || null;
-    // Notify in-app React subscribers so open inspectors re-render
-    // against the new targets / objects without needing the user to
-    // reselect the anchor. AnchorInspector / PathInspector listen
-    // for this event and bump an internal tick.
     window.dispatchEvent(new CustomEvent('studio-project-update', { detail: d.project }));
     console.log('[Spatial] received project data:',
       'targets=' + (d.project?.targets?.length || 0),
       'objects=' + (d.project?.objects?.length || 0));
+    // Set project ID for direct Firestore read/write and subscribe
+    // to real-time journey updates. This makes all editors sync live.
+    if (d.project && d.project.id && window._4E_FS) {
+      window._4E_FS.projectId = d.project.id;
+      // Subscribe to onSnapshot — any other editor's save pushes here
+      if (window._4E_subscribeJourney) {
+        window._4E_subscribeJourney((journey) => {
+          // Dispatch as a studio-project-update with the journey so
+          // the React restore logic picks it up automatically.
+          window.dispatchEvent(new CustomEvent('firestore-journey-update', { detail: journey }));
+        });
+      }
+    }
   }
 });
 // Tell the parent studio we're ready for project data. Studio responds

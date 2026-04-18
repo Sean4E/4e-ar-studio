@@ -166,6 +166,57 @@ select option{background:#0a1020;color:#e8ecf5;}
 </head>
 <body>
 <div id="root"></div>
+<!-- Firebase — direct Firestore read/write for journey data -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="../config.js"></script>
+<script>
+window._4E_FS = { db: null, projectId: null, unsubscribe: null };
+(function() {
+  try {
+    const cfg = window.AR_FIREBASE_CONFIG;
+    if (cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_')) {
+      if (!firebase.apps.length) firebase.initializeApp(cfg);
+      window._4E_FS.db = firebase.firestore();
+    }
+  } catch(e) { console.warn('[Spatial] Firebase init:', e.message); }
+  const urlId = new URLSearchParams(location.search).get('projectId');
+  if (urlId) window._4E_FS.projectId = urlId;
+})();
+window._4E_saveJourney = function(journey) {
+  const fs = window._4E_FS;
+  if (!fs.db || !fs.projectId) {
+    if (window.parent !== window) {
+      try { window.parent.postMessage({ type: '4e-spatial-journey', journey: journey }, '*'); } catch(_){}
+    }
+    return;
+  }
+  const clean = JSON.parse(JSON.stringify(journey));
+  fs.db.collection('ar_apps').doc(fs.projectId).update({
+    journeys: [clean],
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    console.log('[Spatial] ✓ journey saved to Firestore: ' + fs.projectId);
+  }).catch(err => {
+    console.error('[Spatial] ✗ Firestore save failed:', err.message);
+  });
+  if (window.parent !== window) {
+    try { window.parent.postMessage({ type: '4e-spatial-journey', journey: journey }, '*'); } catch(_){}
+  }
+};
+window._4E_subscribeJourney = function(callback) {
+  const fs = window._4E_FS;
+  if (!fs.db || !fs.projectId) return;
+  if (fs.unsubscribe) fs.unsubscribe();
+  fs.unsubscribe = fs.db.collection('ar_apps').doc(fs.projectId).onSnapshot(snap => {
+    if (!snap.exists) return;
+    const data = snap.data();
+    const journey = (data.journeys && data.journeys[0]) || null;
+    if (journey) callback(journey);
+  });
+  console.log('[Spatial] subscribed to Firestore journey: ' + fs.projectId);
+};
+</script>
 <!-- Mobile tab bar — switches between full-screen views.
      Lives OUTSIDE React so it doesn't interfere with the
      component tree. Toggles CSS classes on the React panels. -->
@@ -3905,6 +3956,24 @@ function App() {
       window.parent.postMessage({ type: '4e-spatial-selection', anchorId: selected.id }, '*');
     } catch (_) {}
   }, [selected]);
+  // ─── Firestore real-time journey sync ─────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      const j = e.detail;
+      if (!j || !j.anchors) return;
+      const incoming = JSON.stringify(j.anchors.map(a => a.id + a.it?.id));
+      const current = JSON.stringify(anchors.map(a => a.id + a.it?.id));
+      if (incoming === current) return;
+      console.log('[Spatial] real-time sync: updating from Firestore');
+      if (j.anchors) setAnchors(j.anchors);
+      if (j.sequence) setJourney(j.sequence);
+      if (j.loop !== undefined) setLoopJ(!!j.loop);
+      if (j.globalTraveller) setGlobalTv(prev => ({ ...prev, ...j.globalTraveller }));
+      if (j.paths) setPathConfigs(j.paths);
+    };
+    window.addEventListener('firestore-journey-update', handler);
+    return () => window.removeEventListener('firestore-journey-update', handler);
+  }, [anchors]);
   useEffect(() => {
     animRef.current.restart = true;
   }, [journey, loopJ]);
@@ -4865,7 +4934,6 @@ function App() {
   // via `4e-spatial-journey` and decides what to persist / instantiate.
   const [saveBlinking, setSaveBlinking] = useState(false);
   const saveJourney = useCallback(() => {
-    if (!IS_IFRAMED) return;
     const payload = {
       version: 1,
       generatedAt: new Date().toISOString(),
@@ -4873,21 +4941,21 @@ function App() {
         id: a.id,
         name: a.name,
         pos: a.pos,
-        it: a.it,
-        slam: a.slam,
+        it: { ...a.it },
+        slam: { ...a.slam },
       })),
       sequence: [...journey],
       loop: !!loopJ,
-      globalTraveller: globalTv,
-      paths: { ...pathConfigs },
+      globalTraveller: { ...globalTv },
+      paths: JSON.parse(JSON.stringify(pathConfigs)),
     };
-    try {
-      window.parent.postMessage({ type: '4e-spatial-journey', journey: payload }, '*');
-      setSaveBlinking(true);
-      setTimeout(() => setSaveBlinking(false), 900);
-    } catch (e) {
-      console.warn('[Spatial] save failed:', e && e.message);
+    if (window._4E_saveJourney) {
+      window._4E_saveJourney(payload);
+    } else if (IS_IFRAMED) {
+      try { window.parent.postMessage({ type: '4e-spatial-journey', journey: payload }, '*'); } catch(_){}
     }
+    setSaveBlinking(true);
+    setTimeout(() => setSaveBlinking(false), 900);
   }, [anchors, journey, loopJ, pathConfigs, globalTv]);
   const addAnchor = useCallback(() => {
     const id = newId();
@@ -5536,14 +5604,18 @@ window.addEventListener('message', (e) => {
   }
   if (d.type === '4e-spatial-project') {
     window.STUDIO_PROJECT = d.project || null;
-    // Notify in-app React subscribers so open inspectors re-render
-    // against the new targets / objects without needing the user to
-    // reselect the anchor. AnchorInspector / PathInspector listen
-    // for this event and bump an internal tick.
     window.dispatchEvent(new CustomEvent('studio-project-update', { detail: d.project }));
     console.log('[Spatial] received project data:',
       'targets=' + (d.project?.targets?.length || 0),
       'objects=' + (d.project?.objects?.length || 0));
+    if (d.project && d.project.id && window._4E_FS) {
+      window._4E_FS.projectId = d.project.id;
+      if (window._4E_subscribeJourney) {
+        window._4E_subscribeJourney((journey) => {
+          window.dispatchEvent(new CustomEvent('firestore-journey-update', { detail: journey }));
+        });
+      }
+    }
   }
 });
 // Tell the parent studio we're ready for project data. Studio responds
