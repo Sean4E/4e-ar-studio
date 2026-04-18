@@ -35,6 +35,71 @@ html,body,#root{width:100%;height:100%;overflow:hidden;background:#060810;}
 ::-webkit-scrollbar-thumb{background:rgba(0,229,255,0.2);border-radius:3px;}
 ::-webkit-scrollbar-thumb:hover{background:rgba(0,229,255,0.4);}
 select option{background:#0a1020;color:#ccc;}
+
+/* ─── Mobile responsive layer ─────────────────────────────────
+   Adapts the desktop 3-panel layout (sidebar + viewport + inspector)
+   for phone/tablet without rewriting the React component structure.
+   Sidebars collapse into toggle-able slide-over panels. Viewport
+   fills the screen. Touch works natively via Three.js OrbitControls.
+   Desktop layout is completely unaffected (all rules gated behind
+   max-width media query). */
+@media (max-width: 768px) {
+  /* Panels slide over the viewport instead of side-by-side */
+  #sp-left-panel {
+    position: fixed !important;
+    left: 0; top: 44px; bottom: 52px;
+    width: 260px !important;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+  }
+  #sp-left-panel.open { transform: translateX(0); }
+
+  #sp-right-panel {
+    position: fixed !important;
+    right: 0; top: 44px; bottom: 52px;
+    width: 300px !important;
+    max-width: 85vw;
+    z-index: 40;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.5);
+  }
+  #sp-right-panel.open { transform: translateX(0); }
+
+  /* Viewport fills the screen */
+  #sp-viewport { flex: 1 !important; }
+
+  /* Header — compact for phone */
+  #sp-header { flex-wrap: wrap; gap: 4px !important; padding: 4px 8px !important; }
+  #sp-header button { font-size: 10px !important; padding: 3px 8px !important; }
+
+  /* Mobile panel toggle buttons — only visible on mobile */
+  .sp-mob-toggle {
+    display: flex !important;
+    position: fixed;
+    z-index: 41;
+    width: 36px; height: 36px;
+    border-radius: 18px;
+    background: rgba(10, 14, 26, 0.85);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    color: #00e5ff;
+    font-size: 14px;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  #sp-mob-left { left: 8px; top: 50px; }
+  #sp-mob-right { right: 8px; top: 50px; }
+  .sp-mob-toggle.active { background: rgba(0, 229, 255, 0.15); }
+
+  /* Playback bar — full width, compact */
+  #sp-playback { padding: 4px 8px !important; }
+}
+/* Hide mobile toggles on desktop */
+.sp-mob-toggle { display: none; }
 </style>
 </head>
 <body>
@@ -4752,7 +4817,18 @@ function App() {
       fontFamily: "system-ui,sans-serif",
       overflow: "hidden"
     }
-  }, React.createElement("div", {
+  },
+  // Mobile panel toggle buttons (hidden on desktop via CSS)
+  React.createElement("button", {
+    className: "sp-mob-toggle", id: "sp-mob-left",
+    onClick: () => { const p = document.getElementById('sp-left-panel'); if (p) p.classList.toggle('open'); }
+  }, "☰"),
+  React.createElement("button", {
+    className: "sp-mob-toggle", id: "sp-mob-right",
+    onClick: () => { const p = document.getElementById('sp-right-panel'); if (p) p.classList.toggle('open'); }
+  }, "⚙"),
+  React.createElement("div", {
+    id: "sp-header",
     style: {
       display: "flex",
       alignItems: "center",
@@ -4870,6 +4946,7 @@ function App() {
       overflow: "hidden"
     }
   }, React.createElement("div", {
+    id: "sp-left-panel",
     style: {
       width: 236,
       flexShrink: 0,
@@ -5140,6 +5217,7 @@ function App() {
     })),
     label: "Trail"
   })), React.createElement("div", {
+    id: "sp-viewport",
     style: {
       flex: 1,
       position: "relative",
@@ -5232,6 +5310,7 @@ function App() {
     }),
     customEdges: customEdges
   })), React.createElement("div", {
+    id: "sp-right-panel",
     style: {
       width: 290,
       flexShrink: 0,
