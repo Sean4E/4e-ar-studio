@@ -1,6 +1,6 @@
 # 4E Studio Scene Diagnose,
-# Generated,2026-04-18T18:30:11.255Z
-# Studio version,3.13.0
+# Generated,2026-04-18T22:41:43.518Z
+# Studio version,3.14.6
 # Renderer autoClear,true
 # Renderer sortObjects,true
 # Renderer shadowMap,true
@@ -8,7 +8,7 @@
 # Camera position,0 1.5000000000000002 3
 ,
 # Project id,mo4o7fjnvyab7e
-# Project name,Untitled
+# Project name,SPATIAL1
 # Tracking mode,image
 # Image targets,4
 # Objects,4
@@ -91,3 +91,7 @@ index,name,type,objId,visible,renderOrder,frustumCulled,castShadow,receiveShadow
 60,(unnamed),Mesh,,true,0,true,false,false,-1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
 61,(unnamed),Mesh,,true,0,true,false,false,1.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
 62,(unnamed),Mesh,,true,0,true,false,false,3.000,0.001,0.000,1.000,1.000,1.000,MeshBasicMaterial,true,true,true,true,0.7,Double
+63,(unnamed),Mesh,mo4o6bekwnx08g,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,true,0.4,Front
+64,(unnamed),Mesh,mo4o6bemckghjb,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,true,0.4,Front
+65,(unnamed),Mesh,mo4o6benczsps0,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,true,0.4,Front
+66,(unnamed),Mesh,mo4o6bensd6b81,true,0,true,false,false,0.000,0.000,0.000,1.000,1.000,1.000,MeshStandardMaterial,true,true,true,true,0.4,Front
