@@ -158,9 +158,13 @@ Studio.Viewport = {
   // ─── Selection ─────────────────────────────────────────
   selectObject(id) {
     const obj = Studio.Project.getObject(id);
-    if (!obj || !obj.mesh) return;
+    if (!obj) return;
     this._selectedId = id;
-    this.gizmo.attach(obj.mesh);
+    // Empty primitives (e.g. auto-created spatial anchor objects) may
+    // not have a viewport mesh. Still emit the selection event so the
+    // hierarchy highlights + inspector opens + spatial editor syncs.
+    if (obj.mesh) this.gizmo.attach(obj.mesh);
+    else this.gizmo.detach();
     Studio.EventBus.emit('object:selected', { id });
   },
 
