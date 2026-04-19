@@ -17,15 +17,19 @@ Studio.Targets = {
   MIN_H: 640,
 
   // ─── Init ──────────────────────────────────────────────
+  _v15Iframe: null,
+  _v15Ready: false,
+
   init() {
-    Studio.EventBus.on('project:loaded', () => { this._selectedId = null; this.render(); });
-    Studio.EventBus.on('project:reset', () => { this._selectedId = null; this.render(); });
+    Studio.EventBus.on('project:loaded', () => { this._selectedId = null; this._v15Ready = false; this.render(); });
+    Studio.EventBus.on('project:reset', () => { this._selectedId = null; this._v15Ready = false; this.render(); });
     Studio.EventBus.on('tracking:modeChanged', () => this.render());
     Studio.EventBus.on('object:added', () => this._renderDetails());
     Studio.EventBus.on('object:removed', () => this._renderDetails());
     Studio.EventBus.on('tab:switched', ({ tab }) => { if (tab === 'targets') this.render(); });
 
-    // Drag-and-drop on workspace
+    // Drag-and-drop on workspace (preserved for legacy — v15 handles
+    // its own drag-drop inside the iframe)
     const container = document.getElementById('targets-container');
     if (container) {
       container.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; container.classList.add('tgt-dragover'); });
@@ -33,8 +37,94 @@ Studio.Targets = {
       container.addEventListener('drop', e => { e.preventDefault(); container.classList.remove('tgt-dragover'); this._handleDrop(e); });
     }
 
+    // ─── v15 ImageTargetStudio postMessage bridge ────────────
+    window.addEventListener('message', (e) => {
+      const d = e.data;
+      if (!d || typeof d !== 'object') return;
+
+      // v15 ready — send existing targets
+      if (d.type === '4e-targets-ready') {
+        this._v15Ready = true;
+        this._pushTargetsToV15();
+        Studio.log('[Targets] v15 ImageTargetStudio connected');
+      }
+
+      // Target compiled in v15
+      if (d.type === '4e-target-compiled' && d.target) {
+        const t = d.target;
+        Studio.log('[Targets] v15 compiled: ' + t.name + ' (score: ' + t.quality + ', type: ' + t.type + ')');
+        const existing = Studio.Project.state.targets.findIndex(x => x.id === t.id);
+        const targetObj = {
+          id: t.id,
+          name: t.name,
+          type: t.type || 'PLANAR',
+          quality: t.quality || 0,
+          properties: t.properties || {},
+          objectIds: existing >= 0 ? (Studio.Project.state.targets[existing].objectIds || []) : [],
+          _luminanceDataUrl: t._luminanceDataUrl || '',
+          _thumbnailDataUrl: t._thumbnailDataUrl || '',
+          _originalDataUrl: t._originalDataUrl || '',
+          originalUrl: '', luminanceUrl: '', thumbnailUrl: '',
+          _imageFile: null,
+          targetType: t.targetType || null,
+          geometry: t.geometry || null,
+          qualityStars: t.qualityStars || null,
+          qualityCriteria: t.qualityCriteria || null,
+          qualityTips: t.qualityTips || null,
+        };
+        if (existing >= 0) {
+          // Preserve GitHub URLs if already published
+          targetObj.originalUrl = Studio.Project.state.targets[existing].originalUrl || '';
+          targetObj.luminanceUrl = Studio.Project.state.targets[existing].luminanceUrl || '';
+          targetObj.thumbnailUrl = Studio.Project.state.targets[existing].thumbnailUrl || '';
+          Studio.Project.state.targets[existing] = targetObj;
+        } else {
+          Studio.Project.state.targets.push(targetObj);
+        }
+        Studio.Project.markDirty();
+        Studio.EventBus.emit('target:changed');
+        Studio.Hierarchy.render();
+        Studio.refreshARStatus();
+        if (Studio.Spatial._ready) Studio.Spatial._sendProject();
+      }
+
+      // Target deleted in v15
+      if (d.type === '4e-target-deleted' && d.targetId) {
+        Studio.log('[Targets] v15 deleted: ' + d.targetId);
+        Studio.Project.state.targets = Studio.Project.state.targets.filter(t => t.id !== d.targetId);
+        Studio.Project.markDirty();
+        Studio.EventBus.emit('target:changed');
+        Studio.Hierarchy.render();
+        Studio.refreshARStatus();
+        if (Studio.Spatial._ready) Studio.Spatial._sendProject();
+      }
+    });
+
     this.render();
     Studio.log('Targets workspace ready');
+  },
+
+  // Push current targets to the v15 iframe so it shows existing ones
+  _pushTargetsToV15() {
+    if (!this._v15Ready || !this._v15Iframe?.contentWindow) return;
+    const targets = Studio.Project.state.targets || [];
+    this._v15Iframe.contentWindow.postMessage({
+      type: '4e-targets-init',
+      targets: targets.map(t => ({
+        id: t.id, name: t.name,
+        quality: t.quality || 0,
+        qualityRating: (t.quality || 0) >= 80 ? 'Excellent' : (t.quality || 0) >= 65 ? 'Good' : (t.quality || 0) >= 50 ? 'Fair' : 'Poor',
+        _thumbnailDataUrl: t._thumbnailDataUrl || '',
+        _luminanceDataUrl: t._luminanceDataUrl || '',
+        thumbnailUrl: t.thumbnailUrl || '',
+        luminanceUrl: t.luminanceUrl || '',
+      }))
+    }, '*');
+    this._v15Iframe.contentWindow.postMessage({
+      type: '4e-targets-project',
+      projectId: Studio.Project.state.id || '',
+      projectName: Studio.Project.state.name || '',
+    }, '*');
   },
 
   // ─── Handle Drop ───────────────────────────────────────
@@ -466,11 +556,19 @@ Studio.Targets = {
         target.thumbnailUrl = await Studio.GitHub.upload(prefix + '_thumbnail.jpg', thumbB64);
       }
 
-      // Upload original
-      if (target._imageFile && !target.originalUrl) {
-        const origB64 = await Studio.GitHub.file2b64(target._imageFile);
-        target.originalUrl = await Studio.GitHub.upload(prefix + '_original.' + (target._imageFile.name.split('.').pop() || 'png'), origB64);
-        Studio.log('Uploaded original: ' + target.name);
+      // Upload original — supports both File objects (studio's own
+      // upload) and base64 data URLs (from ImageTargetStudio v15)
+      if (!target.originalUrl) {
+        let origB64;
+        if (target._originalDataUrl) {
+          origB64 = target._originalDataUrl.split(',')[1];
+        } else if (target._imageFile) {
+          origB64 = await Studio.GitHub.file2b64(target._imageFile);
+        }
+        if (origB64) {
+          target.originalUrl = await Studio.GitHub.upload(prefix + '_original.jpg', origB64);
+          Studio.log('Uploaded original: ' + target.name);
+        }
       }
     }
   },
@@ -517,6 +615,24 @@ Studio.Targets = {
       return;
     }
 
+    // ─── v15 ImageTargetStudio iframe ─────────────────────
+    // Replaces the old card-based UI with the full ImageTargetStudio.
+    // Upload, camera capture, quality scoring, 3D geometry preview,
+    // curved/conical targets — all inside the iframe.
+    if (!this._v15Iframe || !container.contains(this._v15Iframe)) {
+      container.innerHTML = '';
+      const ifr = document.createElement('iframe');
+      ifr.src = '../ImageTargetStudio/4e-image-target-studio-v15.html';
+      ifr.style.cssText = 'width:100%;height:100%;border:none;background:#0a0e1a';
+      ifr.allow = 'camera; microphone';
+      container.appendChild(ifr);
+      this._v15Iframe = ifr;
+    }
+    // Re-push targets when render is called (e.g. after project load)
+    if (this._v15Ready) this._pushTargetsToV15();
+    return;
+
+    // ── Legacy render (kept for reference, unreachable) ──────
     const targets = Studio.Project.state.targets;
 
     container.innerHTML = `

@@ -315,6 +315,13 @@ Studio.Project = {
         // projects (4 targets ≈ 100KB).
         _thumbnailDataUrl: t._thumbnailDataUrl || '',
         _luminanceDataUrl: t._luminanceDataUrl || '',
+        _originalDataUrl: t._originalDataUrl || '',
+        // v15 additions — stored but not required by existing pipeline
+        targetType: t.targetType || null,
+        geometry: t.geometry || null,
+        qualityStars: t.qualityStars || null,
+        qualityCriteria: t.qualityCriteria || null,
+        qualityTips: t.qualityTips || null,
       })),
       prefabs: (s.prefabs || []).map(p => ({
         id: p.id, name: p.name, glbUrl: p.glbUrl, thumbUrl: p.thumbUrl || '',
@@ -375,10 +382,15 @@ Studio.Project = {
       originalUrl: t.originalUrl || '', luminanceUrl: t.luminanceUrl || '',
       thumbnailUrl: t.thumbnailUrl || '', objectIds: t.objectIds || [],
       _imageFile: null,
-      // Restore persisted data URLs so thumbnails survive reload
-      // without requiring a publish. Falls back to empty if not saved.
       _luminanceDataUrl: t._luminanceDataUrl || '',
       _thumbnailDataUrl: t._thumbnailDataUrl || '',
+      _originalDataUrl: t._originalDataUrl || '',
+      // v15 additions
+      targetType: t.targetType || null,
+      geometry: t.geometry || null,
+      qualityStars: t.qualityStars || null,
+      qualityCriteria: t.qualityCriteria || null,
+      qualityTips: t.qualityTips || null,
     }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
