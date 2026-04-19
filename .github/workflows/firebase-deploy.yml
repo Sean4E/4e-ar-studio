@@ -22,8 +22,9 @@ on:
       # (test rig). Independent test-rig-version meta — see firebase.json.
       - 'player-spatial.html'
       # Shared particle engine used by player-spatial (journey runtime)
-      # and also available to future players / spatial editor copies.
       - 'particle-engine.js'
+      # ImageTargetStudio — iframed in the studio's Targets tab
+      - 'ImageTargetStudio/**'
       - 'config.js'
       - 'sw.js'
       - 'samples/**'

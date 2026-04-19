@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# bump-version.sh — single-command version bump for studio + player.
+# bump-version.sh — single-command version bump for ALL versioned files.
 #
-# There is exactly ONE declaration of the version per file, and it
-# lives in the <meta name="version" content="..."> tag. This script
-# updates both in one atomic step so studio and player can never drift.
+# Every file with <meta name="version" content="..."> is bumped
+# atomically so studio, player, spatial editors, and ImageTargetStudio
+# always report the same version number.
 #
 # Usage:
-#   ./bump-version.sh 3.10.14
+#   ./bump-version.sh 3.17.1
 #
 # Runs in git bash on Windows, macOS, Linux.
 
@@ -14,58 +14,65 @@ set -euo pipefail
 
 if [ $# -ne 1 ]; then
   echo "Usage: $0 <new-version>"
-  echo "Example: $0 3.10.14"
+  echo "Example: $0 3.17.1"
   exit 1
 fi
 
 NEW="$1"
 
-# Strict semver check — catches typos like "3.10" or "v3.10.14"
+# Strict semver check
 if ! echo "$NEW" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
   echo "ERROR: version must be semver X.Y.Z (no leading 'v', no pre-release)"
   exit 1
 fi
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-STUDIO="$ROOT/studio/index.html"
-PLAYER="$ROOT/player-v2.html"
 
-for f in "$STUDIO" "$PLAYER"; do
+# All files that carry <meta name="version">
+FILES=(
+  "$ROOT/studio/index.html"
+  "$ROOT/player-v2.html"
+  "$ROOT/spatial/spatial-v7.html"
+  "$ROOT/spatial/spatial-mobile.html"
+  "$ROOT/ImageTargetStudio/4e-image-target-studio-v15.html"
+)
+
+for f in "${FILES[@]}"; do
   if [ ! -f "$f" ]; then
-    echo "ERROR: $f not found"
-    exit 1
+    echo "WARNING: $f not found — skipping"
+    continue
   fi
 done
 
-# In-place replace the version in the meta tag. Portable between GNU
-# sed and BSD sed by writing to a temp file and moving it back.
+# In-place replace the version in the meta tag.
 update_meta() {
   local file="$1"
   local new="$2"
+  if [ ! -f "$file" ]; then return; fi
   local tmp="${file}.tmp"
   sed -E "s|<meta name=\"version\" content=\"[^\"]+\">|<meta name=\"version\" content=\"$new\">|" \
     "$file" > "$tmp"
-  # Confirm exactly one replacement happened — otherwise the tag
-  # structure drifted and we should stop before committing a silently
-  # broken file.
   if ! grep -q "<meta name=\"version\" content=\"$new\">" "$tmp"; then
     rm -f "$tmp"
     echo "ERROR: version meta tag not updated in $file"
     exit 1
   fi
   mv "$tmp" "$file"
+  local short="${file#$ROOT/}"
+  echo "✓ Bumped $short → v$NEW"
 }
 
-update_meta "$STUDIO" "$NEW"
-update_meta "$PLAYER" "$NEW"
+for f in "${FILES[@]}"; do
+  update_meta "$f" "$NEW"
+done
 
-echo "✓ Bumped studio/index.html → v$NEW"
-echo "✓ Bumped player-v2.html   → v$NEW"
 echo ""
 echo "Current meta tags:"
-grep -h "name=\"version\"" "$STUDIO" "$PLAYER" | sed 's/^[[:space:]]*/  /'
+for f in "${FILES[@]}"; do
+  [ -f "$f" ] && grep -h "name=\"version\"" "$f" | sed 's/^[[:space:]]*/  /'
+done
 echo ""
 echo "Next steps:"
-echo "  git add studio/index.html player-v2.html"
+echo "  git add studio/index.html player-v2.html spatial/spatial-v7.html spatial/spatial-mobile.html ImageTargetStudio/4e-image-target-studio-v15.html"
 echo "  git commit -m \"v$NEW: <summary>\""
 echo "  git push"

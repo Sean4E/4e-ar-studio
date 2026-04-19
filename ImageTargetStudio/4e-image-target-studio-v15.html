@@ -1,0 +1,4340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="version" content="3.17.1">
+<title>4E Image Target Studio v15</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<!-- Three.js for 3D preview of cylinder / cone targets -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  async function tryCDN(name, loader) {
+    try { const r = await loader(); console.log(`[4E] Three.js loaded via ${name}`); return { ...r, cdn: name }; }
+    catch (err) { console.warn(`[4E] Three.js ${name} failed:`, err.message); return null; }
+  }
+  let mod = null;
+  mod = mod || await tryCDN('esm.sh', async () => {
+    const THREE = await import('https://esm.sh/three@0.160.0');
+    const { OrbitControls } = await import('https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js');
+    return { THREE, OrbitControls };
+  });
+  mod = mod || await tryCDN('jsdelivr', async () => {
+    const THREE = await import('three');
+    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    return { THREE, OrbitControls };
+  });
+  mod = mod || await tryCDN('unpkg', async () => {
+    const THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js?module');
+    const { OrbitControls } = await import('https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module');
+    return { THREE, OrbitControls };
+  });
+  if (mod) { window.__4E3D = { ...mod, ready: true }; }
+  else { window.__4E3D = { ready: false, error: new Error('All Three.js CDNs failed') }; }
+  window.dispatchEvent(new CustomEvent('4e3dready'));
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0e1a;
+    --bg-2: #0f1424;
+    --glass: rgba(20, 28, 48, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-strong: rgba(30, 40, 64, 0.75);
+    --text: #e8ecf5;
+    --text-dim: #8892a8;
+    --text-faint: #5a6478;
+    --cyan: #00e5ff;
+    --cyan-dim: rgba(0, 229, 255, 0.15);
+    --amber: #ffb547;
+    --amber-dim: rgba(255, 181, 71, 0.15);
+    --purple: #a855f7;
+    --purple-dim: rgba(168, 85, 247, 0.15);
+    --red: #ff4d6d;
+    --green: #2dd4a7;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', -apple-system, sans-serif;
+    /* Iframe-friendly: the whole document fills the iframe viewport exactly,
+       and outer scrolling is disabled. Each panel scrolls independently below. */
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    line-height: 1.5;
+  }
+
+  .orbs { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .orb {
+    position: absolute; border-radius: 50%; filter: blur(80px);
+    opacity: 0.35; animation: drift 20s ease-in-out infinite;
+  }
+  .orb-1 { width: 500px; height: 500px; background: var(--cyan); top: -150px; left: -100px; }
+  .orb-2 { width: 400px; height: 400px; background: var(--purple); bottom: -100px; right: -80px; animation-delay: -7s; }
+  .orb-3 { width: 350px; height: 350px; background: var(--amber); top: 40%; left: 50%; animation-delay: -14s; opacity: 0.2; }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(80px, -60px) scale(1.1); }
+    66% { transform: translate(-60px, 40px) scale(0.95); }
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 1440px; margin: 0 auto;
+    padding: 18px 18px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .layout-grid {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 18px;
+    /* Fill remaining vertical space inside .app and clamp height so children scroll */
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  @media (max-width: 900px) {
+    /* On narrow widths stack the panels and let the outer page scroll instead */
+    html, body { height: auto; overflow: auto; }
+    .app { height: auto; display: block; padding: 14px; }
+    .layout-grid { grid-template-columns: 1fr; min-height: 0; }
+  }
+
+  header { text-align: center; margin-bottom: 28px; padding-top: 8px; }
+  .logo {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.2em; color: var(--amber);
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border: 1px solid var(--amber-dim);
+    border-radius: 100px;
+    background: var(--amber-dim);
+    margin-bottom: 16px;
+  }
+  .logo::before {
+    content: ''; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--amber);
+    box-shadow: 0 0 10px var(--amber);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 6vw, 44px);
+    font-weight: 800; letter-spacing: -0.02em;
+    line-height: 1.1; margin-bottom: 10px;
+    background: linear-gradient(135deg, #ffffff 0%, var(--amber) 50%, var(--purple) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .sub { color: var(--text-dim); font-size: clamp(14px, 3.5vw, 16px); max-width: 680px; margin: 0 auto; }
+
+  .card {
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  }
+
+  /* Main column — scrolls independently from the sidebar */
+  .main-col {
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    /* Breathing room for the custom scrollbar so it doesn't hug card edges */
+    padding-right: 6px;
+  }
+  .main-col::-webkit-scrollbar { width: 8px; }
+  .main-col::-webkit-scrollbar-track { background: transparent; }
+  .main-col::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 100px;
+  }
+  .main-col::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+  /* The LAST card inside the scroll should not add extra bottom margin */
+  .main-col > .card:last-child { margin-bottom: 0; }
+  @media (max-width: 900px) {
+    .main-col { max-height: none; overflow: visible; padding-right: 0; }
+  }
+
+  /* Sidebar */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+    /* Fills its grid cell vertically; the .target-list inside scrolls when
+       targets overflow, while the header/buttons/camera stay pinned. */
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  @media (max-width: 900px) {
+    .sidebar { max-height: none; overflow: visible; margin-bottom: 18px; }
+  }
+  .sidebar-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .sidebar-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.2em;
+    color: var(--text-dim); text-transform: uppercase;
+  }
+  .sidebar-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    background: var(--amber-dim);
+    color: var(--amber);
+    border-radius: 100px;
+    letter-spacing: 0.1em;
+  }
+  .sidebar-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .btn-mini {
+    border: 0; padding: 10px 6px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    min-height: 56px;
+  }
+  .btn-mini:hover {
+    color: var(--text);
+    border-color: var(--cyan-dim);
+    background: rgba(0, 229, 255, 0.06);
+  }
+  .btn-mini:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-mini svg { width: 18px; height: 18px; color: var(--cyan); }
+  .btn-mini.sample svg { color: var(--purple); }
+  .btn-mini.camera svg { color: var(--amber); }
+  .btn-mini.active {
+    border-color: var(--amber);
+    background: var(--amber-dim);
+    color: var(--amber);
+  }
+
+  .sidebar-camera {
+    display: none;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+  }
+  .sidebar-camera.active { display: block; }
+  .sidebar-camera .camera-wrap {
+    position: relative; border-radius: 8px; overflow: hidden;
+    background: #000; aspect-ratio: 4 / 3;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+  }
+  .sidebar-camera #video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sidebar-camera .camera-placeholder {
+    color: var(--text-faint); text-align: center; padding: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  }
+  .sidebar-camera .camera-placeholder svg { width: 28px; height: 28px; color: var(--amber); opacity: 0.6; }
+  .sidebar-camera .camera-controls { display: grid; grid-template-columns: 1fr 1fr 36px; gap: 6px; }
+  .sidebar-camera .camera-controls .btn {
+    padding: 8px; font-size: 10px; min-height: 36px;
+  }
+
+  .target-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    display: flex; flex-direction: column;
+    gap: 6px;
+    padding-right: 4px;
+    min-height: 0;
+  }
+  .target-list::-webkit-scrollbar { width: 6px; }
+  .target-list::-webkit-scrollbar-track { background: transparent; }
+  .target-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 100px; }
+  .target-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+  .target-empty {
+    padding: 24px 16px;
+    text-align: center;
+    border: 1px dashed var(--glass-border);
+    border-radius: 12px;
+    color: var(--text-faint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.08em; line-height: 1.6;
+  }
+
+  .target-item {
+    display: grid;
+    grid-template-columns: 52px 1fr 24px;
+    gap: 10px; align-items: center;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .target-item:hover {
+    border-color: var(--cyan-dim);
+    background: rgba(0, 0, 0, 0.4);
+  }
+  .target-item.active {
+    border-color: var(--amber);
+    background: linear-gradient(135deg, var(--amber-dim), var(--purple-dim));
+    box-shadow: 0 0 0 1px var(--amber-dim);
+  }
+  .target-thumb {
+    width: 52px; height: 52px;
+    border-radius: 6px;
+    background: #000 center / cover no-repeat;
+    border: 1px solid var(--glass-border);
+    position: relative; overflow: hidden;
+  }
+  .target-thumb-score {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(10, 14, 26, 0.85);
+    line-height: 1.2;
+  }
+  .target-thumb-score.excellent { color: var(--green); }
+  .target-thumb-score.good { color: var(--cyan); }
+  .target-thumb-score.fair { color: var(--amber); }
+  .target-thumb-score.poor { color: var(--red); }
+  .target-meta { min-width: 0; }
+  .target-name {
+    font-size: 12px; font-weight: 600;
+    color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .target-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--text-faint);
+    letter-spacing: 0.05em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .target-del {
+    border: 0; background: transparent;
+    color: var(--text-faint); cursor: pointer;
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .target-del:hover { color: var(--red); background: rgba(255, 77, 109, 0.1); }
+  .target-del svg { width: 14px; height: 14px; }
+
+  .drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 52px 24px;
+    min-height: 240px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 2px dashed rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
+    user-select: none;
+    outline: none;
+  }
+  /* Children don't steal drag events from the zone — simpler + avoids
+     dragenter/dragleave flicker when the pointer crosses child boundaries. */
+  .drop-zone > * { pointer-events: none; }
+  .drop-zone:hover,
+  .drop-zone:focus-visible,
+  .drop-zone.drag-over {
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.06), rgba(168, 85, 247, 0.04));
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 4px rgba(0, 229, 255, 0.06);
+  }
+  .drop-zone.drag-over {
+    /* A shade brighter during an active drag-over to distinguish from plain hover */
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.10), rgba(168, 85, 247, 0.06));
+    box-shadow: 0 0 0 6px rgba(0, 229, 255, 0.10);
+    transform: scale(1.003);
+  }
+  .drop-zone .drop-icon {
+    width: 56px; height: 56px;
+    color: var(--cyan);
+    margin-bottom: 18px;
+  }
+  .drop-zone .drop-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  .drop-zone .drop-formats {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .empty-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 1.55;
+    margin-top: 14px;
+    padding: 0 8px;
+  }
+  .empty-hint strong { color: var(--text); font-weight: 600; }
+
+  #fileInput { display: none; }
+
+  .btn {
+    border: 0; border-radius: 12px;
+    padding: 14px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 48px;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--amber) 0%, #ff9500 100%);
+    color: #1a0a00;
+    box-shadow: 0 4px 20px rgba(255, 181, 71, 0.3);
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(255, 181, 71, 0.45);
+  }
+  .btn-secondary {
+    background: var(--glass-strong); color: var(--text);
+    border: 1px solid var(--glass-border);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(40, 52, 80, 0.85);
+    border-color: var(--cyan-dim);
+  }
+  .btn-amber {
+    background: linear-gradient(135deg, var(--amber) 0%, #ff9500 100%);
+    color: #1a0a00;
+    box-shadow: 0 4px 20px rgba(255, 181, 71, 0.3);
+  }
+  .btn-danger {
+    background: rgba(255, 77, 109, 0.15);
+    color: var(--red);
+    border: 1px solid rgba(255, 77, 109, 0.3);
+  }
+  .btn-danger:hover:not(:disabled) { background: rgba(255, 77, 109, 0.25); }
+  .btn svg { width: 16px; height: 16px; }
+
+  .preview-wrap {
+    position: relative; border-radius: 16px; overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
+    margin-bottom: 16px;
+    min-height: 200px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #previewCanvas { max-width: 100%; max-height: 60vh; display: block; }
+
+  .preview-hint {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    margin-top: -8px;
+    margin-bottom: 14px;
+    background: rgba(255, 181, 71, 0.06);
+    border: 1px solid rgba(255, 181, 71, 0.15);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  .preview-hint svg {
+    width: 14px; height: 14px;
+    color: var(--amber);
+    flex-shrink: 0;
+  }
+
+  .view-toggle {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    padding: 4px;
+    background: rgba(10, 14, 26, 0.5);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    margin-top: -8px; margin-bottom: 16px;
+  }
+  .view-toggle-btn {
+    border: 0; background: transparent;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 10px 8px; border-radius: 7px;
+    cursor: pointer; transition: all 0.2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .view-toggle-btn:hover { color: var(--text); }
+  .view-toggle-btn.active { background: var(--amber-dim); color: var(--amber); }
+  .view-toggle-btn svg { width: 13px; height: 13px; }
+
+  /* Display controls */
+  .display-controls {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px; align-items: center;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+  }
+  .display-controls-slider {
+    display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  }
+  .display-controls-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-dim);
+    display: flex; justify-content: space-between;
+  }
+  .display-controls-label span.val { color: var(--text); }
+  .display-controls input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: linear-gradient(to right,
+      var(--cyan) 0%, var(--cyan) var(--val, 30%),
+      rgba(255,255,255,0.08) var(--val, 30%), rgba(255,255,255,0.08) 100%);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .display-controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px;
+    background: var(--cyan);
+    border: 2px solid #041018;
+    border-radius: 50%; cursor: grab;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  }
+  .display-controls input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    background: var(--cyan);
+    border: 2px solid #041018;
+    border-radius: 50%; cursor: grab;
+  }
+  .display-controls-colour {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .display-controls-colour .display-controls-label { justify-content: center; }
+  .display-controls-colour input[type="color"] {
+    -webkit-appearance: none; appearance: none;
+    width: 44px; height: 34px;
+    padding: 0;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .display-controls-colour input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .display-controls-colour input[type="color"]::-webkit-color-swatch { border: none; border-radius: 5px; }
+  .display-controls-colour input[type="color"]::-moz-color-swatch { border: none; border-radius: 5px; }
+
+  .pills {
+    display: flex; gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    flex: 1; min-width: 88px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s ease;
+    text-align: center;
+  }
+  .pill:hover { color: var(--text); }
+  .pill.active {
+    background: var(--amber-dim);
+    color: var(--amber);
+    border-color: var(--amber-dim);
+  }
+
+  .info-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 12px;
+  }
+  .info-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 10px; border-radius: 100px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    color: var(--text-dim);
+  }
+  .info-chip.ok { color: var(--green); border-color: rgba(45, 212, 167, 0.3); }
+  .info-chip.warn { color: var(--amber); border-color: rgba(255, 181, 71, 0.3); }
+  .info-chip.bad { color: var(--red); border-color: rgba(255, 77, 109, 0.3); }
+
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .actions .btn { flex: 1; min-width: 140px; }
+
+  .progress {
+    display: none; margin-top: 14px; padding: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+  }
+  .progress.active { display: block; }
+  .progress-label {
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .progress-bar { height: 6px; background: rgba(255, 255, 255, 0.06); border-radius: 100px; overflow: hidden; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber), var(--purple));
+    width: 0%; transition: width 0.3s ease;
+    border-radius: 100px;
+  }
+
+  .results { display: none; }
+  .results.active { display: block; }
+
+  .score-hero {
+    text-align: center; padding: 28px 20px;
+    background: linear-gradient(135deg, rgba(255, 181, 71, 0.08), rgba(168, 85, 247, 0.08));
+    border-radius: 16px; margin-bottom: 16px;
+    border: 1px solid var(--glass-border);
+  }
+
+  .score-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.2em;
+    color: var(--text-dim); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .score-value {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(54px, 14vw, 80px);
+    font-weight: 800; line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .score-value.excellent { color: var(--green); text-shadow: 0 0 40px rgba(45, 212, 167, 0.4); }
+  .score-value.good { color: var(--cyan); text-shadow: 0 0 40px rgba(0, 229, 255, 0.4); }
+  .score-value.fair { color: var(--amber); text-shadow: 0 0 40px rgba(255, 181, 71, 0.4); }
+  .score-value.poor { color: var(--red); text-shadow: 0 0 40px rgba(255, 77, 109, 0.4); }
+  .score-rating {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    margin-top: 8px;
+  }
+  .score-rating.excellent { color: var(--green); }
+  .score-rating.good { color: var(--cyan); }
+  .score-rating.fair { color: var(--amber); }
+  .score-rating.poor { color: var(--red); }
+
+  .stars { display: inline-flex; gap: 4px; margin-top: 10px; }
+  .star { width: 20px; height: 20px; color: var(--text-faint); }
+  .star.filled { color: var(--amber); filter: drop-shadow(0 0 8px rgba(255, 181, 71, 0.5)); }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .metric {
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+  }
+  .metric-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em;
+    color: var(--text-dim); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .metric-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
+  .metric-value.accent { color: var(--amber); }
+  .metric-value.ok { color: var(--green); }
+  .metric-value.warn { color: var(--amber); }
+  .metric-value.bad { color: var(--red); }
+  .metric-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--text-faint);
+    margin-top: 2px;
+  }
+
+  .criterion {
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .criterion-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .criterion-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.08em;
+    color: var(--text-dim); text-transform: uppercase;
+  }
+  .criterion-score { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: var(--text); }
+  .criterion-bar { height: 4px; background: rgba(255, 255, 255, 0.06); border-radius: 100px; overflow: hidden; }
+  .criterion-fill { height: 100%; border-radius: 100px; transition: width 0.6s ease; }
+  .criterion-fill.ok { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  .criterion-fill.warn { background: linear-gradient(90deg, var(--amber), #ff9500); }
+  .criterion-fill.bad { background: linear-gradient(90deg, var(--red), #ff3860); }
+
+  .tips {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  .tips-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.15em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tips-title svg { width: 14px; height: 14px; }
+  .tips ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .tips li {
+    font-size: 13px; color: var(--text-dim);
+    padding-left: 20px; position: relative; line-height: 1.5;
+  }
+  .tips li::before { content: '▸'; position: absolute; left: 4px; color: var(--amber); }
+
+  .next-steps {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(255, 181, 71, 0.05));
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  .next-steps-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.15em;
+    color: var(--purple); text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .next-steps-title svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .next-steps ol {
+    padding-left: 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 13px; color: var(--text-dim);
+  }
+  .next-steps a { color: var(--amber); text-decoration: none; }
+  .next-steps code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 6px; border-radius: 4px;
+    color: var(--amber);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--glass-strong);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    padding: 12px 18px; border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    opacity: 0; pointer-events: none;
+    transition: all 0.3s ease;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+  .toast.success { border-color: var(--green); color: var(--green); }
+
+  .template-guide {
+    margin-top: 14px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(255, 181, 71, 0.06), rgba(168, 85, 247, 0.04));
+    border: 1px solid rgba(255, 181, 71, 0.15);
+    border-radius: 14px;
+  }
+  .template-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.15em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .template-title svg { width: 14px; height: 14px; }
+  .template-visual {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 18px 14px; margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 160px;
+  }
+  .template-visual svg { width: 100%; max-width: 380px; height: auto; display: block; }
+  .template-info { font-size: 12px; color: var(--text-dim); line-height: 1.55; margin-bottom: 12px; }
+  .template-info strong { color: var(--text); font-weight: 600; }
+  .template-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .template-actions .btn {
+    flex: 1; min-width: 140px; min-height: 40px;
+    padding: 10px 14px; font-size: 11px;
+  }
+
+  .geometry-panel {
+    margin-top: 14px; padding: 16px;
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.05), rgba(168, 85, 247, 0.05));
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 14px;
+  }
+  .geometry-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.15em;
+    color: var(--cyan); text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .geometry-title svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .geometry-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px; align-items: start;
+  }
+  @media (max-width: 720px) { .geometry-body { grid-template-columns: 1fr; } }
+
+  .geometry-inputs { display: flex; flex-direction: column; gap: 10px; }
+  .geo-field { display: flex; flex-direction: column; gap: 4px; }
+  .geo-field-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .geo-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .geo-field input[type="number"], .geo-field select {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: var(--text);
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    min-height: 38px;
+    outline: none;
+    transition: all 0.15s ease;
+  }
+  .geo-field input[type="number"]:focus, .geo-field select:focus {
+    border-color: var(--cyan);
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .geo-field input[type="number"]::-webkit-outer-spin-button,
+  .geo-field input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .geo-field input[type="number"] { -moz-appearance: textfield; }
+
+  .geo-slider-field { display: flex; flex-direction: column; gap: 6px; }
+  .geo-slider-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .geo-slider-header .geo-field-label { flex: 1; margin: 0; }
+  .geo-slider-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--text);
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    width: 72px; text-align: right;
+    outline: none; transition: all 0.15s ease;
+  }
+  .geo-slider-value:focus { border-color: var(--cyan); background: rgba(0, 0, 0, 0.55); }
+  .geo-slider-value::-webkit-outer-spin-button,
+  .geo-slider-value::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .geo-slider-value { -moz-appearance: textfield; }
+
+  .geo-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%;
+    /* 4px visible track, 10px padding top/bottom — keeps thin look but more
+       than doubles the clickable area for mouse + touch. content-box ensures
+       the height: 4px is the content (background) strip, not the full box. */
+    box-sizing: content-box;
+    height: 4px;
+    padding: 10px 0;
+    background: linear-gradient(to right,
+      rgba(0, 229, 255, 0.25) 0%, rgba(0, 229, 255, 0.25) var(--val, 50%),
+      rgba(255, 255, 255, 0.08) var(--val, 50%), rgba(255, 255, 255, 0.08) 100%);
+    background-clip: content-box;
+    border: 0;
+    border-radius: 2px; outline: none; cursor: pointer; touch-action: none;
+  }
+  .geo-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px;
+    background: var(--cyan);
+    border: 2px solid #041018;
+    border-radius: 50%; cursor: grab;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: transform 0.1s ease;
+  }
+  .geo-slider::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.15); }
+  .geo-slider::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: var(--cyan);
+    border: 2px solid #041018;
+    border-radius: 50%; cursor: grab;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: transform 0.1s ease;
+  }
+  .geo-slider::-moz-range-thumb:active { cursor: grabbing; transform: scale(1.15); }
+  .geo-slider-range {
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 0.1em;
+    color: var(--text-faint); margin-top: -2px;
+  }
+
+  .geo-fit-seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    padding: 3px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+  }
+  .geo-fit-seg-btn {
+    border: 0; background: transparent; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 8px 6px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .geo-fit-seg-btn:hover { color: var(--text); }
+  .geo-fit-seg-btn.active { background: var(--cyan-dim); color: var(--cyan); }
+  .geo-fit-seg-btn small {
+    display: block; font-size: 8px; font-weight: 400;
+    text-transform: none; letter-spacing: 0; color: var(--text-faint);
+    margin-top: 2px;
+  }
+  .geo-fit-seg-btn.active small { color: var(--text-dim); }
+
+  .geo-computed {
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-dim); line-height: 1.6;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .geo-computed strong { color: var(--cyan); font-weight: 600; }
+  .geo-computed .geo-warn { color: var(--red); }
+
+  .geometry-3d {
+    position: relative;
+    min-height: 300px;
+    aspect-ratio: 1 / 1;
+    background: #050814;
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .geometry-3d canvas { width: 100% !important; height: 100% !important; display: block; }
+  .geometry-3d-hint {
+    position: absolute; bottom: 8px; right: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-faint);
+    background: rgba(5, 8, 20, 0.75);
+    padding: 4px 8px; border-radius: 4px;
+    pointer-events: none;
+  }
+  .geometry-3d-msg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; text-align: center;
+    padding: 20px; line-height: 1.5;
+  }
+
+  .section-head {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.2em;
+    color: var(--text-dim); text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-head::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(to right, var(--glass-border), transparent);
+  }
+  .section-head .mode-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 0.15em;
+    padding: 2px 6px; border-radius: 4px;
+    background: var(--amber-dim); color: var(--amber);
+  }
+
+  footer {
+    text-align: center;
+    padding: 20px; margin-top: 20px;
+    color: var(--text-faint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em;
+  }
+
+  @media (max-width: 640px) {
+    .app { padding: 16px 14px 40px; }
+    .card { padding: 16px; border-radius: 16px; }
+    .btn { font-size: 11px; padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="app">
+  <div class="layout-grid">
+
+    <aside class="card sidebar">
+      <div class="sidebar-head">
+        <div class="sidebar-title">Targets</div>
+        <div class="sidebar-count" id="sidebarCount">0 targets</div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="btn-mini" id="btnAddUpload" type="button" title="Upload image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload
+        </button>
+        <button class="btn-mini camera" id="btnAddCamera" type="button" title="Capture from camera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          Camera
+        </button>
+        <button class="btn-mini sample" id="btnAddSample" type="button" title="Generate high-scoring sample">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l2.39 7.36H22l-6.31 4.58 2.39 7.36L12 16.72l-6.09 4.58 2.39-7.36L2 9.36h7.61z"/>
+          </svg>
+          Sample
+        </button>
+      </div>
+
+      <input type="file" id="fileInput" accept="image/*" multiple>
+
+      <div class="sidebar-camera" id="sidebarCamera">
+        <div class="camera-wrap">
+          <video id="video" autoplay playsinline muted style="display:none"></video>
+          <div class="camera-placeholder" id="cameraPlaceholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <div>Tap Start</div>
+          </div>
+        </div>
+        <div class="camera-controls">
+          <button class="btn btn-secondary" id="btnStartCam" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg> Start
+          </button>
+          <button class="btn btn-primary" id="btnCapture" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/>
+            </svg> Snap
+          </button>
+          <button class="btn btn-secondary" id="btnFlip" type="button" disabled title="Flip camera">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/>
+              <polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="target-list" id="targetList">
+        <div class="target-empty" id="targetEmpty">
+          No targets yet.<br>
+          Upload, capture, or generate a sample to start.
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-col">
+
+      <div class="card" id="mainEmpty">
+        <div class="section-head">01 · Source
+          <span class="mode-badge">Prep</span>
+        </div>
+        <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Drop image or tap to browse">
+          <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div class="drop-title">Drop image or tap to browse</div>
+          <div class="drop-formats">JPG · PNG · WEBP · multiple at once</div>
+        </div>
+        <p class="empty-hint">Or use the <strong>Camera</strong> / <strong>Sample</strong> buttons in the sidebar to capture from webcam or generate a high-scoring procedural target. Every image you add becomes its own entry in the session list.</p>
+      </div>
+
+      <div class="card" id="previewCard" style="display:none">
+        <div class="section-head">01 · Preview
+          <span class="mode-badge">Prep</span>
+        </div>
+
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px">Target type</div>
+        <div class="pills">
+          <div class="pill active" data-targettype="flat">Flat</div>
+          <div class="pill" data-targettype="curved">Curved</div>
+          <div class="pill" data-targettype="conical">Conical</div>
+        </div>
+
+        <div class="template-guide" id="templateGuide">
+          <div class="template-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span id="templateTitleLabel">Format guide · Flat</span>
+          </div>
+          <div class="template-visual" id="templateVisual"></div>
+          <div class="template-info" id="templateInfoText"></div>
+          <div class="template-actions">
+            <button class="btn btn-secondary" id="btnDownloadTemplate" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download SVG template
+            </button>
+          </div>
+        </div>
+
+        <div class="geometry-panel" id="geometryPanel" style="display:none">
+          <div class="geometry-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+            <span id="geometryTitleLabel">3D preview &amp; physical dimensions</span>
+          </div>
+          <div class="geometry-body">
+            <div class="geometry-inputs" id="geometryInputs"></div>
+            <div class="geometry-3d" id="geometry3D">
+              <div class="geometry-3d-msg" id="geometry3DMsg">Loading 3D engine…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-row" id="infoRow"></div>
+
+        <div class="preview-wrap">
+          <canvas id="previewCanvas"></canvas>
+        </div>
+
+        <div class="preview-hint" id="previewHint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="5 9 2 12 5 15"/>
+            <polyline points="9 5 12 2 15 5"/>
+            <polyline points="15 19 12 22 9 19"/>
+            <polyline points="19 9 22 12 19 15"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <line x1="12" y1="2" x2="12" y2="22"/>
+          </svg>
+          Drag the orange crop box to choose which part of the image is analysed · double-click inside to recentre
+        </div>
+
+        <div class="view-toggle" id="viewToggle" style="display:none">
+          <button class="view-toggle-btn active" data-view="original" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            Original + features
+          </button>
+          <button class="view-toggle-btn" data-view="tracker" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            </svg>
+            Tracker view · grayscale
+          </button>
+        </div>
+
+        <div class="display-controls">
+          <div class="display-controls-slider">
+            <div class="display-controls-label">
+              <span>Tracked dot size</span><span class="val" id="dotSizeVal">3</span>
+            </div>
+            <input type="range" id="dotSizeSlider" min="1" max="10" step="1" value="3" style="--val:22%">
+          </div>
+          <div class="display-controls-colour">
+            <div class="display-controls-label"><span>Colour</span></div>
+            <input type="color" id="dotColourPicker" value="#00e5ff">
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-danger" id="btnDeleteTarget" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            Remove target
+          </button>
+          <button class="btn btn-primary" id="btnCompile" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span id="btnCompileLabel">Analyse target</span>
+          </button>
+        </div>
+
+        <div class="progress" id="progress">
+          <div class="progress-label">
+            <span id="progressLabel">Working</span>
+            <span id="progressPct">0%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+      </div>
+
+      <div class="card results" id="results">
+        <div class="section-head">02 · Pre-flight quality
+          <span class="mode-badge">Analyse</span>
+        </div>
+        <div class="score-hero">
+          <div class="score-label" id="scoreHeroLabel">Pre-flight quality score</div>
+          <div class="score-value" id="scoreValue">0</div>
+          <div class="score-rating" id="scoreRating">—</div>
+          <div class="stars" id="starRating" style="display:none"></div>
+        </div>
+
+        <div id="criteriaList" style="display:none; margin-bottom: 16px"></div>
+
+        <div class="metrics" id="metricsGrid"></div>
+
+        <div class="tips" id="tipsBox">
+          <div class="tips-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Recommendations
+          </div>
+          <ul id="tipsList"></ul>
+        </div>
+
+        <div class="next-steps" id="nextSteps" style="display:none">
+          <div class="next-steps-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+            How to use the CLI bundle
+          </div>
+          <ol>
+            <li>Download the <strong>CLI bundle .zip</strong> below — contains <code>{name}.json</code>, original, cropped, thumbnail (263×350), and luminance (480×640) images.</li>
+            <li>Unzip into your project's <code>image-targets/</code> folder next to your AR engine code.</li>
+            <li>Load at runtime via <code>XR8.XrController.configure({ imageTargetData: [require('./image-targets/{name}.json')] })</code>.</li>
+            <li>For cylindrical and conical targets, set the physical dimensions in the 3D preview panel above — the bundle includes full <code>CYLINDER</code> / <code>CONICAL</code> metadata matching the <a href="https://github.com/8thwall/8thwall/tree/main/apps/image-target-cli" target="_blank" rel="noopener">image-target-cli</a> output format.</li>
+            <li>Target type currently selected: <span id="nextStepsType">Flat</span>.</li>
+          </ol>
+        </div>
+
+        <div class="section-head" id="exportSectionHead" style="margin-top:18px">03 · Download
+          <span class="mode-badge">Export</span>
+        </div>
+        <div class="actions" id="downloadActions"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+(function () {
+  'use strict';
+
+  // ============ State ============
+  // Multi-target session: each image the user adds becomes an entry in targets[].
+  // Active target is the one currently displayed on the right; click a sidebar
+  // thumbnail to switch.
+  //
+  // Target shape:
+  //   { id, name, image, thumbnail, targetType, geometry, analysis }
+  //   - image:       HTMLImageElement (full-res source, possibly downscaled to 2048)
+  //   - thumbnail:   dataURL (small, for sidebar display)
+  //   - targetType:  'flat' | 'curved' | 'conical'
+  //   - geometry:    { cylinder, cone } — per-target physical dimensions
+  //   - analysis:    null | { result, bundle, lumCanvas, lastPreviewPoints,
+  //                           lastPreviewCrop, lastPreviewRotated, previewMode }
+  const state = {
+    targets: [],
+    activeId: null,
+    currentStream: null,
+    currentFacing: 'environment',
+    displayDotSize: 3,          // 1..10 multiplier
+    displayDotColour: '#00e5ff' // hex for dots
+  };
+
+  // ============ DOM refs ============
+  const $ = (id) => document.getElementById(id);
+
+  const sidebarCount     = $('sidebarCount');
+  const targetList       = $('targetList');
+  const targetEmpty      = $('targetEmpty');
+  const btnAddUpload     = $('btnAddUpload');
+  const btnAddCamera     = $('btnAddCamera');
+  const btnAddSample     = $('btnAddSample');
+  const fileInput        = $('fileInput');
+  const sidebarCamera    = $('sidebarCamera');
+  const video            = $('video');
+  const camPlaceholder   = $('cameraPlaceholder');
+  const btnStartCam      = $('btnStartCam');
+  const btnCapture       = $('btnCapture');
+  const btnFlip          = $('btnFlip');
+
+  const mainEmpty        = $('mainEmpty');
+  const previewCard      = $('previewCard');
+  const previewCanvas    = $('previewCanvas');
+  const infoRow          = $('infoRow');
+  const viewToggle       = $('viewToggle');
+  const viewToggleBtns   = document.querySelectorAll('.view-toggle-btn');
+  const btnCompile       = $('btnCompile');
+  const btnCompileLabel  = $('btnCompileLabel');
+  const btnDeleteTarget  = $('btnDeleteTarget');
+  const progress         = $('progress');
+  const progressFill     = $('progressFill');
+  const progressPct      = $('progressPct');
+  const progressLabel    = $('progressLabel');
+  const targetTypePills  = document.querySelectorAll('.pill[data-targettype]');
+  const templateVisual   = $('templateVisual');
+  const templateInfoText = $('templateInfoText');
+  const templateTitleLabel = $('templateTitleLabel');
+
+  const results          = $('results');
+  const scoreHeroLabel   = $('scoreHeroLabel');
+  const metricsGrid      = $('metricsGrid');
+  const criteriaList     = $('criteriaList');
+  const tipsList         = $('tipsList');
+  const starRating       = $('starRating');
+  const nextSteps        = $('nextSteps');
+  const nextStepsType    = $('nextStepsType');
+  const downloadActions  = $('downloadActions');
+
+  const dotSizeSlider    = $('dotSizeSlider');
+  const dotSizeVal       = $('dotSizeVal');
+  const dotColourPicker  = $('dotColourPicker');
+
+  const geometryPanel    = $('geometryPanel');
+  const geometryInputsEl = $('geometryInputs');
+  const geometry3D       = $('geometry3D');
+  const geometry3DMsg    = $('geometry3DMsg');
+  const geometryTitleLabel = $('geometryTitleLabel');
+
+  const toast = $('toast');
+
+  // ============ Toast ============
+  let toastTimer;
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'toast show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.classList.remove('show'); }, 3200);
+  }
+
+  // ============ Target creation & lifecycle ============
+  function defaultGeometry() {
+    return {
+      cylinder: { unit: 'mm', circumference: 210, height: 120, arcAngle: 360, fit: 'crop' },
+      cone:     { unit: 'mm', topRadius: 30, bottomRadius: 40, height: 95, arcAngle: 360, fit: 'crop' }
+    };
+  }
+
+  function createTarget(img, name) {
+    const id = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    return {
+      id,
+      name: (name || 'target').replace(/\.[^.]+$/, '') || 'target',
+      image: img,
+      thumbnail: buildThumbnailDataURL(img, 160),
+      targetType: 'flat',
+      geometry: defaultGeometry(),
+      // Pan offset of the crop rectangle, in ORIENTED-image pixel space.
+      // { x: 0, y: 0 } = default centred crop; positive x moves crop right,
+      // positive y moves crop down. Clamped at draw/analysis time so the crop
+      // can never exceed image bounds. Reset when target-type changes.
+      cropOffset: { x: 0, y: 0 },
+      analysis: null
+    };
+  }
+
+  function buildThumbnailDataURL(img, maxSide) {
+    const w = img.naturalWidth  || img.width;
+    const h = img.naturalHeight || img.height;
+    const s = Math.min(1, maxSide / Math.max(w, h));
+    const cw = Math.max(1, Math.round(w * s));
+    const ch = Math.max(1, Math.round(h * s));
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    try { return c.toDataURL('image/jpeg', 0.8); }
+    catch (e) { return ''; }
+  }
+
+  function getActive() {
+    if (!state.activeId) return null;
+    return state.targets.find((t) => t.id === state.activeId) || null;
+  }
+
+  function addTarget(target) {
+    state.targets.push(target);
+    setActiveTarget(target.id);
+    renderSidebar();
+  }
+
+  function setActiveTarget(id) {
+    state.activeId = id;
+    const t = getActive();
+    renderSidebar();
+    if (!t) {
+      mainEmpty.style.display = 'block';
+      previewCard.style.display = 'none';
+      results.classList.remove('active');
+      return;
+    }
+    mainEmpty.style.display = 'none';
+    previewCard.style.display = 'block';
+
+    // Restore target-type pill state for the active target
+    targetTypePills.forEach((p) => p.classList.toggle('active', p.dataset.targettype === t.targetType));
+
+    renderTemplateGuide();
+    updateGeometryPanel();
+    updateInfoChips();
+
+    // Restore or clear analysis view
+    if (t.analysis && t.analysis.result) {
+      // Restore cached preview + results
+      viewToggle.style.display = 'grid';
+      viewToggleBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === (t.analysis.previewMode || 'original')));
+      if (t.analysis.previewMode === 'tracker') {
+        drawTrackerView();
+      } else {
+        drawPreview(t.analysis.lastPreviewPoints);
+      }
+      renderEightWallResults(t.analysis.result);
+    } else {
+      viewToggle.style.display = 'none';
+      results.classList.remove('active');
+      drawPreview();
+    }
+  }
+
+  function deleteTarget(id) {
+    const idx = state.targets.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    state.targets.splice(idx, 1);
+    // Notify parent (studio/player) that a target was removed
+    if (typeof notifyTargetDeleted === 'function') notifyTargetDeleted(id);
+    if (state.activeId === id) {
+      const next = state.targets[idx] || state.targets[idx - 1] || null;
+      setActiveTarget(next ? next.id : null);
+    } else {
+      renderSidebar();
+    }
+  }
+
+  function renderSidebar() {
+    // Count chip
+    const n = state.targets.length;
+    sidebarCount.textContent = n === 1 ? '1 target' : n + ' targets';
+
+    if (n === 0) {
+      targetList.innerHTML = '';
+      targetList.appendChild(targetEmpty);
+      return;
+    }
+
+    targetEmpty.remove();
+    targetList.innerHTML = '';
+
+    state.targets.forEach((t, i) => {
+      const item = document.createElement('div');
+      item.className = 'target-item' + (t.id === state.activeId ? ' active' : '');
+      item.dataset.id = t.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'target-thumb';
+      if (t.thumbnail) thumb.style.backgroundImage = `url(${t.thumbnail})`;
+
+      if (t.analysis && t.analysis.result) {
+        const r = t.analysis.result;
+        const scoreTag = document.createElement('div');
+        scoreTag.className = 'target-thumb-score ' + r.ratingClass;
+        scoreTag.textContent = r.overall;
+        thumb.appendChild(scoreTag);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'target-meta';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'target-name';
+      nameEl.textContent = t.name;
+      const infoEl = document.createElement('div');
+      infoEl.className = 'target-info';
+      const w = t.image.naturalWidth || t.image.width;
+      const h = t.image.naturalHeight || t.image.height;
+      const typeLabel = t.targetType.charAt(0).toUpperCase() + t.targetType.slice(1);
+      const scoreSuffix = (t.analysis && t.analysis.result) ? ` · ${t.analysis.result.stars}★` : ' · Not analysed';
+      infoEl.textContent = `${typeLabel} · ${w}×${h}${scoreSuffix}`;
+      meta.appendChild(nameEl);
+      meta.appendChild(infoEl);
+
+      const del = document.createElement('button');
+      del.className = 'target-del';
+      del.type = 'button';
+      del.title = 'Remove target';
+      del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteTarget(t.id);
+      });
+
+      item.appendChild(thumb);
+      item.appendChild(meta);
+      item.appendChild(del);
+
+      item.addEventListener('click', () => {
+        if (t.id !== state.activeId) setActiveTarget(t.id);
+      });
+
+      targetList.appendChild(item);
+    });
+  }
+
+  // ============ File upload (multi-file supported) ============
+  btnAddUpload.addEventListener('click', () => {
+    closeSidebarCamera();
+    fileInput.value = '';
+    fileInput.click();
+  });
+  fileInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    loadImageFiles(files);
+  });
+
+  // ============ Drop zone — big inviting target for the empty state ============
+  // Opens the file picker on click / Enter / Space, and accepts drag-and-drop
+  // of one or more image files (each becomes its own target).
+  const dropZone = $('dropZone');
+  dropZone.addEventListener('click', () => {
+    closeSidebarCamera();
+    fileInput.value = '';
+    fileInput.click();
+  });
+  dropZone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      dropZone.click();
+    }
+  });
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', (e) => {
+    // Only remove when the pointer actually leaves the zone rect (not when it
+    // crosses into a child). With pointer-events:none on children this fires
+    // cleanly, but guard anyway.
+    if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over');
+  });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (files.length > 0) loadImageFiles(files);
+  });
+
+  // Prevent accidental navigation if the user misses the drop zone — browsers
+  // otherwise navigate away to display the dropped file. We still only accept
+  // drops on the zone itself (handled above).
+  ['dragover', 'drop'].forEach((ev) => {
+    window.addEventListener(ev, (e) => {
+      if (e.target === dropZone || dropZone.contains(e.target)) return;
+      e.preventDefault();
+    });
+  });
+
+  // Hard limit on source file size — 50 MB is well above any reasonable photo
+  // and keeps a malicious upload from freezing the browser. Real phone images
+  // are typically 3-15 MB even at high resolution.
+  const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
+  const ACCEPTED_MIME = /^image\/(jpeg|jpg|png|webp|gif|bmp|avif)$/i;
+
+  function loadImageFiles(files) {
+    // Accept multiple at once; each becomes its own target.
+    const valid = [];
+    const rejected = [];
+    files.forEach((f) => {
+      if (!f.type || !ACCEPTED_MIME.test(f.type)) {
+        rejected.push({ file: f, reason: 'unsupported format' });
+      } else if (f.size > MAX_SOURCE_BYTES) {
+        rejected.push({ file: f, reason: 'file too large (max 50 MB)' });
+      } else {
+        valid.push(f);
+      }
+    });
+
+    if (rejected.length > 0) {
+      const first = rejected[0];
+      showToast(`Skipped "${first.file.name}": ${first.reason}`, 'error');
+    }
+    if (valid.length === 0) return;
+
+    let remaining = valid.length;
+    let added = 0;
+    valid.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        loadImageFromDataURL(e.target.result, file.name, (success) => {
+          if (success) added++;
+          remaining--;
+          if (remaining === 0) {
+            if (added > 0) showToast(`${added} target${added === 1 ? '' : 's'} added`, 'success');
+            else showToast('Could not load any images', 'error');
+          }
+        });
+      };
+      reader.onerror = () => {
+        remaining--;
+        if (remaining === 0 && added === 0) showToast('Could not read files', 'error');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Minimum useful source dimensions — anything smaller can't produce a
+  // meaningful 480×640 luminance output.
+  const MIN_SOURCE_DIMENSION = 128;
+
+  /**
+   * Loads an image from a data URL or blob URL and adds it as a new target.
+   *
+   * Handles:
+   *   - EXIF orientation (iOS photos often have rotation metadata —
+   *     createImageBitmap with imageOrientation:'from-image' honours it)
+   *   - Niantic 2048px max — pre-scales longest side to 2048 if larger
+   *   - Image decode failure
+   *   - Canvas taint (would break toDataURL for thumbnails)
+   *   - Zero-byte / corrupt / too-small sources
+   *
+   * `done(success: boolean)` is called exactly once per invocation.
+   */
+  function loadImageFromDataURL(url, name, done) {
+    const finish = (success) => { if (done) done(!!success); };
+    const MAX_SIDE = 2048;
+
+    // Try createImageBitmap first — it handles EXIF orientation on modern
+    // browsers and avoids the Image() element entirely. Fall back to the
+    // <img> path if the browser doesn't support imageOrientation option.
+    const tryBitmap = async () => {
+      if (typeof createImageBitmap !== 'function') return null;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('fetch failed');
+        const blob = await resp.blob();
+        // imageOrientation:'from-image' respects EXIF orientation flag —
+        // ignored silently on browsers that don't support it.
+        const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+        return bmp;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    // Convert a bitmap or <img> to an HTMLImageElement backed by a canvas —
+    // this strips any remaining orientation metadata and guarantees a clean,
+    // same-origin source that future toDataURL calls can read.
+    const normaliseToImage = (src, w, h) => new Promise((resolve, reject) => {
+      if (w < MIN_SOURCE_DIMENSION || h < MIN_SOURCE_DIMENSION) {
+        reject(new Error(`Image too small (${w}×${h}, min ${MIN_SOURCE_DIMENSION}px)`));
+        return;
+      }
+      // Scale if longest side > MAX_SIDE
+      let targetW = w, targetH = h;
+      if (Math.max(w, h) > MAX_SIDE) {
+        const s = MAX_SIDE / Math.max(w, h);
+        targetW = Math.round(w * s);
+        targetH = Math.round(h * s);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      try {
+        ctx.drawImage(src, 0, 0, targetW, targetH);
+      } catch (e) {
+        reject(new Error('Cannot draw image (canvas tainted or unsupported source)'));
+        return;
+      }
+      let dataURL;
+      try {
+        dataURL = canvas.toDataURL('image/jpeg', 0.92);
+      } catch (e) {
+        reject(new Error('Cannot export image (cross-origin taint)'));
+        return;
+      }
+      const out = new Image();
+      out.onload = () => resolve(out);
+      out.onerror = () => reject(new Error('Failed to decode normalised image'));
+      out.src = dataURL;
+    });
+
+    (async () => {
+      try {
+        let bmp = await tryBitmap();
+        if (bmp) {
+          const img = await normaliseToImage(bmp, bmp.width, bmp.height);
+          if (typeof bmp.close === 'function') bmp.close();
+          addTarget(createTarget(img, name));
+          finish(true);
+          return;
+        }
+        // Fallback: load via <img> without EXIF handling.
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = async () => {
+            try {
+              const normalised = await normaliseToImage(img, img.naturalWidth, img.naturalHeight);
+              addTarget(createTarget(normalised, name));
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          };
+          img.onerror = () => reject(new Error('Could not decode image'));
+          img.src = url;
+        });
+        finish(true);
+      } catch (err) {
+        console.error('[4E] loadImageFromDataURL failed:', err);
+        showToast(err.message || 'Could not load image', 'error');
+        finish(false);
+      }
+    })();
+  }
+
+  // ============ Camera (inline in sidebar) ============
+  btnAddCamera.addEventListener('click', () => {
+    const isOpen = sidebarCamera.classList.contains('active');
+    if (isOpen) {
+      closeSidebarCamera();
+    } else {
+      sidebarCamera.classList.add('active');
+      btnAddCamera.classList.add('active');
+    }
+  });
+  function closeSidebarCamera() {
+    stopCamera();
+    sidebarCamera.classList.remove('active');
+    btnAddCamera.classList.remove('active');
+  }
+
+  btnStartCam.addEventListener('click', startCamera);
+  btnCapture.addEventListener('click', capturePhoto);
+  btnFlip.addEventListener('click', flipCamera);
+
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Camera not supported here', 'error');
+      return;
+    }
+    try {
+      stopCamera();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: state.currentFacing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      state.currentStream = stream;
+      video.srcObject = stream;
+      video.style.display = 'block';
+      camPlaceholder.style.display = 'none';
+      btnCapture.disabled = false;
+      btnFlip.disabled = false;
+      btnStartCam.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg> Stop';
+      btnStartCam.onclick = () => {
+        stopCamera();
+        btnStartCam.onclick = startCamera;
+        btnStartCam.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start';
+      };
+    } catch (err) {
+      console.error(err);
+      showToast('Camera permission denied', 'error');
+    }
+  }
+  function stopCamera() {
+    if (state.currentStream) {
+      state.currentStream.getTracks().forEach((t) => t.stop());
+      state.currentStream = null;
+    }
+    video.srcObject = null;
+    video.style.display = 'none';
+    camPlaceholder.style.display = 'block';
+    btnCapture.disabled = true;
+    btnFlip.disabled = true;
+  }
+  function flipCamera() {
+    state.currentFacing = state.currentFacing === 'environment' ? 'user' : 'environment';
+    startCamera();
+  }
+  function capturePhoto() {
+    if (!state.currentStream) return;
+    // Guard against premature clicks before the video has first frame data
+    if (!video.videoWidth || !video.videoHeight) {
+      showToast('Camera still initialising — try again in a moment', 'error');
+      return;
+    }
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth; c.height = video.videoHeight;
+    try {
+      c.getContext('2d').drawImage(video, 0, 0);
+    } catch (e) {
+      showToast('Camera capture failed', 'error');
+      return;
+    }
+    let url;
+    try {
+      url = c.toDataURL('image/jpeg', 0.92);
+    } catch (e) {
+      showToast('Could not export camera frame', 'error');
+      return;
+    }
+    stopCamera();
+    loadImageFromDataURL(url, 'capture-' + Date.now(), (success) => {
+      if (success) showToast('Captured', 'success');
+    });
+  }
+
+  // ============ Target type selection (active target) ============
+  targetTypePills.forEach((p) => {
+    p.addEventListener('click', () => {
+      const t = getActive();
+      if (!t) return;
+      targetTypePills.forEach((x) => x.classList.remove('active'));
+      p.classList.add('active');
+      t.targetType = p.dataset.targettype;
+      // Crop dimensions change with type, so recentre pan to avoid surprises.
+      t.cropOffset = { x: 0, y: 0 };
+      // Target type affects crop/luminance — stored analysis is now stale.
+      t.analysis = null;
+      viewToggle.style.display = 'none';
+      results.classList.remove('active');
+      renderTemplateGuide();
+      updateGeometryPanel();
+      updateInfoChips();
+      drawPreview();
+      renderSidebar();
+    });
+  });
+
+  // ============ Template guide ============
+  const TEMPLATES = {
+    flat: {
+      title: 'Format guide · Flat',
+      info: '<strong>Regular rectangle.</strong> Best for posters, packaging faces, book covers, signage. The CLI accepts any aspect ratio up to <strong>2048px</strong> on the longest side — larger images are resized down on upload.',
+      svg: `
+        <svg viewBox="0 0 380 180" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="dots-flat" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+              <circle cx="6" cy="6" r="0.8" fill="rgba(0, 229, 255, 0.25)"/>
+            </pattern>
+          </defs>
+          <rect x="40" y="35" width="180" height="110" rx="4" fill="url(#dots-flat)" stroke="#00e5ff" stroke-width="2" stroke-dasharray="6 4"/>
+          <text x="130" y="95" fill="#00e5ff" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle" letter-spacing="2">FLAT IMAGE</text>
+          <text x="130" y="170" fill="#8892a8" font-family="JetBrains Mono, monospace" font-size="9" text-anchor="middle" letter-spacing="1.5">≤ 2048px · any ratio</text>
+          <g stroke="#5a6478" stroke-width="1.5" fill="none" stroke-linecap="round">
+            <line x1="240" y1="90" x2="275" y2="90"/>
+            <polyline points="269,84 275,90 269,96"/>
+          </g>
+          <g stroke="#a855f7" stroke-width="2" fill="none">
+            <rect x="295" y="45" width="65" height="90" rx="2"/>
+            <rect x="302" y="52" width="51" height="76" rx="1" stroke="#a855f7" stroke-dasharray="3 3"/>
+          </g>
+          <text x="327" y="160" fill="#8892a8" font-family="JetBrains Mono, monospace" font-size="9" text-anchor="middle" letter-spacing="1.5">POSTER / SIGN</text>
+        </svg>
+      `
+    },
+    curved: {
+      title: 'Format guide · Curved (cylindrical)',
+      info: '<strong>Unwrapped cylinder.</strong> Prepare your artwork as a flat rectangle — its <strong>width should equal the physical circumference</strong> of the target object, and its height should match the object\'s height. The left and right edges meet when wrapped around the cylinder, so design artwork that flows continuously across that seam.',
+      svg: `
+        <svg viewBox="0 0 380 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="dots-curved" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+              <circle cx="6" cy="6" r="0.8" fill="rgba(0, 229, 255, 0.25)"/>
+            </pattern>
+            <linearGradient id="canbody" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="rgba(168, 85, 247, 0.15)"/>
+              <stop offset="50%" stop-color="rgba(168, 85, 247, 0.4)"/>
+              <stop offset="100%" stop-color="rgba(168, 85, 247, 0.15)"/>
+            </linearGradient>
+          </defs>
+          <rect x="25" y="50" width="190" height="100" rx="3" fill="url(#dots-curved)" stroke="#00e5ff" stroke-width="2" stroke-dasharray="6 4"/>
+          <line x1="25" y1="50" x2="25" y2="150" stroke="#ffb547" stroke-width="3"/>
+          <line x1="215" y1="50" x2="215" y2="150" stroke="#ffb547" stroke-width="3"/>
+          <text x="120" y="105" fill="#00e5ff" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle" letter-spacing="1.5">UNWRAPPED</text>
+          <text x="120" y="120" fill="#8892a8" font-family="JetBrains Mono, monospace" font-size="8" text-anchor="middle" letter-spacing="1">width = circumference</text>
+          <text x="25" y="40" fill="#ffb547" font-family="JetBrains Mono, monospace" font-size="8" text-anchor="middle">SEAM</text>
+          <text x="215" y="40" fill="#ffb547" font-family="JetBrains Mono, monospace" font-size="8" text-anchor="middle">SEAM</text>
+          <g stroke="#5a6478" stroke-width="1.5" fill="none" stroke-linecap="round">
+            <path d="M 230 100 Q 250 100 265 100" />
+            <polyline points="259,94 265,100 259,106"/>
+          </g>
+          <text x="247" y="90" fill="#5a6478" font-family="JetBrains Mono, monospace" font-size="8" text-anchor="middle" letter-spacing="1">WRAP</text>
+          <g stroke="#a855f7" stroke-width="1.8" fill="url(#canbody)">
+            <ellipse cx="325" cy="55" rx="30" ry="8"/>
+            <path d="M 295 55 L 295 145 A 30 8 0 0 0 355 145 L 355 55" fill="url(#canbody)"/>
+            <ellipse cx="325" cy="55" rx="30" ry="8" fill="rgba(168, 85, 247, 0.3)"/>
+          </g>
+          <line x1="295" y1="55" x2="295" y2="145" stroke="#ffb547" stroke-width="2" stroke-dasharray="2 2"/>
+          <text x="325" y="175" fill="#8892a8" font-family="JetBrains Mono, monospace" font-size="9" text-anchor="middle" letter-spacing="1.5">CAN / BOTTLE</text>
+        </svg>
+      `
+    },
+    conical: {
+      title: 'Format guide · Conical ("rainbow")',
+      info: '<strong>Annular sector ("rainbow").</strong> The artwork is shaped like an arc. The <strong>outer arc wraps around the wide end</strong> of the physical cone (wider circumference), the <strong>inner arc wraps around the narrow end</strong> (tip / smaller circumference). The CLI flattens this shape into a rectangle before storage. Paper cups, cone packaging and tapered bottles all use this geometry.',
+      svg: `
+        <svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="dots-cone" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+              <circle cx="6" cy="6" r="0.8" fill="rgba(0, 229, 255, 0.25)"/>
+            </pattern>
+          </defs>
+          <path d="M 21.8 157.5 A 125 125 0 0 1 238.2 157.5 L 186.3 187.5 A 65 65 0 0 0 73.7 187.5 Z" fill="url(#dots-cone)" stroke="#00e5ff" stroke-width="2" stroke-dasharray="6 4"/>
+          <path d="M 21.8 157.5 A 125 125 0 0 1 238.2 157.5" fill="none" stroke="#2dd4a7" stroke-width="4"/>
+          <path d="M 73.7 187.5 A 65 65 0 0 1 186.3 187.5" fill="none" stroke="#ffb547" stroke-width="4"/>
+          <text x="130" y="145" fill="#2dd4a7" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle" letter-spacing="1.2">OUTER · WIDE END</text>
+          <text x="130" y="207" fill="#ffb547" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle" letter-spacing="1.2">INNER · NARROW END</text>
+          <g stroke="#5a6478" stroke-width="1.5" fill="none" stroke-linecap="round">
+            <line x1="260" y1="130" x2="295" y2="130"/>
+            <polyline points="289,124 295,130 289,136"/>
+          </g>
+          <text x="277" y="120" fill="#5a6478" font-family="JetBrains Mono, monospace" font-size="8" text-anchor="middle" letter-spacing="1">WRAP</text>
+          <g fill="rgba(168, 85, 247, 0.2)" stroke="#a855f7" stroke-width="1.8">
+            <path d="M 318 80 L 342 80 L 362 180 L 298 180 Z"/>
+          </g>
+          <ellipse cx="330" cy="80" rx="12" ry="3.5" fill="rgba(255, 181, 71, 0.3)" stroke="#ffb547" stroke-width="2"/>
+          <ellipse cx="330" cy="180" rx="32" ry="5" fill="rgba(45, 212, 167, 0.3)" stroke="#2dd4a7" stroke-width="2"/>
+          <text x="330" y="205" fill="#8892a8" font-family="JetBrains Mono, monospace" font-size="9" text-anchor="middle" letter-spacing="1.5">CONE / CUP</text>
+        </svg>
+      `
+    }
+  };
+
+  function renderTemplateGuide() {
+    const t = getActive();
+    const type = t ? t.targetType : 'flat';
+    const tpl = TEMPLATES[type];
+    if (!tpl) return;
+    templateTitleLabel.textContent = tpl.title;
+    templateVisual.innerHTML = tpl.svg;
+    templateInfoText.innerHTML = tpl.info;
+  }
+
+  $('btnDownloadTemplate').addEventListener('click', () => {
+    const t = getActive();
+    const type = t ? t.targetType : 'flat';
+    const svg = buildDownloadableTemplate(type);
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    triggerDownload(blob, `8thwall-template-${type}.svg`);
+    showToast('Template downloaded', 'success');
+  });
+
+  function buildDownloadableTemplate(type) {
+    const W = 2048;
+    const header = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${type === 'conical' ? 1400 : 1500}" width="${W}">`;
+    const bgStyle = `<rect width="100%" height="100%" fill="#ffffff"/>`;
+    const meta = `<!-- 4E Image Target Studio blank template — ${type.toUpperCase()} image-target format -->`;
+
+    if (type === 'flat') {
+      return `${header}\n${meta}\n${bgStyle}
+        <g stroke="#00e5ff" stroke-width="4" fill="none" stroke-dasharray="24 16">
+          <rect x="40" y="40" width="${W - 80}" height="${1500 - 80}"/>
+        </g>
+        <g fill="#1a1a2e" font-family="Arial, sans-serif" text-anchor="middle">
+          <text x="${W / 2}" y="${1500 / 2 - 40}" font-size="72" font-weight="700">FLAT IMAGE TARGET</text>
+          <text x="${W / 2}" y="${1500 / 2 + 40}" font-size="42" fill="#5a6478">Replace with your artwork · 2048×1500 reference</text>
+          <text x="${W / 2}" y="${1500 / 2 + 110}" font-size="28" fill="#8892a8">Max longest side: 2048px · Any aspect ratio</text>
+        </g>
+        </svg>`;
+    }
+    if (type === 'curved') {
+      return `${header}\n${meta}\n${bgStyle}
+        <g stroke="#00e5ff" stroke-width="4" fill="none" stroke-dasharray="24 16">
+          <rect x="40" y="40" width="${W - 80}" height="${1500 - 80}"/>
+        </g>
+        <line x1="40" y1="40" x2="40" y2="${1500 - 40}" stroke="#ffb547" stroke-width="12"/>
+        <line x1="${W - 40}" y1="40" x2="${W - 40}" y2="${1500 - 40}" stroke="#ffb547" stroke-width="12"/>
+        <g fill="#1a1a2e" font-family="Arial, sans-serif" text-anchor="middle">
+          <text x="${W / 2}" y="${1500 / 2 - 80}" font-size="72" font-weight="700">CURVED IMAGE TARGET</text>
+          <text x="${W / 2}" y="${1500 / 2}" font-size="40" fill="#5a6478">Flat unwrap of cylinder · width = circumference</text>
+          <text x="${W / 2}" y="${1500 / 2 + 60}" font-size="30" fill="#8892a8">Left and right orange edges meet when wrapped</text>
+          <text x="${W / 2}" y="${1500 / 2 + 110}" font-size="26" fill="#8892a8">Design continuous artwork across the seam</text>
+        </g>
+        <g fill="#b8860b" font-family="Arial, sans-serif" font-size="28" text-anchor="middle">
+          <text x="120" y="100" transform="rotate(-90 120 100)">SEAM</text>
+          <text x="${W - 120}" y="100" transform="rotate(-90 ${W - 120} 100)">SEAM</text>
+        </g>
+        </svg>`;
+    }
+    const cx = 1024, cy = 1400, rInner = 450, rOuter = 1200;
+    const startAngle = 200, endAngle = 340;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const pStart = { x: cx + rOuter * Math.cos(toRad(startAngle)), y: cy + rOuter * Math.sin(toRad(startAngle)) };
+    const pEnd   = { x: cx + rOuter * Math.cos(toRad(endAngle)),   y: cy + rOuter * Math.sin(toRad(endAngle)) };
+    const pInnerStart = { x: cx + rInner * Math.cos(toRad(startAngle)), y: cy + rInner * Math.sin(toRad(startAngle)) };
+    const pInnerEnd   = { x: cx + rInner * Math.cos(toRad(endAngle)),   y: cy + rInner * Math.sin(toRad(endAngle)) };
+    const outerArc    = `M ${pStart.x.toFixed(1)} ${pStart.y.toFixed(1)} A ${rOuter} ${rOuter} 0 0 1 ${pEnd.x.toFixed(1)} ${pEnd.y.toFixed(1)}`;
+    const innerArcRev = `L ${pInnerEnd.x.toFixed(1)} ${pInnerEnd.y.toFixed(1)} A ${rInner} ${rInner} 0 0 0 ${pInnerStart.x.toFixed(1)} ${pInnerStart.y.toFixed(1)} Z`;
+    return `${header}\n${meta}\n${bgStyle}
+      <g stroke="#00e5ff" stroke-width="5" fill="rgba(0, 229, 255, 0.03)" stroke-dasharray="24 16">
+        <path d="${outerArc} ${innerArcRev}"/>
+      </g>
+      <path d="M ${pInnerStart.x.toFixed(1)} ${pInnerStart.y.toFixed(1)} A ${rInner} ${rInner} 0 0 1 ${pInnerEnd.x.toFixed(1)} ${pInnerEnd.y.toFixed(1)}" fill="none" stroke="#ffb547" stroke-width="12"/>
+      <path d="${outerArc}" fill="none" stroke="#2dd4a7" stroke-width="12"/>
+      <g fill="#1a1a2e" font-family="Arial, sans-serif" text-anchor="middle">
+        <text x="${cx}" y="600" font-size="70" font-weight="700">CONICAL IMAGE TARGET</text>
+        <text x="${cx}" y="670" font-size="38" fill="#5a6478">"Rainbow" arc format for tapered objects</text>
+        <text x="${cx}" y="${cy - rInner - 20}" font-size="32" fill="#b8860b" font-weight="600">TOP = NARROW END</text>
+        <text x="${cx}" y="${cy - rOuter - 30}" font-size="32" fill="#117a5a" font-weight="600">BOTTOM = WIDE END</text>
+      </g>
+      </svg>`;
+  }
+  // ============ Geometry 3D panel (for curved / conical) ============
+  const three = {
+    ready: false,
+    initialized: false,
+    scene: null, camera: null, renderer: null, controls: null,
+    shapeGroup: null, imageTexture: null,
+    resizeObs: null, raf: 0
+  };
+
+  function onThreeLoadStatus() {
+    if (!window.__4E3D) { geometry3DMsg.textContent = 'Loading 3D engine…'; return; }
+    if (window.__4E3D.ready) {
+      three.ready = true;
+      initThreeScene();
+      geometry3DMsg.style.display = 'none';
+    } else {
+      geometry3DMsg.textContent = '3D preview unavailable (could not load Three.js)';
+    }
+  }
+  window.addEventListener('4e3dready', onThreeLoadStatus);
+  if (window.__4E3D) onThreeLoadStatus();
+
+  function initThreeScene() {
+    if (three.initialized || !window.__4E3D) return;
+    const { THREE, OrbitControls } = window.__4E3D;
+    three.scene = new THREE.Scene();
+    three.scene.background = null;
+
+    three.camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
+    three.camera.position.set(2.8, 1.5, 3.2);
+
+    three.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    three.renderer.setClearColor(0x050814, 1);
+    three.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    geometry3D.appendChild(three.renderer.domElement);
+
+    three.controls = new OrbitControls(three.camera, three.renderer.domElement);
+    three.controls.enableDamping = true;
+    three.controls.dampingFactor = 0.08;
+    three.controls.minDistance = 1.2;
+    three.controls.maxDistance = 20;
+
+    three.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(4, 8, 6);
+    three.scene.add(dir);
+    const back = new THREE.DirectionalLight(0xa0b0ff, 0.35);
+    back.position.set(-4, 3, -4);
+    three.scene.add(back);
+
+    three.shapeGroup = new THREE.Group();
+    three.scene.add(three.shapeGroup);
+
+    const gridHelper = new THREE.GridHelper(6, 12, 0x1a2440, 0x14192e);
+    gridHelper.position.y = -1.5;
+    three.scene.add(gridHelper);
+
+    three.initialized = true;
+    sizeRenderer();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      three.resizeObs = new ResizeObserver(sizeRenderer);
+      three.resizeObs.observe(geometry3D);
+    }
+
+    const hint = document.createElement('div');
+    hint.className = 'geometry-3d-hint';
+    hint.textContent = 'Drag · scroll to zoom';
+    geometry3D.appendChild(hint);
+
+    const loop = () => {
+      three.raf = requestAnimationFrame(loop);
+      if (!three.renderer || !three.scene || !three.camera) return;
+      if (three.controls) three.controls.update();
+      three.renderer.render(three.scene, three.camera);
+    };
+    loop();
+
+    updateImageTexture();
+    rebuildShape();
+  }
+
+  function sizeRenderer() {
+    if (!three.renderer || !three.camera) return;
+    const r = geometry3D.getBoundingClientRect();
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    three.renderer.setSize(w, h, false);
+    three.camera.aspect = w / h;
+    three.camera.updateProjectionMatrix();
+  }
+
+  function updateImageTexture() {
+    if (!three.initialized || !window.__4E3D) return;
+    const { THREE } = window.__4E3D;
+    const t = getActive();
+    if (three.imageTexture) { three.imageTexture.dispose(); three.imageTexture = null; }
+    if (t && t.image) {
+      three.imageTexture = new THREE.Texture(t.image);
+      three.imageTexture.colorSpace = THREE.SRGBColorSpace;
+      three.imageTexture.anisotropy = 4;
+      three.imageTexture.wrapS = THREE.ClampToEdgeWrapping;
+      three.imageTexture.wrapT = THREE.ClampToEdgeWrapping;
+      three.imageTexture.center.set(0.5, 0.5);
+      three.imageTexture.needsUpdate = true;
+    }
+    rebuildShape();
+  }
+
+  function updateGeometryPanel() {
+    const t = getActive();
+    const type = t ? t.targetType : 'flat';
+    if (type === 'flat') {
+      geometryPanel.style.display = 'none';
+      return;
+    }
+    geometryPanel.style.display = 'block';
+    geometryTitleLabel.textContent = type === 'curved'
+      ? '3D preview · cylinder'
+      : '3D preview · cone';
+    renderGeometryInputs(type);
+    if (three.initialized) {
+      updateImageTexture();
+      // Wait a frame for the panel layout to settle before sizing the renderer
+      requestAnimationFrame(() => { sizeRenderer(); rebuildShape(); });
+    }
+  }
+
+  // ===== Slider + number input pairs =====
+  const SLIDER_RANGES = {
+    mm: {
+      circumference: { min: 10,  max: 800, step: 1 },
+      height:        { min: 5,   max: 500, step: 1 },
+      radius:        { min: 2,   max: 300, step: 1 }
+    },
+    in: {
+      circumference: { min: 0.5, max: 32,  step: 0.1 },
+      height:        { min: 0.2, max: 20,  step: 0.1 },
+      radius:        { min: 0.1, max: 12,  step: 0.1 }
+    }
+  };
+  const ARC_RANGE = { min: 1, max: 360, step: 1 };
+
+  function rangeFor(unit, kind) { return SLIDER_RANGES[unit]?.[kind] || SLIDER_RANGES.mm[kind]; }
+
+  function sliderField(label, id, value, range) {
+    const pct = range.max > range.min
+      ? Math.max(0, Math.min(100, ((value - range.min) / (range.max - range.min)) * 100))
+      : 0;
+    return `
+      <div class="geo-slider-field">
+        <div class="geo-slider-header">
+          <label class="geo-field-label" for="${id}_s">${label}</label>
+          <input type="number" class="geo-slider-value" id="${id}_n"
+                 min="${range.min}" step="${range.step}" value="${value}">
+        </div>
+        <input type="range" class="geo-slider" id="${id}_s"
+               min="${range.min}" max="${range.max}" step="${range.step}" value="${value}"
+               style="--val:${pct}%">
+        <div class="geo-slider-range">
+          <span>${range.min}</span>
+          <span>${range.max}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function linkSliderInput(id, onValue) {
+    const slider = document.getElementById(id + '_s');
+    const num    = document.getElementById(id + '_n');
+    if (!slider || !num) return;
+    const updateFill = () => {
+      const min = parseFloat(slider.min), max = parseFloat(slider.max);
+      const v = parseFloat(slider.value);
+      const pct = max > min ? Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100)) : 0;
+      slider.style.setProperty('--val', pct + '%');
+    };
+    slider.addEventListener('input', () => {
+      num.value = slider.value;
+      updateFill();
+      onValue(parseFloat(slider.value) || 0);
+    });
+    num.addEventListener('input', () => {
+      const v = parseFloat(num.value) || 0;
+      slider.value = v;
+      updateFill();
+      onValue(v);
+    });
+  }
+
+  function fitModeSeg(id, value) {
+    return `
+      <div class="geo-field">
+        <label class="geo-field-label">Image fit</label>
+        <div class="geo-fit-seg" id="${id}">
+          <button type="button" class="geo-fit-seg-btn${value === 'crop' ? ' active' : ''}" data-fit="crop">
+            Crop to fit<small>centre-crop · no distortion</small>
+          </button>
+          <button type="button" class="geo-fit-seg-btn${value === 'stretch' ? ' active' : ''}" data-fit="stretch">
+            Stretch<small>fill surface · may distort</small>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function wireFitSeg(id, onChange) {
+    const seg = document.getElementById(id);
+    if (!seg) return;
+    seg.querySelectorAll('.geo-fit-seg-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        seg.querySelectorAll('.geo-fit-seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
+        onChange(btn.dataset.fit);
+      });
+    });
+  }
+
+  function renderGeometryInputs(type) {
+    const t = getActive();
+    if (!t) return;
+    const g = t.geometry;
+    if (type === 'curved') {
+      const c = g.cylinder;
+      const circRange = rangeFor(c.unit, 'circumference');
+      const hRange    = rangeFor(c.unit, 'height');
+      geometryInputsEl.innerHTML = `
+        <div class="geo-field">
+          <label class="geo-field-label" for="gCylUnit">Unit</label>
+          <select id="gCylUnit">
+            <option value="mm"${c.unit === 'mm' ? ' selected' : ''}>mm</option>
+            <option value="in"${c.unit === 'in' ? ' selected' : ''}>in</option>
+          </select>
+        </div>
+        ${sliderField('Circumference (' + c.unit + ')', 'gCylCirc',   c.circumference, circRange)}
+        ${sliderField('Height (' + c.unit + ')',        'gCylHeight', c.height,        hRange)}
+        ${sliderField('Image wrap arc (°)',             'gCylArc',    c.arcAngle,      ARC_RANGE)}
+        ${fitModeSeg('gCylFit', c.fit)}
+        <div class="geo-computed" id="gCylComputed"></div>
+      `;
+      document.getElementById('gCylUnit').addEventListener('change', (e) => {
+        g.cylinder.unit = e.target.value;
+        renderGeometryInputs('curved');
+        onGeomChange();
+      });
+      linkSliderInput('gCylCirc',   (v) => { g.cylinder.circumference = v; onGeomChange(); });
+      linkSliderInput('gCylHeight', (v) => { g.cylinder.height        = v; onGeomChange(); });
+      linkSliderInput('gCylArc',    (v) => { g.cylinder.arcAngle      = v; onGeomChange(); });
+      wireFitSeg('gCylFit', (fit) => { g.cylinder.fit = fit; onGeomChange(); });
+    } else {
+      const c = g.cone;
+      const rRange = rangeFor(c.unit, 'radius');
+      const hRange = rangeFor(c.unit, 'height');
+      geometryInputsEl.innerHTML = `
+        <div class="geo-field">
+          <label class="geo-field-label" for="gConeUnit">Unit</label>
+          <select id="gConeUnit">
+            <option value="mm"${c.unit === 'mm' ? ' selected' : ''}>mm</option>
+            <option value="in"${c.unit === 'in' ? ' selected' : ''}>in</option>
+          </select>
+        </div>
+        ${sliderField('Top radius (' + c.unit + ')',     'gConeTop',    c.topRadius,    rRange)}
+        ${sliderField('Bottom radius (' + c.unit + ')',  'gConeBottom', c.bottomRadius, rRange)}
+        ${sliderField('Height (' + c.unit + ')',         'gConeHeight', c.height,       hRange)}
+        ${sliderField('Image wrap arc (°)',              'gConeArc',    c.arcAngle,     ARC_RANGE)}
+        ${fitModeSeg('gConeFit', c.fit)}
+        <div class="geo-computed" id="gConeComputed"></div>
+      `;
+      document.getElementById('gConeUnit').addEventListener('change', (e) => {
+        g.cone.unit = e.target.value;
+        renderGeometryInputs('conical');
+        onGeomChange();
+      });
+      linkSliderInput('gConeTop',    (v) => { g.cone.topRadius    = v; onGeomChange(); });
+      linkSliderInput('gConeBottom', (v) => { g.cone.bottomRadius = v; onGeomChange(); });
+      linkSliderInput('gConeHeight', (v) => { g.cone.height       = v; onGeomChange(); });
+      linkSliderInput('gConeArc',    (v) => { g.cone.arcAngle     = v; onGeomChange(); });
+      wireFitSeg('gConeFit', (fit) => { g.cone.fit = fit; onGeomChange(); });
+    }
+    updateComputedDisplay();
+  }
+
+  let geomRafPending = false;
+  function onGeomChange() {
+    updateComputedDisplay();
+    updateInfoChips();
+    if (!geomRafPending) {
+      geomRafPending = true;
+      requestAnimationFrame(() => {
+        geomRafPending = false;
+        rebuildShape();
+        // Also redraw the 2D preview — the surface aspect affects the crop
+        // rectangle's dimensions, so the orange overlay needs to update live
+        // as the user drags the sliders.
+        redrawPreviewCurrentMode();
+      });
+    }
+  }
+
+  function updateComputedDisplay() {
+    const t = getActive();
+    if (!t) return;
+    const type = t.targetType;
+    if (type === 'curved') {
+      const el = document.getElementById('gCylComputed');
+      if (!el) return;
+      const c = t.geometry.cylinder;
+      const img = t.image;
+      const wrapWidth = c.circumference * c.arcAngle / 360;
+      const surfaceAspect = c.height > 0 ? wrapWidth / c.height : 1;
+      const imgAspect = img ? (img.naturalWidth / img.naturalHeight) : 1;
+      const aspectMismatch = Math.abs(surfaceAspect - imgAspect) / Math.max(surfaceAspect, imgAspect);
+      const diameter = c.circumference / Math.PI;
+      el.innerHTML = `
+        Diameter: <strong>${diameter.toFixed(2)} ${c.unit}</strong><br>
+        Image wrap width: <strong>${wrapWidth.toFixed(1)} ${c.unit}</strong> · Arc <strong>${c.arcAngle.toFixed(0)}°</strong><br>
+        Surface aspect (W:H): <strong>${surfaceAspect.toFixed(2)}:1</strong> · Image aspect: <strong>${imgAspect.toFixed(2)}:1</strong>
+        ${aspectMismatch > 0.05 && img ? `<br><span style="color:${c.fit === 'stretch' ? 'var(--amber)' : 'var(--cyan)'}">Image will be <strong>${c.fit === 'stretch' ? 'stretched' : 'cropped'}</strong> to fit surface</span>` : ''}
+      `;
+    } else if (type === 'conical') {
+      const el = document.getElementById('gConeComputed');
+      if (!el) return;
+      const c = t.geometry.cone;
+      const img = t.image;
+      const widerR = Math.max(c.topRadius, c.bottomRadius);
+      const narrowerR = Math.min(c.topRadius, c.bottomRadius);
+      const isFez = c.bottomRadius > c.topRadius;
+      const slant = Math.sqrt(c.height * c.height + (widerR - narrowerR) * (widerR - narrowerR));
+      const midR = (widerR + narrowerR) / 2;
+      const wrapWidth = 2 * Math.PI * midR * c.arcAngle / 360;
+      const surfaceAspect = slant > 0 ? wrapWidth / slant : 1;
+      const imgAspect = img ? (img.naturalWidth / img.naturalHeight) : 1;
+      const aspectMismatch = Math.abs(surfaceAspect - imgAspect) / Math.max(surfaceAspect, imgAspect);
+      const invalid = c.topRadius === c.bottomRadius;
+      const outerRainbow = c.arcAngle > 0 ? widerR * 360 / c.arcAngle : 0;
+      const innerRainbow = c.arcAngle > 0 ? narrowerR * 360 / c.arcAngle : 0;
+      el.innerHTML = `
+        Wider at: <strong>${isFez ? 'bottom' : 'top'}</strong> · Slant height: <strong>${slant.toFixed(2)} ${c.unit}</strong><br>
+        Surface aspect: <strong>${surfaceAspect.toFixed(2)}:1</strong> · Image aspect: <strong>${imgAspect.toFixed(2)}:1</strong><br>
+        Rainbow radii (for CLI metadata): outer <strong>${outerRainbow.toFixed(1)}</strong> / inner <strong>${innerRainbow.toFixed(1)}</strong>
+        ${invalid ? '<br><span class="geo-warn">⚠ Top and bottom radii are equal — this is a cylinder, not a cone</span>' : ''}
+        ${aspectMismatch > 0.05 && img && !invalid ? `<br><span style="color:${c.fit === 'stretch' ? 'var(--amber)' : 'var(--cyan)'}">Image will be <strong>${c.fit === 'stretch' ? 'stretched' : 'cropped'}</strong> to fit surface</span>` : ''}
+      `;
+    }
+  }
+
+  function clearShapeGroup() {
+    if (!three.shapeGroup) return;
+    while (three.shapeGroup.children.length) {
+      const m = three.shapeGroup.children.pop();
+      if (m.geometry) m.geometry.dispose();
+      if (m.material) {
+        if (Array.isArray(m.material)) m.material.forEach((x) => x.dispose());
+        else m.material.dispose();
+      }
+    }
+  }
+
+  function applyFitMode(texture, surfaceAspect, imgAspect, fit) {
+    if (!texture) return;
+    if (fit === 'stretch' || !isFinite(imgAspect) || !isFinite(surfaceAspect)) {
+      texture.repeat.set(1, 1);
+      texture.offset.set(0, 0);
+      return;
+    }
+    if (imgAspect > surfaceAspect) {
+      const r = surfaceAspect / imgAspect;
+      texture.repeat.set(r, 1);
+      texture.offset.set((1 - r) / 2, 0);
+    } else {
+      const r = imgAspect / surfaceAspect;
+      texture.repeat.set(1, r);
+      texture.offset.set(0, (1 - r) / 2);
+    }
+    texture.needsUpdate = true;
+  }
+
+  function rebuildShape() {
+    if (!three.initialized || !window.__4E3D) return;
+    const { THREE } = window.__4E3D;
+    clearShapeGroup();
+
+    const t = getActive();
+    if (!t) return;
+    const type = t.targetType;
+    const img = t.image;
+    const imgAspect = img ? (img.naturalWidth / img.naturalHeight) : 1;
+
+    if (type === 'curved') {
+      const c = t.geometry.cylinder;
+      if (c.circumference <= 0 || c.height <= 0 || c.arcAngle <= 0) return;
+      const radius = c.circumference / (2 * Math.PI);
+      const refSize = Math.max(radius, c.height / 2);
+      const sceneScale = 1.3 / Math.max(refSize, 0.5);
+      const r = radius * sceneScale;
+      const h = c.height * sceneScale;
+      const arcRad = Math.min(2 * Math.PI, c.arcAngle * Math.PI / 180);
+
+      const fullSegs = 64;
+      const fullGeo = new THREE.CylinderGeometry(r, r, h, fullSegs, 1, false);
+      const fullMat = new THREE.MeshStandardMaterial({
+        color: 0x2a344e, roughness: 0.8, metalness: 0.1,
+        transparent: true, opacity: 0.55
+      });
+      three.shapeGroup.add(new THREE.Mesh(fullGeo, fullMat));
+
+      const capGeo = new THREE.RingGeometry(r * 0.98, r, 64);
+      const capMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+      const topCap = new THREE.Mesh(capGeo, capMat);
+      topCap.rotation.x = Math.PI / 2; topCap.position.y = h / 2;
+      three.shapeGroup.add(topCap);
+      const botCap = new THREE.Mesh(capGeo.clone(), capMat.clone());
+      botCap.rotation.x = Math.PI / 2; botCap.position.y = -h / 2;
+      three.shapeGroup.add(botCap);
+
+      if (three.imageTexture) {
+        const wrapWidth = c.circumference * c.arcAngle / 360;
+        const surfaceAspect = wrapWidth / c.height;
+        applyFitMode(three.imageTexture, surfaceAspect, imgAspect, c.fit);
+
+        const imgSegs = Math.max(8, Math.round(64 * arcRad / (2 * Math.PI)));
+        const imgGeo = new THREE.CylinderGeometry(
+          r * 1.003, r * 1.003, h,
+          imgSegs, 1, true,
+          -arcRad / 2, arcRad
+        );
+        const imgMat = new THREE.MeshBasicMaterial({
+          map: three.imageTexture, side: THREE.DoubleSide, toneMapped: false
+        });
+        three.shapeGroup.add(new THREE.Mesh(imgGeo, imgMat));
+      }
+
+      three.camera.position.set(r * 2.5 + 1.5, h * 0.3 + 0.5, r * 3 + 2);
+      three.controls.target.set(0, 0, 0);
+    } else if (type === 'conical') {
+      const c = t.geometry.cone;
+      if (c.topRadius < 0 || c.bottomRadius < 0 || c.height <= 0 || c.arcAngle <= 0) return;
+      // Note: equal top/bottom radii render as a valid cylinder. We used to
+      // early-return here which caused the 3D preview to blank for one frame
+      // when a slider drag crossed the other radius's value — a jarring
+      // flicker that read as the slider "struggling to move". The computed
+      // display still warns the user they've made a cylinder, not a cone.
+
+      const widerR = Math.max(c.topRadius, c.bottomRadius);
+      const refSize = Math.max(widerR, c.height / 2);
+      const sceneScale = 1.3 / Math.max(refSize, 0.5);
+      const topR = c.topRadius * sceneScale;
+      const botR = c.bottomRadius * sceneScale;
+      const h = c.height * sceneScale;
+      const arcRad = c.arcAngle * Math.PI / 180;
+
+      const fullSegs = 64;
+      const fullGeo = new THREE.CylinderGeometry(topR, botR, h, fullSegs, 1, false);
+      const fullMat = new THREE.MeshStandardMaterial({
+        color: 0x2a344e, roughness: 0.8, metalness: 0.1,
+        transparent: true, opacity: 0.55
+      });
+      three.shapeGroup.add(new THREE.Mesh(fullGeo, fullMat));
+
+      const topCapGeo = new THREE.RingGeometry(Math.max(0.001, topR * 0.96), Math.max(0.002, topR), 64);
+      const botCapGeo = new THREE.RingGeometry(Math.max(0.001, botR * 0.96), Math.max(0.002, botR), 64);
+      const capMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+      if (topR > 0) {
+        const topCap = new THREE.Mesh(topCapGeo, capMat);
+        topCap.rotation.x = Math.PI / 2; topCap.position.y = h / 2;
+        three.shapeGroup.add(topCap);
+      }
+      if (botR > 0) {
+        const botCap = new THREE.Mesh(botCapGeo, capMat.clone());
+        botCap.rotation.x = Math.PI / 2; botCap.position.y = -h / 2;
+        three.shapeGroup.add(botCap);
+      }
+
+      if (three.imageTexture) {
+        const widerPhys = Math.max(c.topRadius, c.bottomRadius);
+        const narrowPhys = Math.min(c.topRadius, c.bottomRadius);
+        const midR = (widerPhys + narrowPhys) / 2;
+        const surfaceWidth = 2 * Math.PI * midR * c.arcAngle / 360;
+        const slant = Math.sqrt(c.height * c.height + (widerPhys - narrowPhys) * (widerPhys - narrowPhys));
+        const surfaceAspect = surfaceWidth / slant;
+        applyFitMode(three.imageTexture, surfaceAspect, imgAspect, c.fit);
+
+        const imgSegs = Math.max(8, Math.round(64 * arcRad / (2 * Math.PI)));
+        const imgGeo = new THREE.CylinderGeometry(
+          topR * 1.003, botR * 1.003, h,
+          imgSegs, 1, true,
+          -arcRad / 2, arcRad
+        );
+        const imgMat = new THREE.MeshBasicMaterial({
+          map: three.imageTexture, side: THREE.DoubleSide, toneMapped: false
+        });
+        three.shapeGroup.add(new THREE.Mesh(imgGeo, imgMat));
+      }
+
+      const sceneRadius = Math.max(topR, botR);
+      three.camera.position.set(sceneRadius * 2.5 + 1.5, h * 0.3 + 0.5, sceneRadius * 3 + 2);
+      three.controls.target.set(0, 0, 0);
+    }
+  }
+
+  function buildGeometryProperties(type, baseCrop) {
+    const t = getActive();
+    if (!t) return baseCrop;
+    if (type === 'curved') {
+      const c = t.geometry.cylinder;
+      const targetCircumference = c.circumference * c.arcAngle / 360;
+      return {
+        ...baseCrop,
+        targetCircumferenceTop: targetCircumference,
+        cylinderCircumferenceTop: c.circumference,
+        cylinderCircumferenceBottom: c.circumference,
+        cylinderSideLength: c.height,
+        arcAngle: c.arcAngle,
+        coniness: 0,
+        inputMode: 'ADVANCED',
+        unit: c.unit
+      };
+    }
+    const c = t.geometry.cone;
+    const widerPhys = Math.max(c.topRadius, c.bottomRadius);
+    const narrowerPhys = Math.min(c.topRadius, c.bottomRadius);
+    const isFez = c.bottomRadius > c.topRadius;
+    const outerRainbow = c.arcAngle > 0 ? widerPhys * 360 / c.arcAngle : 0;
+    const innerRainbow = c.arcAngle > 0 ? narrowerPhys * 360 / c.arcAngle : 0;
+    const topRadius = isFez ? -outerRainbow : outerRainbow;
+    const bottomRadius = innerRainbow;
+    const circumferenceRatio = topRadius < 0
+      ? -bottomRadius / topRadius
+      : (bottomRadius !== 0 ? topRadius / bottomRadius : 1);
+    const cylinderCircumferenceTop = 100;
+    const targetCircumferenceTop = (cylinderCircumferenceTop * c.arcAngle) / 360;
+    const cylinderCircumferenceBottom = circumferenceRatio !== 0
+      ? cylinderCircumferenceTop / circumferenceRatio
+      : cylinderCircumferenceTop;
+    const coniness = bottomRadius > 0 && topRadius !== 0
+      ? (isFez ? -1 : 1) * Math.log2(Math.abs(topRadius / bottomRadius))
+      : 0;
+    const slant = Math.sqrt(c.height * c.height + (widerPhys - narrowerPhys) * (widerPhys - narrowerPhys));
+    return {
+      ...baseCrop,
+      cylinderCircumferenceTop,
+      cylinderCircumferenceBottom,
+      targetCircumferenceTop,
+      cylinderSideLength: slant,
+      coniness,
+      arcAngle: c.arcAngle,
+      inputMode: 'ADVANCED',
+      unit: c.unit,
+      topRadius,
+      bottomRadius
+    };
+  }
+
+  /**
+   * Returns the physical surface aspect ratio (width:height) the image needs
+   * to match for correct tracking. For curved/conical this comes from the
+   * user's physical dimensions; for flat it's 3:4 (matches CLI default).
+   */
+  function computeTargetAspect(targetType, geometry) {
+    if (targetType === 'curved') {
+      const c = geometry.cylinder;
+      const wrapWidth = c.circumference * c.arcAngle / 360;
+      return c.height > 0 ? wrapWidth / c.height : 0.75;
+    }
+    if (targetType === 'conical') {
+      const c = geometry.cone;
+      const widerR  = Math.max(c.topRadius, c.bottomRadius);
+      const narrowR = Math.min(c.topRadius, c.bottomRadius);
+      const midR    = (widerR + narrowR) / 2;
+      const wrapW   = 2 * Math.PI * midR * c.arcAngle / 360;
+      const slant   = Math.sqrt(c.height * c.height + (widerR - narrowR) * (widerR - narrowR));
+      return slant > 0 ? wrapW / slant : 0.75;
+    }
+    return 3 / 4; // flat default (portrait)
+  }
+
+  /**
+   * Short helper — returns the active target's current fit mode and config.
+   */
+  function currentGeometryConfig() {
+    const t = getActive();
+    if (!t) return { fit: 'crop', config: null };
+    const type = t.targetType;
+    if (type === 'curved')  return { fit: t.geometry.cylinder.fit, config: t.geometry.cylinder };
+    if (type === 'conical') return { fit: t.geometry.cone.fit,     config: t.geometry.cone };
+    return { fit: 'crop', config: null };
+  }
+
+  /**
+   * Single source of truth for the active target's crop.
+   *
+   * Returns: { crop, shouldRotate, orientedW, orientedH, origW, origH, canPan }
+   *   - crop: {top, left, width, height, isRotated, originalWidth, originalHeight}
+   *           in ORIENTED-image space (after any flat-target rotation)
+   *   - shouldRotate: true iff a 90° CW rotation is applied during analysis
+   *   - canPan: true if the crop has room to move within the image bounds
+   *
+   * The crop starts centred, then `t.cropOffset` (in oriented pixel space) is
+   * applied and clamped to image bounds. Curved/Conical + fit='stretch' has
+   * no crop (the full frame is used), so canPan=false in that case.
+   */
+  function computeCrop(t) {
+    if (!t || !t.image) return null;
+    const img = t.image;
+    const origW = img.naturalWidth || img.width;
+    const origH = img.naturalHeight || img.height;
+    const isCurvedTarget = (t.targetType === 'curved' || t.targetType === 'conical');
+    const sourceIsLandscape = origW >= origH;
+    const shouldRotate = !isCurvedTarget && sourceIsLandscape;
+    const orientedW = shouldRotate ? origH : origW;
+    const orientedH = shouldRotate ? origW : origH;
+
+    const { fit } = currentGeometryConfig();
+    let crop;
+    let canPan = true;
+    if (!isCurvedTarget) {
+      crop = getDefaultCrop(orientedW, orientedH);
+      crop.isRotated = shouldRotate;
+    } else if (fit === 'crop') {
+      crop = cropToAspect(orientedW, orientedH, computeTargetAspect(t.targetType, t.geometry));
+    } else {
+      // Stretch: the whole frame is used — nothing to pan
+      crop = {
+        top: 0, left: 0, width: orientedW, height: orientedH,
+        isRotated: false, originalWidth: orientedW, originalHeight: orientedH
+      };
+      canPan = false;
+      return { crop, shouldRotate, orientedW, orientedH, origW, origH, canPan };
+    }
+
+    // Apply user's pan offset, clamped so the crop stays within image bounds
+    const offset = t.cropOffset || { x: 0, y: 0 };
+    const maxX = Math.max(0, (orientedW - crop.width)  / 2);
+    const maxY = Math.max(0, (orientedH - crop.height) / 2);
+    const clampedX = Math.max(-maxX, Math.min(maxX, offset.x));
+    const clampedY = Math.max(-maxY, Math.min(maxY, offset.y));
+    // Write the clamped offset back so future drags start from the clamped value
+    t.cropOffset = { x: clampedX, y: clampedY };
+
+    crop.left = Math.round((orientedW - crop.width)  / 2 + clampedX);
+    crop.top  = Math.round((orientedH - crop.height) / 2 + clampedY);
+
+    // Can pan only if there's room to move along at least one axis
+    canPan = (maxX > 0.5 || maxY > 0.5);
+
+    return { crop, shouldRotate, orientedW, orientedH, origW, origH, canPan };
+  }
+
+  // ============ Niantic CLI constants ============
+  const NIANTIC_CONSTRAINTS = {
+    THUMBNAIL_WIDTH: 263,
+    THUMBNAIL_HEIGHT: 350,
+    LUMINANCE_HEIGHT: 640,
+    MAX_DIMENSION: 2048,
+    MIN_DIMENSION: [480, 640],
+    DEFAULT_CROP: { top: 0, bottom: 0, left: 0, right: 0 }
+  };
+
+  // ============ Preview drawing ============
+  // Parses "#rrggbb" → "rgba(r,g,b,alpha)" string
+  function hexToRgba(hex, alpha) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return `rgba(0,229,255,${alpha})`;
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  /**
+   * Drawn preview matches v13 behaviour:
+   *   - Canvas is sized to the image's natural (un-rotated) dimensions
+   *   - Image is drawn at natural orientation; landscape sources remain landscape
+   *   - Points are assumed to be in original-image space (pre-rotation)
+   *   - Crop rect: if the pipeline rotated the image for analysis (shouldRotate),
+   *     we map the oriented-space crop back to original-image space so the
+   *     orange crop box appears as a tall portrait rectangle inside a landscape
+   *     source. This is far more intuitive than rotating the preview itself.
+   *
+   * If cropInfo is not provided, compute it fresh from computeCrop(activeTarget)
+   * — this is what makes the orange crop box show up even before analysis, and
+   * what makes dragging feel live (crop updates instantly as user drags).
+   */
+  function drawPreview(points, cropInfo, sourceIsLandscape, origW, origH) {
+    const t = getActive();
+    if (!t) return;
+    const img = t.image;
+    const ctx = previewCanvas.getContext('2d');
+
+    // Compute current crop if not passed
+    if (!cropInfo) {
+      const cc = computeCrop(t);
+      if (cc) {
+        cropInfo = cc.crop;
+        sourceIsLandscape = cc.shouldRotate;
+        origW = cc.origW;
+        origH = cc.origH;
+      }
+    }
+
+    previewCanvas.width  = img.naturalWidth  || img.width;
+    previewCanvas.height = img.naturalHeight || img.height;
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    // Feature-point overlay — points are in original image space, draw directly
+    if (points && points.length > 0) {
+      const baseR = Math.max(1.5, (1.5 + state.displayDotSize * 0.45) * (previewCanvas.width / 900));
+      const glowR = baseR * 2;
+      const fill = hexToRgba(state.displayDotColour, 0.95);
+      const glow = hexToRgba(state.displayDotColour, 0.22);
+      ctx.fillStyle = glow;
+      for (const p of points) { ctx.beginPath(); ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = fill;
+      for (const p of points) { ctx.beginPath(); ctx.arc(p.x, p.y, baseR, 0, Math.PI * 2); ctx.fill(); }
+    }
+
+    // Crop overlay — compute the crop rectangle's position in ORIGINAL image
+    // space (the canvas coord space). If the pipeline rotated, the oriented-
+    // space crop rect maps back: (ox, oy) → (oy, origH - ox) for a 90° CW
+    // rotation. Applied to the crop's four corners, the axis-aligned bounds
+    // in original space are:
+    if (cropInfo && typeof origW === 'number' && typeof origH === 'number') {
+      let rx, ry, rw, rh;
+      if (sourceIsLandscape) {
+        rx = cropInfo.top;
+        ry = origH - (cropInfo.left + cropInfo.width);
+        rw = cropInfo.height;
+        rh = cropInfo.width;
+        rx = Math.max(0, rx); ry = Math.max(0, ry);
+      } else {
+        rx = cropInfo.left; ry = cropInfo.top;
+        rw = cropInfo.width; rh = cropInfo.height;
+      }
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(10, 14, 26, 0.55)';
+      if (ry > 0) ctx.fillRect(0, 0, previewCanvas.width, ry);
+      if (ry + rh < previewCanvas.height) ctx.fillRect(0, ry + rh, previewCanvas.width, previewCanvas.height - (ry + rh));
+      if (rx > 0) ctx.fillRect(0, ry, rx, rh);
+      if (rx + rw < previewCanvas.width) ctx.fillRect(rx + rw, ry, previewCanvas.width - (rx + rw), rh);
+
+      ctx.strokeStyle = 'rgba(255, 181, 71, 0.9)';
+      ctx.lineWidth = Math.max(2, Math.round(previewCanvas.width / 500));
+      ctx.setLineDash([ctx.lineWidth * 3, ctx.lineWidth * 2]);
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.setLineDash([]);
+
+      // Small draggable-affordance cross in the centre (only if canPan)
+      const centreX = rx + rw / 2, centreY = ry + rh / 2;
+      const handleR = Math.max(6, Math.round(previewCanvas.width / 160));
+      ctx.fillStyle = 'rgba(255, 181, 71, 0.35)';
+      ctx.strokeStyle = 'rgba(255, 181, 71, 0.95)';
+      ctx.lineWidth = Math.max(1.5, previewCanvas.width / 1000);
+      ctx.beginPath();
+      ctx.arc(centreX, centreY, handleR, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      // Cross inside the handle
+      const arm = handleR * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(centreX - arm, centreY); ctx.lineTo(centreX + arm, centreY);
+      ctx.moveTo(centreX, centreY - arm); ctx.lineTo(centreX, centreY + arm);
+      ctx.stroke();
+
+      // Label — reflects flat / curved-conical / stretch
+      const labelFont = Math.max(14, Math.round(previewCanvas.width / 70));
+      ctx.font = `600 ${labelFont}px "JetBrains Mono", monospace`;
+      let labelPrefix = '3:4 CROP';
+      const type = t.targetType;
+      if (type === 'curved' || type === 'conical') {
+        const fit = type === 'curved' ? t.geometry.cylinder.fit : t.geometry.cone.fit;
+        labelPrefix = fit === 'stretch' ? 'STRETCH TO FIT' : 'SURFACE CROP';
+      }
+      const label = `${labelPrefix} · ${rw}×${rh}`;
+      const metrics = ctx.measureText(label);
+      const padX = 10, padY = 6;
+      const labelX = rx + 8, labelY = ry + 8;
+      ctx.fillStyle = 'rgba(10, 14, 26, 0.85)';
+      ctx.fillRect(labelX, labelY, metrics.width + padX * 2, labelFont + padY * 2);
+      ctx.fillStyle = 'rgba(255, 181, 71, 0.95)';
+      ctx.fillText(label, labelX + padX, labelY + labelFont + padY - 2);
+      ctx.restore();
+    }
+  }
+
+  /**
+   * Tracker view: shows the 640-tall grayscale luminance the Niantic tracker
+   * actually sees. Points are stored in original image space; we reverse-map
+   * them back through: original → oriented → cropped → luminance.
+   */
+  function drawTrackerView() {
+    const t = getActive();
+    if (!t || !t.analysis || !t.analysis.lumCanvas) return;
+    const src = t.analysis.lumCanvas;
+    const ctx = previewCanvas.getContext('2d');
+    previewCanvas.width  = src.width;
+    previewCanvas.height = src.height;
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+    ctx.drawImage(src, 0, 0);
+
+    const points = t.analysis.lastPreviewPoints || [];
+    const crop = t.analysis.lastPreviewCrop;
+    if (!points.length || !crop) return;
+
+    const img = t.image;
+    const origH = img.naturalHeight || img.height;
+    const lumW = src.width, lumH = src.height;
+    const scaleLumX = lumW / crop.width;
+    const scaleLumY = lumH / crop.height;
+    const rotated = t.analysis.lastPreviewRotated;
+
+    const baseR = Math.max(1.5, 1.5 + state.displayDotSize * 0.45);
+    const glowR = baseR * 2;
+    const fill = hexToRgba(state.displayDotColour, 0.95);
+    const glow = hexToRgba(state.displayDotColour, 0.22);
+
+    const mapped = [];
+    for (const p of points) {
+      // p is in original image space — reverse map to oriented:
+      let orX, orY;
+      if (rotated) { orX = origH - p.y; orY = p.x; }
+      else         { orX = p.x; orY = p.y; }
+      // oriented → cropped:
+      const cx = orX - crop.left;
+      const cy = orY - crop.top;
+      // cropped → luminance:
+      const lx = cx * scaleLumX;
+      const ly = cy * scaleLumY;
+      if (lx < 0 || ly < 0 || lx >= lumW || ly >= lumH) continue;
+      mapped.push({ x: lx, y: ly });
+    }
+    ctx.fillStyle = glow;
+    for (const p of mapped) { ctx.beginPath(); ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = fill;
+    for (const p of mapped) { ctx.beginPath(); ctx.arc(p.x, p.y, baseR, 0, Math.PI * 2); ctx.fill(); }
+
+    // Corner label
+    ctx.font = '600 12px "JetBrains Mono", monospace';
+    const label = `TRACKER VIEW · ${lumW}×${lumH} · Grayscale · what the CLI engine processes`;
+    const metrics = ctx.measureText(label);
+    ctx.fillStyle = 'rgba(10, 14, 26, 0.85)';
+    ctx.fillRect(6, 6, metrics.width + 16, 22);
+    ctx.fillStyle = 'rgba(255, 181, 71, 0.95)';
+    ctx.fillText(label, 14, 20);
+  }
+
+  function updateInfoChips() {
+    const t = getActive();
+    infoRow.innerHTML = '';
+    if (!t || !t.image) return;
+
+    const w = t.image.naturalWidth, h = t.image.naturalHeight;
+    const isCurvedTarget = (t.targetType === 'curved' || t.targetType === 'conical');
+    const sourceIsLandscape = w >= h;
+    const shouldRotate = !isCurvedTarget && sourceIsLandscape;
+
+    const chip = (label, cls) => {
+      const el = document.createElement('div');
+      el.className = 'info-chip' + (cls ? ' ' + cls : '');
+      el.textContent = label;
+      return el;
+    };
+
+    // Resolution
+    infoRow.appendChild(chip(`${w} × ${h}`));
+
+    // Rotation hint — only flat targets rotate
+    if (shouldRotate) infoRow.appendChild(chip('Will rotate 90° to portrait', 'warn'));
+    else if (isCurvedTarget && sourceIsLandscape) infoRow.appendChild(chip('Landscape — no rotation for curved/conical'));
+
+    // Target type label
+    const typeLabel = t.targetType === 'flat' ? 'Flat target'
+                    : t.targetType === 'curved' ? 'Cylindrical target'
+                    : 'Conical target';
+    infoRow.appendChild(chip(typeLabel));
+
+    // Crop aspect / fit mode
+    if (isCurvedTarget) {
+      const { fit } = currentGeometryConfig();
+      const surfaceAspect = computeTargetAspect(t.targetType, t.geometry);
+      if (fit === 'stretch') {
+        infoRow.appendChild(chip('Stretch to fit', 'warn'));
+      } else {
+        infoRow.appendChild(chip(`Surface crop ${surfaceAspect.toFixed(2)}:1`));
+      }
+    } else {
+      infoRow.appendChild(chip('Default crop 3:4'));
+    }
+
+    // Min dimension check — after any flat rotation, the shortest side must be ≥ 480
+    // and the longest ≥ 640 for Niantic. Compare oriented dimensions.
+    const orientedMin = Math.min(w, h);
+    const orientedMax = Math.max(w, h);
+    if (orientedMin < NIANTIC_CONSTRAINTS.MIN_DIMENSION[0] || orientedMax < NIANTIC_CONSTRAINTS.MIN_DIMENSION[1]) {
+      infoRow.appendChild(chip('Below 480×640 CLI minimum', 'bad'));
+    } else {
+      infoRow.appendChild(chip('≥ 480×640', 'ok'));
+    }
+
+    // Crop-offset state (only meaningful for flat / surface-crop modes)
+    const offset = t.cropOffset || { x: 0, y: 0 };
+    if (Math.abs(offset.x) >= 1 || Math.abs(offset.y) >= 1) {
+      const sx = offset.x >= 0 ? '+' : '';
+      const sy = offset.y >= 0 ? '+' : '';
+      infoRow.appendChild(chip(`Crop offset ${sx}${Math.round(offset.x)}, ${sy}${Math.round(offset.y)} px`, 'warn'));
+    }
+  }
+
+  // ============ View toggle ============
+  viewToggleBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const t = getActive();
+      if (!t || !t.analysis) return;
+      viewToggleBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      t.analysis.previewMode = btn.dataset.view;
+      if (btn.dataset.view === 'tracker') {
+        drawTrackerView();
+      } else {
+        // Original view with live crop + last-analysis points
+        drawPreview(t.analysis.lastPreviewPoints);
+      }
+    });
+  });
+
+  // ============ Display controls ============
+  dotSizeSlider.addEventListener('input', () => {
+    const v = parseInt(dotSizeSlider.value, 10);
+    state.displayDotSize = v;
+    dotSizeVal.textContent = v;
+    const min = 1, max = 10;
+    const pct = ((v - min) / (max - min)) * 100;
+    dotSizeSlider.style.setProperty('--val', pct + '%');
+    redrawPreviewCurrentMode();
+  });
+  dotColourPicker.addEventListener('input', () => {
+    state.displayDotColour = dotColourPicker.value;
+    redrawPreviewCurrentMode();
+  });
+
+  // ============ Crop rectangle drag (pan within image) ============
+  // The user can drag the orange crop rectangle on the preview canvas to
+  // reposition which part of the image gets analysed. The CLI supports this
+  // fully through the `crop: {top, bottom, left, right}` JSON field — so any
+  // valid crop placement is honoured in the exported bundle.
+  //
+  // Coordinate spaces at play:
+  //   - Canvas BUFFER:   natural image pixels (previewCanvas.width/height)
+  //   - Canvas DISPLAY:  CSS-scaled size (getBoundingClientRect)
+  //   - Oriented space:  what the crop is stored in (flat+landscape rotates 90° CW)
+  //
+  // Mouse → canvas buffer: (clientX − rect.left) × (buffer.width / display.width)
+  // Canvas delta → oriented delta: if rotated, (dx, dy) → (−dy, dx); else identity.
+  let cropDrag = null;
+
+  function canvasPointFromEvent(evt) {
+    const rect = previewCanvas.getBoundingClientRect();
+    const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+    const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+    return {
+      x: (clientX - rect.left) * (previewCanvas.width  / rect.width),
+      y: (clientY - rect.top)  * (previewCanvas.height / rect.height)
+    };
+  }
+
+  // The crop rectangle in canvas / original-image space (for hit-testing)
+  function cropRectOnCanvas(t) {
+    const cc = computeCrop(t);
+    if (!cc || !cc.canPan) return null;
+    const { crop, shouldRotate, origH } = cc;
+    let rx, ry, rw, rh;
+    if (shouldRotate) {
+      rx = crop.top;
+      ry = origH - (crop.left + crop.width);
+      rw = crop.height;
+      rh = crop.width;
+    } else {
+      rx = crop.left; ry = crop.top;
+      rw = crop.width; rh = crop.height;
+    }
+    return { rx, ry, rw, rh, shouldRotate };
+  }
+
+  function pointInRect(p, r) {
+    return p.x >= r.rx && p.x <= r.rx + r.rw && p.y >= r.ry && p.y <= r.ry + r.rh;
+  }
+
+  // Hover → cursor feedback
+  previewCanvas.addEventListener('mousemove', (evt) => {
+    if (cropDrag) return;
+    const t = getActive();
+    if (!t) { previewCanvas.style.cursor = 'default'; return; }
+    const r = cropRectOnCanvas(t);
+    if (!r) { previewCanvas.style.cursor = 'default'; return; }
+    previewCanvas.style.cursor = pointInRect(canvasPointFromEvent(evt), r) ? 'grab' : 'default';
+  });
+  previewCanvas.addEventListener('mouseleave', () => {
+    if (!cropDrag) previewCanvas.style.cursor = 'default';
+  });
+
+  function onCropDragStart(evt) {
+    // Re-entry guard: if a drag is already active, ignore. Handles rare
+    // touchstart + mousedown double-fire on hybrid devices.
+    if (cropDrag) return;
+    const t = getActive();
+    if (!t) return;
+    const r = cropRectOnCanvas(t);
+    if (!r) return;
+    const p = canvasPointFromEvent(evt);
+    if (!pointInRect(p, r)) return;
+    evt.preventDefault();
+    cropDrag = {
+      startX: p.x, startY: p.y,
+      startOffset: { ...(t.cropOffset || { x: 0, y: 0 }) },
+      shouldRotate: r.shouldRotate,
+      activeId: t.id,  // remember which target this drag belongs to
+      moved: false
+    };
+    previewCanvas.style.cursor = 'grabbing';
+    document.addEventListener('mousemove', onCropDragMove);
+    document.addEventListener('mouseup',   onCropDragEnd);
+    document.addEventListener('touchmove', onCropDragMove, { passive: false });
+    document.addEventListener('touchend',  onCropDragEnd);
+  }
+
+  function onCropDragMove(evt) {
+    if (!cropDrag) return;
+    evt.preventDefault();
+    const t = getActive();
+    // If the active target changed mid-drag, abort cleanly.
+    if (!t || t.id !== cropDrag.activeId) {
+      onCropDragEnd();
+      return;
+    }
+    const p = canvasPointFromEvent(evt);
+    const dx = p.x - cropDrag.startX;
+    const dy = p.y - cropDrag.startY;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) cropDrag.moved = true;
+
+    // Convert canvas-space delta to oriented-space delta.
+    // For a 90° CW rotation: oriented.left = origH - (original.y + height),
+    // so Δoriented.left = −Δoriginal.y; and oriented.top = original.x, so
+    // Δoriented.top = Δoriginal.x.
+    let ox, oy;
+    if (cropDrag.shouldRotate) { ox = -dy; oy = dx; }
+    else                        { ox =  dx; oy = dy; }
+
+    t.cropOffset = {
+      x: cropDrag.startOffset.x + ox,
+      y: cropDrag.startOffset.y + oy
+    };
+    // computeCrop() inside drawPreview will clamp automatically
+    redrawPreviewCurrentMode();
+    updateInfoChips();
+  }
+
+  function onCropDragEnd() {
+    document.removeEventListener('mousemove', onCropDragMove);
+    document.removeEventListener('mouseup',   onCropDragEnd);
+    document.removeEventListener('touchmove', onCropDragMove);
+    document.removeEventListener('touchend',  onCropDragEnd);
+    if (cropDrag && cropDrag.moved) {
+      // If the user moved the crop after an analysis, the cached luminance /
+      // points are now stale. Re-render the sidebar so the thumbnail label
+      // and any future UI can reflect the new state.
+      renderSidebar();
+    }
+    cropDrag = null;
+    previewCanvas.style.cursor = 'grab';
+  }
+
+  previewCanvas.addEventListener('mousedown',  onCropDragStart);
+  previewCanvas.addEventListener('touchstart', onCropDragStart, { passive: false });
+
+  // Double-click inside the crop → recentre
+  previewCanvas.addEventListener('dblclick', (evt) => {
+    const t = getActive();
+    if (!t) return;
+    const r = cropRectOnCanvas(t);
+    if (!r) return;
+    if (!pointInRect(canvasPointFromEvent(evt), r)) return;
+    t.cropOffset = { x: 0, y: 0 };
+    redrawPreviewCurrentMode();
+    updateInfoChips();
+    showToast('Crop recentred', 'success');
+  });
+
+  function redrawPreviewCurrentMode() {
+    const t = getActive();
+    if (!t) return;
+    if (t.analysis && t.analysis.previewMode === 'tracker') {
+      // Tracker view reflects the last analysis snapshot, not the live crop.
+      drawTrackerView();
+    } else {
+      // Original view: always use the LIVE crop (computed from cropOffset),
+      // so dragging updates the overlay instantly. Points stay at their
+      // original-space positions from the last analysis (or are absent).
+      const points = t.analysis ? t.analysis.lastPreviewPoints : null;
+      drawPreview(points);
+    }
+  }
+
+  // ============ Sample generator ============
+  btnAddSample.addEventListener('click', () => {
+    btnAddSample.disabled = true;
+    try {
+      const canvas = generateSampleImage(1024);
+      const url = canvas.toDataURL('image/jpeg', 0.92);
+      loadImageFromDataURL(url, 'sample-' + Date.now(), (success) => {
+        if (success) showToast('Sample target generated', 'success');
+      });
+    } catch (err) {
+      console.error(err);
+      showToast('Sample generation failed', 'error');
+    } finally {
+      setTimeout(() => { btnAddSample.disabled = false; }, 300);
+    }
+  });
+
+  // Generates a procedurally-designed image that scores in the 90s on the
+  // image-target-cli trackability metrics.
+  //
+  // The recipe (five layers, each contributing to a different scoring axis):
+  //   1. Noisy mid-tone base     → prevents any empty regions (distribution)
+  //   2. Grid-seeded shapes      → 8–12 shapes per 4×4 cell (coverage)
+  //   3. Large overlays          → 35–50 shapes crossing cell boundaries (mid-freq)
+  //   4. Fine detail             → 280 small shapes everywhere (feature density)
+  //   5. Pepper salt-and-pepper  → 3% of pixels to 0/255 (Sobel response)
+  //
+  // Palette deliberately spans full luminance (0–255) — the CLI pipeline
+  // grayscales before analysis, so brightness variety matters more than hue.
+  function generateSampleImage(size) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Palette spanning full luminance range (near-black to near-white)
+    const palette = [
+      '#0a0e1a', '#161b2d', '#1a1a2e',                       // near-black
+      '#2d3561', '#3d2b5f', '#4a1942',                       // dark chromatic
+      '#718096', '#6b7280',                                   // mid grey
+      '#c44536', '#d97706', '#059669', '#0891b2', '#7c3aed', // mid chromatic
+      '#ff6b35', '#ffb547', '#00e5ff', '#a855f7', '#ec4899', // bright chromatic
+      '#f4e4c1', '#fde68a',                                   // light warm
+      '#ffffff', '#f0f0f0'                                    // near-white
+    ];
+
+    // ---- Layer 1: Noisy mid-tone base ----
+    // Starts everything off with a base guaranteeing no pure-empty regions.
+    ctx.fillStyle = '#3a3d52';
+    ctx.fillRect(0, 0, size, size);
+    const baseImg = ctx.getImageData(0, 0, size, size);
+    const d = baseImg.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 60;
+      d[i]     = Math.max(0, Math.min(255, d[i]     + n));
+      d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+      d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+    }
+    ctx.putImageData(baseImg, 0, 0);
+
+    // ---- Layer 2: Grid-seeded shapes ----
+    // 4×4 cells, 8–12 shapes per cell, jittered so shapes cross cell borders.
+    // Guarantees the spatial-distribution metric scores close to 1.0.
+    const cells = 4;
+    const cellSize = size / cells;
+    const perCellMin = 8;
+    const perCellMax = 12;
+    for (let cy = 0; cy < cells; cy++) {
+      for (let cx = 0; cx < cells; cx++) {
+        const count = perCellMin + Math.floor(Math.random() * (perCellMax - perCellMin + 1));
+        for (let i = 0; i < count; i++) {
+          const x = cx * cellSize + (Math.random() * 1.2 - 0.1) * cellSize;
+          const y = cy * cellSize + (Math.random() * 1.2 - 0.1) * cellSize;
+          const s = cellSize * (0.18 + Math.random() * 0.42);
+          drawSampleShape(ctx, x, y, s, palette);
+        }
+      }
+    }
+
+    // ---- Layer 3: Large-scale overlays ----
+    // Shapes crossing multiple cells — adds mid-frequency features and
+    // reduces periodicity by breaking up the grid structure.
+    const largeCount = 35 + Math.floor(Math.random() * 15);
+    for (let i = 0; i < largeCount; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const s = size * (0.06 + Math.random() * 0.14);
+      drawSampleShape(ctx, x, y, s, palette);
+    }
+
+    // ---- Layer 4: Fine detail ----
+    // High-frequency features — boosts the raw edge-pixel count that drives
+    // the feature-density score.
+    const fineCount = 280;
+    for (let i = 0; i < fineCount; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const s = size * (0.008 + Math.random() * 0.028);
+      drawSampleShape(ctx, x, y, s, palette);
+    }
+
+    // ---- Layer 5: Pepper noise ----
+    // 3% of pixels become pure black or white. Every such pixel creates
+    // strong Sobel gradients against its neighbours, dramatically boosting
+    // both feature-density and contrast scores.
+    const pepper = ctx.getImageData(0, 0, size, size);
+    const pd = pepper.data;
+    for (let i = 0; i < pd.length; i += 4) {
+      if (Math.random() < 0.03) {
+        const v = Math.random() < 0.5 ? 0 : 255;
+        pd[i] = v; pd[i + 1] = v; pd[i + 2] = v;
+      }
+    }
+    ctx.putImageData(pepper, 0, 0);
+
+    return canvas;
+  }
+
+  // Single shape — picks from a 7-type pool weighted toward edge-rich shapes
+  // (rings, rects, irregular polygons) that yield strong Sobel responses.
+  function drawSampleShape(ctx, x, y, s, palette) {
+    const fill = palette[Math.floor(Math.random() * palette.length)];
+    const stroke = palette[Math.floor(Math.random() * palette.length)];
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.random() * Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(1, s * 0.08);
+    ctx.lineJoin = 'miter';
+    ctx.lineCap = 'square';
+
+    // Pool biased toward edges/rings — matches the image-target-cli detector
+    // which favours strong Sobel gradient responses over corner density.
+    const pool = [0, 0, 1, 1, 2, 3, 4, 5, 5, 6];
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    const r = s * 0.5;
+
+    switch (type) {
+      case 0: // Filled circle
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        if (Math.random() < 0.5) ctx.stroke();
+        break;
+      case 1: // Rectangle
+        ctx.fillRect(-r, -r, s, s);
+        if (Math.random() < 0.5) ctx.strokeRect(-r, -r, s, s);
+        break;
+      case 2: // Triangle
+        ctx.beginPath();
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r, r);
+        ctx.lineTo(-r, r);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case 3: { // 5-point star (10 corners, lots of edges)
+        const pts = 5;
+        ctx.beginPath();
+        for (let i = 0; i < pts * 2; i++) {
+          const a = (i / (pts * 2)) * Math.PI * 2 - Math.PI / 2;
+          const rr = (i % 2 === 0) ? r : r * 0.45;
+          const px = Math.cos(a) * rr;
+          const py = Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+      case 4: { // Cross / plus (8 corners)
+        const w = s * 0.32;
+        ctx.fillRect(-r, -w / 2, s, w);
+        ctx.fillRect(-w / 2, -r, w, s);
+        break;
+      }
+      case 5: { // Concentric ring(s) — maximum edge-pixel yield per shape
+        ctx.lineWidth = s * 0.14;
+        ctx.beginPath();
+        ctx.arc(0, 0, r - ctx.lineWidth / 2, 0, Math.PI * 2);
+        ctx.stroke();
+        if (s > 50 && Math.random() < 0.5) {
+          ctx.lineWidth = s * 0.06;
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 6: { // Irregular polygon (3–8 sides, jittered radii)
+        const sides = 3 + Math.floor(Math.random() * 6);
+        ctx.beginPath();
+        for (let i = 0; i < sides; i++) {
+          const a = (i / sides) * Math.PI * 2;
+          const rr = r * (0.55 + Math.random() * 0.5);
+          const px = Math.cos(a) * rr;
+          const py = Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        if (Math.random() < 0.4) ctx.stroke();
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  // ============ Analyse button & reset ============
+  btnCompile.addEventListener('click', () => {
+    const t = getActive();
+    if (!t) { showToast('Select a target first', 'error'); return; }
+    analyseEightWall();
+  });
+  btnDeleteTarget.addEventListener('click', () => {
+    if (state.activeId) deleteTarget(state.activeId);
+  });
+
+  // ============ Niantic analysis pipeline ============
+  // ============ Crop helpers ============
+  // Return shape matches Niantic CLI's CropGeometry: { top, left, width, height, isRotated, originalWidth, originalHeight }
+  function getDefaultCrop(width, height) {
+    // 3:4 portrait centre-crop (matches Niantic CLI default)
+    if (width / 3 > height / 4) {
+      const cw = Math.round((height * 3) / 4);
+      return {
+        left: Math.round((width - cw) / 2), top: 0,
+        width: cw, height,
+        originalWidth: width, originalHeight: height, isRotated: false
+      };
+    }
+    const ch = Math.round((width * 4) / 3);
+    return {
+      left: 0, top: Math.round((height - ch) / 2),
+      width, height: ch,
+      originalWidth: width, originalHeight: height, isRotated: false
+    };
+  }
+
+  function cropToAspect(w, h, aspect) {
+    // Defensive: fall back to the Niantic flat default if geometry produces a
+    // degenerate aspect ratio (e.g. user sliders produce 0 wrap width).
+    if (!isFinite(aspect) || aspect <= 0) aspect = 3 / 4;
+    const srcAspect = w / h;
+    let cw, ch, cl, ct;
+    if (aspect > srcAspect) {
+      cw = w; ch = Math.round(w / aspect);
+      cl = 0; ct = Math.round((h - ch) / 2);
+    } else {
+      ch = h; cw = Math.round(h * aspect);
+      cl = Math.round((w - cw) / 2); ct = 0;
+    }
+    return {
+      top: ct, left: cl, width: cw, height: ch,
+      isRotated: false, originalWidth: w, originalHeight: h
+    };
+  }
+
+  async function analyseEightWall() {
+    const t = getActive();
+    if (!t || !t.image) return;
+    btnCompile.disabled = true;
+    progress.classList.add('active');
+    progressLabel.textContent = 'Analysing · CLI pipeline';
+    progressPct.textContent = '0%';
+    progressFill.style.width = '0%';
+
+    const setP = (p, label) => {
+      progressFill.style.width = p + '%';
+      progressPct.textContent = p + '%';
+      if (label) progressLabel.textContent = label;
+    };
+
+    await new Promise(requestAnimationFrame);
+
+    try {
+      const img = t.image;
+      const origW = img.naturalWidth, origH = img.naturalHeight;
+
+      // Step 1 · Orient:
+      //   Flat:            rotate landscape sources 90° CW (matches Niantic CLI).
+      //   Curved/Conical:  never rotate — the physical object defines aspect.
+      setP(10, 'Orienting image');
+      const cc = computeCrop(t);
+      const { shouldRotate, orientedW, orientedH } = cc;
+      const crop = cc.crop;
+
+      const orientedCanvas = document.createElement('canvas');
+      orientedCanvas.width = orientedW;
+      orientedCanvas.height = orientedH;
+      const octx = orientedCanvas.getContext('2d');
+      if (shouldRotate) {
+        octx.translate(orientedW, 0);
+        octx.rotate(Math.PI / 2);
+        octx.drawImage(img, 0, 0);
+      } else {
+        octx.drawImage(img, 0, 0);
+      }
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Step 2 · Crop was computed above by computeCrop (centred + user's pan offset)
+      setP(25, 'Cropping');
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = crop.width;
+      croppedCanvas.height = crop.height;
+      const cctx = croppedCanvas.getContext('2d');
+      cctx.imageSmoothingQuality = 'high';
+      cctx.drawImage(orientedCanvas, -crop.left, -crop.top);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Step 3 · Luminance (640 tall, width derived from crop aspect, grayscale)
+      setP(45, 'Generating luminance image');
+      const lumH = NIANTIC_CONSTRAINTS.LUMINANCE_HEIGHT;
+      const lumW = Math.round(crop.width * lumH / crop.height);
+      const lumCanvas = document.createElement('canvas');
+      lumCanvas.width = lumW; lumCanvas.height = lumH;
+      const lctx = lumCanvas.getContext('2d');
+      lctx.drawImage(croppedCanvas, 0, 0, lumW, lumH);
+      const lumData = lctx.getImageData(0, 0, lumW, lumH);
+      const d = lumData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gr = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        d[i] = d[i + 1] = d[i + 2] = gr;
+      }
+      lctx.putImageData(lumData, 0, 0);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Step 4 · Feature analysis on luminance (Sobel + distribution + periodicity)
+      setP(65, 'Detecting features');
+      const analysis = analyseImageData(lumData, lumW, lumH);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Step 5 · Score
+      setP(82, 'Scoring');
+      const result = scoreEightWall(analysis, orientedW, orientedH, crop);
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Step 6 · Build CLI bundle
+      setP(92, 'Packaging bundle');
+      const bundle = buildCliBundle(img, orientedCanvas, croppedCanvas, lumCanvas, crop, t.name);
+
+      // Map points through: luminance → cropped → oriented → original.
+      // Final points are in ORIGINAL image space so drawPreview can display
+      // them on the un-rotated source directly.
+      const scaleToCropX = crop.width  / lumW;
+      const scaleToCropY = crop.height / lumH;
+      const pointsInOriginal = analysis.points.slice(0, 800).map((p) => {
+        const cx = p.x * scaleToCropX;
+        const cy = p.y * scaleToCropY;
+        const ox = cx + crop.left;
+        const oy = cy + crop.top;
+        if (shouldRotate) {
+          // Inverse of (x, y) → (y, origW - x) — same as {x: oy, y: origH - ox}
+          return { x: oy, y: origH - ox };
+        }
+        return { x: ox, y: oy };
+      });
+
+      t.analysis = {
+        result,
+        bundle,
+        lumCanvas,
+        lastPreviewPoints: pointsInOriginal,
+        lastPreviewCrop: crop,
+        lastPreviewRotated: shouldRotate,
+        previewMode: 'original'
+      };
+
+      setP(100, 'Done');
+      drawPreview(pointsInOriginal, crop, shouldRotate, origW, origH);
+      viewToggle.style.display = 'grid';
+      viewToggleBtns.forEach((b) => b.classList.toggle('active', b.dataset.view === 'original'));
+      renderEightWallResults(result);
+      renderSidebar();
+
+      setTimeout(() => { progress.classList.remove('active'); }, 400);
+    } catch (err) {
+      console.error(err);
+      showToast('Analysis failed: ' + err.message, 'error');
+      progress.classList.remove('active');
+    } finally {
+      btnCompile.disabled = false;
+    }
+  }
+
+  function analyseImageData(imgData, w, h) {
+    const data = imgData.data;
+    const N = w * h;
+
+    // Convert to luminance array (0-255) using BT.601 weights
+    const lum = new Uint8ClampedArray(N);
+    for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+      lum[j] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) | 0;
+    }
+
+    // Luminance statistics
+    let sum = 0;
+    for (let i = 0; i < N; i++) sum += lum[i];
+    const mean = sum / N;
+    let variance = 0;
+    for (let i = 0; i < N; i++) variance += (lum[i] - mean) * (lum[i] - mean);
+    variance /= N;
+    const stdev = Math.sqrt(variance);
+
+    // Whitespace ratio — fraction of pixels within ±8 of mean (bland / flat)
+    let blandPixels = 0;
+    for (let i = 0; i < N; i++) {
+      if (Math.abs(lum[i] - mean) < 8) blandPixels++;
+    }
+    const blandRatio = blandPixels / N;
+
+    // Sobel gradient + 4×4 grid distribution
+    const stride = w > 1200 ? 2 : 1;
+    const gradThreshold = 40;
+    const gridN = 4;
+    const cellCounts = new Array(gridN * gridN).fill(0);
+    let featurePixels = 0;
+    let featureSum = 0;
+    const candidates = [];
+
+    for (let y = 1; y < h - 1; y += stride) {
+      for (let x = 1; x < w - 1; x += stride) {
+        const i = y * w + x;
+        const gx =
+          -lum[i - w - 1] - 2 * lum[i - 1] - lum[i + w - 1] +
+           lum[i - w + 1] + 2 * lum[i + 1] + lum[i + w + 1];
+        const gy =
+          -lum[i - w - 1] - 2 * lum[i - w] - lum[i - w + 1] +
+           lum[i + w - 1] + 2 * lum[i + w] + lum[i + w + 1];
+        const mag = Math.abs(gx) + Math.abs(gy);
+        if (mag > gradThreshold) {
+          featurePixels++;
+          featureSum += mag;
+          const cx = Math.min(gridN - 1, Math.floor((x / w) * gridN));
+          const cy = Math.min(gridN - 1, Math.floor((y / h) * gridN));
+          cellCounts[cy * gridN + cx]++;
+          candidates.push({ x, y, m: mag });
+        }
+      }
+    }
+
+    // Globally strongest features (avoids y-major scan bias)
+    candidates.sort((a, b) => b.m - a.m);
+    const points = candidates.slice(0, 2500).map((c) => ({ x: c.x, y: c.y, m: c.m }));
+
+    const totalSampled = (Math.floor((w - 2) / stride)) * (Math.floor((h - 2) / stride));
+    const featureDensity = featurePixels / (totalSampled || 1);   // 0..1
+
+    const filled = cellCounts.filter((c) => c > 0).length;
+    const coverage = filled / cellCounts.length;                   // 0..1
+
+    const cellAvg = cellCounts.reduce((a, b) => a + b, 0) / cellCounts.length || 1;
+    const cellVar = cellCounts.reduce((s, c) => s + Math.pow(c - cellAvg, 2), 0) / cellCounts.length;
+    const cellStd = Math.sqrt(cellVar);
+    const uniformity = Math.max(0, 1 - (cellStd / (cellAvg || 1)) * 0.5);
+    const cellCv = cellAvg > 0 ? cellStd / cellAvg : 1;
+
+    // Periodicity — row, column, AND 2D block autocorrelation.
+    //
+    // 1D row/col correlation catches horizontal or vertical stripes and tiled
+    // patterns that align with the image axes. It MISSES:
+    //   - diagonal repetitions (rotated tiling)
+    //   - small-block checkerboards where rows average to uniform values
+    //   - 2D grids where cell borders are at different orientations
+    //
+    // We add a lightweight 2D block-matching pass that downsamples the image
+    // to 32×32 then correlates 4×4 blocks at various (dx, dy) offsets to
+    // detect any strong periodic repeat in 2D.
+    const rowSums = new Float32Array(h);
+    const colSums = new Float32Array(w);
+    for (let y = 0; y < h; y++) {
+      let s = 0;
+      for (let x = 0; x < w; x++) s += lum[y * w + x];
+      rowSums[y] = s / w;
+    }
+    for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let y = 0; y < h; y++) s += lum[y * w + x];
+      colSums[x] = s / h;
+    }
+    const rowRep = detectPeriodicity1D(rowSums);
+    const colRep = detectPeriodicity1D(colSums);
+    const blockRep = detectPeriodicity2D(lum, w, h);
+    const repetitionScore = Math.max(rowRep, colRep, blockRep);
+
+    return {
+      points,
+      pointCount: points.length,
+      stdev,                 // contrast (higher better)
+      blandRatio,            // whitespace (lower better)
+      featureDensity,        // 0..1 edge-pixel fraction (sweet spot ~0.08–0.50)
+      featurePixels,
+      avgFeatureStrength: featureSum / (featurePixels || 1),
+      coverage,              // grid coverage (higher better)
+      uniformity,            // cell count uniformity (higher better)
+      cellsWithFeatures: filled,
+      cellCv,
+      repetitionScore,       // pattern repetition (lower better)
+      periodicity: repetitionScore,  // alias for older callers
+      contrast: stdev / 128, // normalised 0..~1 for UI display
+      avgLum: mean / 255,
+      width: w, height: h
+    };
+  }
+
+  // 2D block autocorrelation — detects tiled patterns including diagonal
+  // repeats, checkerboards, and rotated grids that the 1D row/col detector
+  // misses. Downsamples the image to a small grid (32×32) first for speed,
+  // then tests mean correlation between the image and shifted copies of
+  // itself at a variety of (dx, dy) offsets.
+  //
+  // Returns 0..1 where 1 = heavily tiled.
+  function detectPeriodicity2D(lum, w, h) {
+    const G = 32;  // downsample grid size
+    if (w < G || h < G) return 0;
+    const small = new Float32Array(G * G);
+    const blockW = w / G, blockH = h / G;
+    // Box-filter downsample
+    for (let gy = 0; gy < G; gy++) {
+      for (let gx = 0; gx < G; gx++) {
+        const x0 = Math.floor(gx * blockW), x1 = Math.floor((gx + 1) * blockW);
+        const y0 = Math.floor(gy * blockH), y1 = Math.floor((gy + 1) * blockH);
+        let s = 0, n = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let x = x0; x < x1; x++) { s += lum[y * w + x]; n++; }
+        }
+        small[gy * G + gx] = n > 0 ? s / n : 0;
+      }
+    }
+    // Centre and compute variance
+    let mean = 0;
+    for (let i = 0; i < G * G; i++) mean += small[i];
+    mean /= G * G;
+    let variance = 0;
+    for (let i = 0; i < G * G; i++) { small[i] -= mean; variance += small[i] * small[i]; }
+    if (variance < 1e-6) return 0;
+
+    // Sweep offsets (dx, dy) from (2,0) to (G/2, G/2) in 2px steps.
+    // At each, compute normalised correlation of image with its shift.
+    let maxCorr = 0;
+    const maxOffset = Math.floor(G / 2);
+    for (let dy = 0; dy <= maxOffset; dy += 2) {
+      for (let dx = 0; dx <= maxOffset; dx += 2) {
+        if (dx === 0 && dy === 0) continue;
+        if (dx < 2 && dy < 2) continue;  // too small to count as "tiled"
+        let s = 0, count = 0;
+        for (let y = 0; y + dy < G; y++) {
+          for (let x = 0; x + dx < G; x++) {
+            s += small[y * G + x] * small[(y + dy) * G + (x + dx)];
+            count++;
+          }
+        }
+        // Normalise: divide by the variance scaled to the number of pairs
+        // actually summed (each shift leaves fewer pairs than the full grid).
+        const normVar = variance * (count / (G * G));
+        if (normVar > 1e-6) {
+          const corr = s / normVar;
+          if (corr > maxCorr) maxCorr = corr;
+        }
+      }
+    }
+    // Same gating as 1D: natural variance up to 0.5 = no penalty;
+    // 0.5–0.9 mild; 0.9+ strong.
+    return Math.max(0, Math.min(1, (maxCorr - 0.5) / 0.4));
+  }
+
+  // Autocorrelation at mid-range offsets — returns 0..1 where 1 = heavily tiled.
+  // Only correlations above 0.5 register as any penalty at all; genuine image
+  // variance stays unpunished.
+  function detectPeriodicity1D(arr) {
+    const n = arr.length;
+    if (n < 40) return 0;
+    let mean = 0;
+    for (let i = 0; i < n; i++) mean += arr[i];
+    mean /= n;
+    const norm = new Float32Array(n);
+    let v = 0;
+    for (let i = 0; i < n; i++) { norm[i] = arr[i] - mean; v += norm[i] * norm[i]; }
+    if (v < 1e-6) return 0;
+
+    let maxCorr = 0;
+    const minLag = Math.max(8, Math.floor(n * 0.04));
+    const maxLag = Math.floor(n * 0.35);
+    for (let lag = minLag; lag <= maxLag; lag += 2) {
+      let s = 0;
+      for (let i = 0; i < n - lag; i++) s += norm[i] * norm[i + lag];
+      const corr = s / v;
+      if (corr > maxCorr) maxCorr = corr;
+    }
+    // 0.0–0.5 = natural variance (no penalty)
+    // 0.5–0.9 = compositional rhythm (mild penalty)
+    // 0.9+    = tiled pattern (strong penalty)
+    return Math.max(0, Math.min(1, (maxCorr - 0.5) / 0.4));
+  }
+
+  // Kept for any legacy call sites
+  function detectPeriodicity(d, w, h) {
+    const rowMeans = new Float32Array(h);
+    for (let y = 0; y < h; y++) {
+      let s = 0;
+      for (let x = 0; x < w; x++) s += d[(y * w + x) * 4];
+      rowMeans[y] = s / w;
+    }
+    return detectPeriodicity1D(rowMeans);
+  }
+
+  /**
+   * Produces a pre-flight quality score — a heuristic that correlates with
+   * AR image-target trackability but is NOT the authoritative CLI score.
+   *
+   * Metrics used:
+   *   1. Feature density    (edge-pixel ratio from Sobel gradients)
+   *   2. Contrast           (luminance stdev, calibrated sigmoid)
+   *   3. Whitespace         (bland-region ratio)
+   *   4. Spatial distribution (4×4 grid coverage × uniformity)
+   *   5. Pattern uniqueness (1D row+col + 2D block autocorrelation)
+   *   6. Resolution         (below 640-shortest-side penalised)
+   *
+   * Each metric is normalised to 0..1, combined by weighted sum, then scaled
+   * to a 0..100 overall score. Weights are tuned so a typical "good" AR
+   * target (textured, high-contrast, varied composition) lands in the 85-95
+   * range; a mediocre photo (soft lighting, large skin/sky regions) lands
+   * 50-70; pure-colour or heavily-tiled inputs score below 40.
+   */
+  function scoreEightWall(a, origW, origH, crop) {
+    const t = getActive();
+    const targetType = t ? t.targetType : 'flat';
+
+    // ---------- Feature density (Sobel edge-pixel fraction) ----------
+    // Piecewise curve calibrated against test images:
+    //   <0.03 → 0-45  (too bland for reliable keypoint detection)
+    //   0.03-0.08 → 45-85 (acceptable, rising)
+    //   0.08-0.45 → 85-100 (sweet spot for SIFT/ORB-class detectors)
+    //   0.45-0.70 → 100-82 (dense but still viable, e.g. intricate art)
+    //   >0.70 → falling (looks like noise / JPEG artefacts / sensor grain)
+    let featureScore;
+    const fd = a.featureDensity;
+    if      (fd < 0.03) featureScore = (fd / 0.03) * 45;
+    else if (fd < 0.08) featureScore = 45 + ((fd - 0.03) / 0.05) * 40;
+    else if (fd < 0.45) featureScore = 85 + ((fd - 0.08) / 0.37) * 15;
+    else if (fd < 0.70) featureScore = 100 - ((fd - 0.45) / 0.25) * 18;
+    else                featureScore = Math.max(35, 82 - (fd - 0.70) * 140);
+    featureScore = Math.max(0, Math.min(100, featureScore)) / 100;
+
+    // ---------- Contrast (luminance stdev) ----------
+    // Real-world calibration points:
+    //   stdev 15 = very flat image (solid background with minor detail)
+    //   stdev 35 = typical photograph with decent tonal range
+    //   stdev 55 = strong contrast (graphic design, high-detail art)
+    //   stdev 75+ = near-maximum for natural images
+    // Use a shifted sigmoid: 0 at stdev 10, ~0.5 at stdev 35, ~1.0 at stdev 65.
+    const contrastScore = Math.max(0, Math.min(1,
+      1 / (1 + Math.exp(-(a.stdev - 35) / 10))
+    ));
+
+    // ---------- Whitespace (bland-region penalty) ----------
+    // Tolerate 15% bland; >40% is heavy penalty, >60% essentially fails.
+    // bland = pixels within ±8 of mean luminance.
+    const whitespaceScore = Math.max(0, Math.min(1,
+      1 - Math.max(0, (a.blandRatio - 0.15) * 2.2)
+    ));
+
+    // ---------- Spatial distribution ----------
+    // coverage (how many of 16 cells have any features) matters most —
+    // a single empty cell is worse than uneven-but-covered distribution.
+    // Uniformity fine-tunes beyond that.
+    const distScore = a.coverage * 0.75 + a.uniformity * 0.25;
+
+    // ---------- Pattern uniqueness (repetition/tiling detection) ----------
+    // a.repetitionScore is already normalised 0..1 where 1 = heavily tiled.
+    const repScore = 1 - a.repetitionScore;
+
+    // ---------- Resolution (Niantic minimum 480×640 after crop) ----------
+    // Below 480 shortest side = partial penalty; ≥640 shortest = full marks.
+    const minSide = Math.min(crop.width, crop.height);
+    let resScore;
+    if      (minSide >= 640) resScore = 1.0;
+    else if (minSide >= 480) resScore = 0.85 + (minSide - 480) / 160 * 0.15;
+    else if (minSide >= 360) resScore = 0.55 + (minSide - 360) / 120 * 0.30;
+    else                      resScore = Math.max(0.1, minSide / 360 * 0.55);
+
+    // ---------- Weights (target-type aware) ----------
+    // Curved/conical: detail density and spatial distribution matter MORE
+    // because the image must track across a curved surface where partial
+    // occlusion is constant; repetition penalties are relaxed because
+    // compositional rhythm is common in wrap-around packaging designs.
+    let wf, wc, ww, wd, wr, wres;
+    if (targetType === 'curved' || targetType === 'conical') {
+      wf = 0.33; wc = 0.17; ww = 0.15; wd = 0.19; wr = 0.11; wres = 0.05;
+    } else {
+      wf = 0.30; wc = 0.18; ww = 0.17; wd = 0.16; wr = 0.13; wres = 0.06;
+    }
+    // Sanity: weights should sum to 1 (verified: 1.00 each branch)
+
+    const overallRaw =
+      featureScore     * wf +
+      contrastScore    * wc +
+      whitespaceScore  * ww +
+      distScore        * wd +
+      repScore         * wr +
+      resScore         * wres;
+    const overall = Math.round(overallRaw * 100);
+
+    const criteria = [
+      { name: 'Feature density',      value: featureScore,    detail: `${a.pointCount} strong features · density ${(a.featureDensity * 100).toFixed(1)}%` },
+      { name: 'Contrast',             value: contrastScore,   detail: `stdev ${a.stdev.toFixed(1)} · ${a.stdev > 55 ? 'strong' : a.stdev > 30 ? 'moderate' : 'low'} tonal range` },
+      { name: 'Whitespace',           value: whitespaceScore, detail: `${(a.blandRatio * 100).toFixed(1)}% of pixels within ±8 of mean` },
+      { name: 'Spatial distribution', value: distScore,       detail: `${a.cellsWithFeatures}/16 cells covered · uniformity ${(a.uniformity * 100).toFixed(0)}%` },
+      { name: 'Pattern uniqueness',   value: repScore,        detail: `${(a.repetitionScore * 100).toFixed(0)}% repetition detected` },
+      { name: 'Resolution',           value: resScore,        detail: `${crop.width} × ${crop.height} after crop` }
+    ];
+
+    // Star mapping — thresholds chosen so 5★ is achievable for
+    // genuinely-well-crafted targets and 4★ for typical good uploads.
+    let stars, rating, ratingClass;
+    if      (overall >= 80) { stars = 5; rating = 'Excellent'; ratingClass = 'excellent'; }
+    else if (overall >= 65) { stars = 4; rating = 'Good';      ratingClass = 'good'; }
+    else if (overall >= 50) { stars = 3; rating = 'Fair';      ratingClass = 'fair'; }
+    else if (overall >= 35) { stars = 2; rating = 'Poor';      ratingClass = 'fair'; }
+    else                    { stars = 1; rating = 'Very Poor'; ratingClass = 'poor'; }
+
+    // Tips — language is honest about this being predictive, not authoritative
+    const tips = [];
+    if (featureScore    < 0.6)  tips.push('Add more visual detail — varied shapes, strong outlines, and textured areas give the tracker more keypoints to lock onto.');
+    if (contrastScore   < 0.6)  tips.push('Increase tonal range — use darker darks and brighter lights. Low-contrast images produce weaker feature descriptors.');
+    if (whitespaceScore < 0.6)  tips.push('Reduce flat / uniform regions — bland patches have no features for the tracker to match.');
+    if (distScore       < 0.6)  tips.push('Spread detail across the whole image — clustering features in one area reduces pose-estimation robustness.');
+    if (repScore        < 0.6)  tips.push('Break up repeating patterns — trackers struggle to tell one tile apart from the next, causing misalignment.');
+    if (resScore        < 0.85) tips.push(`After the 3:4 crop, shortest side is ${minSide}px. Aim for ≥640px for best results (Niantic minimum is 480×640).`);
+    if (tips.length === 0)      tips.push('Strong candidate target — likely to track well in production. Run the image-target-cli for the authoritative compile score.');
+
+    return {
+      overall, rating, ratingClass, stars, criteria, tips,
+      pointCount: a.pointCount, contrast: a.contrast
+    };
+  }
+
+  function renderEightWallResults(r) {
+    results.classList.add('active');
+    scoreHeroLabel.textContent = 'Pre-flight quality score';
+
+    const scoreValue = $('scoreValue');
+    const scoreRating = $('scoreRating');
+    scoreValue.textContent = r.overall;
+    scoreValue.className = 'score-value ' + r.ratingClass;
+    scoreRating.textContent = r.rating;
+    scoreRating.className = 'score-rating ' + r.ratingClass;
+
+    // Stars
+    starRating.style.display = 'inline-flex';
+    starRating.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'star' + (i < r.stars ? ' filled' : ''));
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.innerHTML = '<path fill="currentColor" d="M12 2l2.39 7.36H22l-6.31 4.58 2.39 7.36L12 16.72l-6.09 4.58 2.39-7.36L2 9.36h7.61z"/>';
+      starRating.appendChild(svg);
+    }
+
+    // Criteria bars
+    criteriaList.style.display = 'block';
+    criteriaList.innerHTML = '';
+    r.criteria.forEach((c) => {
+      const pct = Math.round(c.value * 100);
+      let cls = pct >= 65 ? 'ok' : pct >= 40 ? 'warn' : 'bad';
+      const div = document.createElement('div');
+      div.className = 'criterion';
+      div.innerHTML = `
+        <div class="criterion-head">
+          <span class="criterion-name">${c.name}</span>
+          <span class="criterion-score">${pct}% · ${c.detail}</span>
+        </div>
+        <div class="criterion-bar"><div class="criterion-fill ${cls}" style="width:${pct}%"></div></div>
+      `;
+      criteriaList.appendChild(div);
+    });
+
+    // Metrics grid
+    metricsGrid.innerHTML = '';
+    const metric = (label, value, sub, cls) => {
+      const el = document.createElement('div');
+      el.className = 'metric';
+      el.innerHTML = `
+        <div class="metric-label">${label}</div>
+        <div class="metric-value ${cls || ''}">${value}</div>
+        ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+      `;
+      metricsGrid.appendChild(el);
+    };
+    metric('Overall', r.overall + '/100', r.rating, r.ratingClass);
+    metric('Feature points', r.pointCount.toString(), 'detected via Sobel');
+    metric('Contrast', (r.contrast * 100).toFixed(0) + '%', 'dynamic range');
+    metric('Stars', r.stars + ' / 5', 'quality class');
+
+    // Tips
+    tipsList.innerHTML = '';
+    r.tips.forEach((tip) => {
+      const li = document.createElement('li');
+      li.textContent = tip;
+      tipsList.appendChild(li);
+    });
+
+    // Next steps block
+    nextSteps.style.display = 'block';
+    const t = getActive();
+    if (t) {
+      const typeLabel = t.targetType.charAt(0).toUpperCase() + t.targetType.slice(1);
+      nextStepsType.textContent = typeLabel;
+    }
+
+    // Download actions
+    downloadActions.innerHTML = '';
+    const btnZip = document.createElement('button');
+    btnZip.className = 'btn btn-primary';
+    btnZip.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download CLI bundle .zip';
+    btnZip.addEventListener('click', async () => {
+      const cur = getActive();
+      if (!cur || !cur.analysis || !cur.analysis.bundle) return;
+      const b = cur.analysis.bundle;
+      try {
+        const zip = new JSZip();
+        zip.file(`${b.name}.json`, JSON.stringify(b.metadata, null, 2));
+        const toBlob = (dataUrl) => {
+          const arr = dataUrl.split(',');
+          const bs = atob(arr[1]);
+          const u = new Uint8Array(bs.length);
+          for (let i = 0; i < bs.length; i++) u[i] = bs.charCodeAt(i);
+          return new Blob([u], { type: 'image/jpeg' });
+        };
+        zip.file(`${b.name}_original.jpg`, toBlob(b.original));
+        zip.file(`${b.name}_cropped.jpg`,  toBlob(b.cropped));
+        zip.file(`${b.name}_thumbnail.jpg`,toBlob(b.thumbnail));
+        zip.file(`${b.name}_luminance.jpg`,toBlob(b.luminance));
+        const blob = await zip.generateAsync({ type: 'blob' });
+        triggerDownload(blob, `${b.name}-8thwall.zip`);
+        showToast('CLI bundle downloaded', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Bundle export failed', 'error');
+      }
+    });
+    downloadActions.appendChild(btnZip);
+
+    const btnLum = document.createElement('button');
+    btnLum.className = 'btn btn-secondary';
+    btnLum.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Luminance only';
+    btnLum.addEventListener('click', () => {
+      const cur = getActive();
+      if (!cur || !cur.analysis || !cur.analysis.bundle) return;
+      const b = cur.analysis.bundle;
+      const arr = b.luminance.split(',');
+      const bs = atob(arr[1]);
+      const u = new Uint8Array(bs.length);
+      for (let i = 0; i < bs.length; i++) u[i] = bs.charCodeAt(i);
+      const blob = new Blob([u], { type: 'image/jpeg' });
+      triggerDownload(blob, `${b.name}_luminance.jpg`);
+    });
+    downloadActions.appendChild(btnLum);
+
+    const btnReport = document.createElement('button');
+    btnReport.className = 'btn btn-secondary';
+    btnReport.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy report';
+    btnReport.addEventListener('click', async () => {
+      const cur = getActive();
+      if (!cur || !cur.analysis) return;
+      const rr = cur.analysis.result;
+      const lines = [
+        `4E Image Target Studio — pre-flight quality report`,
+        `Target: ${cur.name}`,
+        `Type: ${cur.targetType}`,
+        `Overall: ${rr.overall}/100 (${rr.rating}, ${rr.stars}★)`,
+        `Points: ${rr.pointCount}`,
+        `Contrast: ${(rr.contrast * 100).toFixed(0)}%`,
+        ``,
+        `Criteria:`,
+        ...rr.criteria.map((c) => `  - ${c.name}: ${Math.round(c.value * 100)}% · ${c.detail}`),
+        ``,
+        `Recommendations:`,
+        ...rr.tips.map((t) => `  - ${t}`)
+      ].join('\n');
+      try {
+        await navigator.clipboard.writeText(lines);
+        showToast('Report copied to clipboard', 'success');
+      } catch (e) {
+        showToast('Could not access clipboard', 'error');
+      }
+    });
+    downloadActions.appendChild(btnReport);
+
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function buildCliBundle(image, oriented, cropped, lumCanvas, crop, rawName) {
+    const name = (rawName || 'target').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'target';
+
+    // Thumbnail: 263 × 350 centre-crop of cropped image to match Niantic format
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = NIANTIC_CONSTRAINTS.THUMBNAIL_WIDTH;
+    thumbCanvas.height = NIANTIC_CONSTRAINTS.THUMBNAIL_HEIGHT;
+    const thumbAspect = NIANTIC_CONSTRAINTS.THUMBNAIL_WIDTH / NIANTIC_CONSTRAINTS.THUMBNAIL_HEIGHT;
+    const croppedAspect = cropped.width / cropped.height;
+    let srcX = 0, srcY = 0, srcW = cropped.width, srcH = cropped.height;
+    if (croppedAspect > thumbAspect) {
+      srcW = Math.round(cropped.height * thumbAspect);
+      srcX = Math.floor((cropped.width - srcW) / 2);
+    } else if (croppedAspect < thumbAspect) {
+      srcH = Math.round(cropped.width / thumbAspect);
+      srcY = Math.floor((cropped.height - srcH) / 2);
+    }
+    thumbCanvas.getContext('2d').drawImage(cropped, srcX, srcY, srcW, srcH,
+      0, 0, NIANTIC_CONSTRAINTS.THUMBNAIL_WIDTH, NIANTIC_CONSTRAINTS.THUMBNAIL_HEIGHT);
+
+    // Ensure oriented canvas for the "original" export
+    let origCanvas;
+    if (oriented instanceof HTMLCanvasElement) {
+      origCanvas = oriented;
+    } else {
+      origCanvas = document.createElement('canvas');
+      origCanvas.width = oriented.naturalWidth || oriented.width;
+      origCanvas.height = oriented.naturalHeight || oriented.height;
+      origCanvas.getContext('2d').drawImage(oriented, 0, 0);
+    }
+
+    // Export each canvas to a JPEG data URL. If any throws (e.g. a cross-origin
+    // source tainted the canvas) we surface a clear error rather than letting
+    // a cryptic exception bubble up through analyseEightWall.
+    let originalURL, croppedURL, thumbnailURL, luminanceURL;
+    try {
+      originalURL  = origCanvas.toDataURL('image/jpeg', 0.92);
+      croppedURL   = cropped.toDataURL('image/jpeg', 0.92);
+      thumbnailURL = thumbCanvas.toDataURL('image/jpeg', 0.88);
+      luminanceURL = lumCanvas.toDataURL('image/jpeg', 0.85);
+    } catch (err) {
+      throw new Error('Could not export image data (canvas tainted). Try re-uploading the source image.');
+    }
+
+    // Build metadata.json
+    const t = getActive();
+    const targetType = t ? t.targetType : 'flat';
+    const shape = targetType === 'curved' ? 'CYLINDER'
+                : targetType === 'conical' ? 'CONICAL'
+                : 'PLANAR';
+
+    const baseCrop = {
+      crop: {
+        top: crop.top,
+        bottom: origCanvas.height - (crop.top + crop.height),
+        left: crop.left,
+        right: origCanvas.width - (crop.left + crop.width)
+      }
+    };
+    let properties;
+    if (targetType === 'flat') {
+      properties = baseCrop;
+    } else {
+      properties = buildGeometryProperties(targetType, baseCrop);
+    }
+
+    const metadata = {
+      imageTargetData: {
+        name,
+        shape,
+        properties
+      },
+      // 4E extension — useful reference data not in vanilla Niantic output
+      '__4eExtra__': {
+        generatedBy: '4E Image Target Studio v14',
+        originalSize: [origCanvas.width, origCanvas.height],
+        croppedSize: [crop.width, crop.height],
+        luminanceSize: [lumCanvas.width, lumCanvas.height],
+        thumbnailSize: [NIANTIC_CONSTRAINTS.THUMBNAIL_WIDTH, NIANTIC_CONSTRAINTS.THUMBNAIL_HEIGHT]
+      }
+    };
+
+    return {
+      name,
+      metadata,
+      original: originalURL,
+      cropped: croppedURL,
+      thumbnail: thumbnailURL,
+      luminance: luminanceURL
+    };
+  }
+
+  // ============ Download helper ============
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+  }
+
+  // ============ postMessage Bridge (v15 — iframe integration) ============
+  // When embedded as an iframe in the studio or player, this bridge
+  // enables two-way communication:
+  //   Host → v15: send existing targets, select a target, set project context
+  //   v15 → Host: notify when a target is compiled, updated, or deleted
+  //
+  // Standalone mode (opened directly) works exactly as v14 — the bridge
+  // silently no-ops when there's no parent frame.
+  const IS_EMBEDDED = (() => { try { return window.parent !== window; } catch(_) { return false; } })();
+
+  // Notify parent when a target is compiled (analysis complete + bundle ready)
+  function notifyTargetCompiled(target) {
+    if (!IS_EMBEDDED) return;
+    const t = target;
+    const a = t.analysis;
+    if (!a || !a.bundle) return;
+    try {
+      window.parent.postMessage({
+        type: '4e-target-compiled',
+        target: {
+          id: t.id,
+          name: t.name,
+          targetType: t.targetType,        // 'flat' | 'curved' | 'conical'
+          geometry: t.geometry,
+          quality: a.result ? a.result.overall : 0,
+          qualityRating: a.result ? a.result.rating : 'unknown',
+          qualityStars: a.result ? a.result.stars : 0,
+          qualityCriteria: a.result ? a.result.criteria : [],
+          qualityTips: a.result ? a.result.tips : [],
+          // Data URLs for the studio to store
+          _luminanceDataUrl: a.bundle.luminance,
+          _thumbnailDataUrl: a.bundle.thumbnail,
+          _originalDataUrl: a.bundle.original,
+          _croppedDataUrl: a.bundle.cropped,
+          // Metadata for the player's 8th Wall tracker
+          metadata: a.bundle.metadata,
+          // Properties in studio format
+          type: t.targetType === 'flat' ? 'PLANAR' : t.targetType === 'curved' ? 'CYLINDER' : 'CONICAL',
+          properties: a.bundle.metadata ? a.bundle.metadata.imageTargetData.properties : {},
+        }
+      }, '*');
+      console.log('[ITS v15] posted target-compiled:', t.name);
+    } catch(e) { console.warn('[ITS v15] postMessage failed:', e.message); }
+  }
+
+  // Notify parent when a target is deleted
+  function notifyTargetDeleted(targetId) {
+    if (!IS_EMBEDDED) return;
+    try {
+      window.parent.postMessage({ type: '4e-target-deleted', targetId: targetId }, '*');
+      console.log('[ITS v15] posted target-deleted:', targetId);
+    } catch(_) {}
+  }
+
+  // Receive messages from the host (studio/player)
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (!d || typeof d !== 'object') return;
+
+    // Host sends existing targets to populate the sidebar
+    if (d.type === '4e-targets-init' && Array.isArray(d.targets)) {
+      console.log('[ITS v15] received targets-init:', d.targets.length, 'targets');
+      // Load each target as a pre-existing entry (image from thumbnail URL)
+      d.targets.forEach(st => {
+        // Check if we already have this target
+        if (state.targets.find(t => t.id === st.id)) return;
+        // Create a lightweight target entry from the studio data
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const target = createTarget(img, st.name);
+          target.id = st.id;  // preserve studio's ID
+          // If the studio sent analysis data, mark as already compiled
+          if (st._luminanceDataUrl || st.luminanceUrl) {
+            target.analysis = {
+              result: {
+                overall: st.quality || 0,
+                rating: st.qualityRating || 'unknown',
+                ratingClass: (st.quality || 0) >= 80 ? 'excellent' : (st.quality || 0) >= 65 ? 'good' : (st.quality || 0) >= 50 ? 'fair' : 'poor',
+                stars: (st.quality || 0) >= 80 ? 5 : (st.quality || 0) >= 65 ? 4 : (st.quality || 0) >= 50 ? 3 : (st.quality || 0) >= 35 ? 2 : 1,
+                criteria: st.qualityCriteria || [],
+                tips: st.qualityTips || []
+              },
+              bundle: {
+                luminance: st._luminanceDataUrl || '',
+                thumbnail: st._thumbnailDataUrl || '',
+                original: st._originalDataUrl || '',
+                cropped: '',
+                metadata: null
+              },
+              lumCanvas: null,
+              lastPreviewPoints: [],
+              previewMode: 'original'
+            };
+          }
+          addTarget(target);
+        };
+        img.onerror = () => {
+          console.warn('[ITS v15] failed to load target image:', st.name);
+        };
+        // Load from thumbnail or luminance URL
+        img.src = st._thumbnailDataUrl || st.thumbnailUrl || st._luminanceDataUrl || st.luminanceUrl || '';
+      });
+    }
+
+    // Host asks to select a specific target
+    if (d.type === '4e-target-select' && d.targetId) {
+      const t = state.targets.find(t => t.id === d.targetId);
+      if (t) { setActiveTarget(t.id); }
+    }
+
+    // Host sends project context
+    if (d.type === '4e-targets-project') {
+      console.log('[ITS v15] project context:', d.projectId, d.projectName);
+      // Store for future use (naming, export paths)
+      state.projectId = d.projectId || null;
+      state.projectName = d.projectName || '';
+    }
+  });
+
+  // Hook into the existing compile completion to auto-notify parent
+  const _origAnalyse = analyseEightWall;
+  analyseEightWall = async function() {
+    await _origAnalyse();
+    // After analysis completes, notify parent with the compiled target
+    const t = state.targets.find(t => t.id === state.activeId);
+    if (t && t.analysis) notifyTargetCompiled(t);
+  };
+
+  // Tell parent we're ready
+  if (IS_EMBEDDED) {
+    queueMicrotask(() => {
+      try { window.parent.postMessage({ type: '4e-targets-ready' }, '*'); } catch(_) {}
+      console.log('[ITS v15] posted targets-ready');
+    });
+  }
+
+  // ============ Init ============
+  window.addEventListener('beforeunload', () => { stopCamera(); });
+  setActiveTarget(null);
+  renderSidebar();
+})();
+</script>
+</body>
+</html>
