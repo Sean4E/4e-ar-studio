@@ -71,6 +71,21 @@ const JR_CSS = `
 .jr-modal-close{width:100%;padding:14px;background:#8b5cf6;border:none;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;letter-spacing:.02em}
 #jr-debug{position:fixed;bottom:10px;left:10px;background:rgba(10,14,26,.85);border:1px solid #1e2838;border-radius:5px;padding:8px 10px;font-size:10px;color:#94a3b8;line-height:1.6;font-family:ui-monospace,monospace;z-index:25;display:none;max-width:280px;pointer-events:none}
 #jr-debug.show{display:block}
+/* Scale popup — lightweight floating panel with live sliders */
+#jr-scale-popup{position:fixed;bottom:120px;right:14px;z-index:65;width:260px;background:rgba(10,14,26,.94);border:1px solid rgba(0,229,255,.2);border-radius:14px;padding:16px;display:none;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:ui-monospace,'Space Mono',monospace;color:#e2e8f0}
+#jr-scale-popup.open{display:block}
+#jr-scale-popup h4{color:#00e5ff;font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 10px;font-weight:700}
+#jr-scale-popup .presets{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+#jr-scale-popup .preset{padding:5px 10px;border-radius:6px;font-size:10px;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#94a3b8;transition:all .12s}
+#jr-scale-popup .preset:active{transform:scale(.95)}
+#jr-scale-popup .preset.active{background:rgba(0,229,255,.12);border-color:rgba(0,229,255,.4);color:#00e5ff}
+#jr-scale-popup label{display:flex;justify-content:space-between;font-size:11px;color:#8892a8;margin:10px 0 4px}
+#jr-scale-popup label span{color:#cbd5e1;font-weight:600}
+#jr-scale-popup input[type=range]{width:100%;accent-color:#8b5cf6;margin:0 0 4px;display:block}
+#jr-scale-popup .save-row{margin-top:14px;display:flex;gap:8px}
+#jr-scale-popup .save-btn{flex:1;padding:10px;border-radius:8px;border:none;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.02em}
+#jr-scale-popup .save-btn.primary{background:#8b5cf6;color:#fff}
+#jr-scale-popup .save-btn.ghost{background:rgba(255,255,255,.06);color:#94a3b8;border:1px solid rgba(255,255,255,.1)}
 /* In-app spatial editor overlay — full-screen iframe */
 #jr-editor-overlay{position:fixed;inset:0;z-index:200;background:#060810;display:none}
 #jr-editor-overlay.open{display:block}
@@ -94,6 +109,7 @@ const JR_HTML = `
     <button class="jr-btn" id="jr-btn-paths" title="Show / hide path lines">🛣</button>
     <button class="jr-btn" id="jr-btn-anchors" title="Show / hide anchor billboards">📍</button>
     <button class="jr-btn" id="jr-btn-settings" title="Path + traveller settings">⚙</button>
+    <button class="jr-btn" id="jr-btn-scale" title="Scene scale">↔</button>
     <button class="jr-btn" id="jr-btn-calibrate" title="Re-search image targets">🎯</button>
   </div>
 </div>
@@ -367,6 +383,26 @@ const JR_HTML = `
     <div class="jr-modal-footer">
       <button class="jr-modal-close" id="jr-m-close">Close</button>
     </div>
+  </div>
+</div>
+<!-- Scale popup — real-time sliders for AR element sizes -->
+<div id="jr-scale-popup">
+  <h4>Scene Scale</h4>
+  <div class="presets">
+    <button class="preset" data-s="tabletop" onclick="window._jrScalePreset('tabletop')">Tabletop</button>
+    <button class="preset" data-s="room" onclick="window._jrScalePreset('room')">Room</button>
+    <button class="preset" data-s="gallery" onclick="window._jrScalePreset('gallery')">Gallery</button>
+    <button class="preset" data-s="outdoor" onclick="window._jrScalePreset('outdoor')">Outdoor</button>
+  </div>
+  <label>Anchors <span id="jr-sc-anchor-v">1.0×</span></label>
+  <input type="range" id="jr-sc-anchor" min="0.2" max="8" step="0.1" value="1" oninput="window._jrScaleLive('anchor',this.value)">
+  <label>Traveller <span id="jr-sc-trav-v">1.0×</span></label>
+  <input type="range" id="jr-sc-trav" min="0.2" max="8" step="0.1" value="1" oninput="window._jrScaleLive('traveller',this.value)">
+  <label>Paths <span id="jr-sc-path-v">1.0×</span></label>
+  <input type="range" id="jr-sc-path" min="0.2" max="8" step="0.1" value="1" oninput="window._jrScaleLive('path',this.value)">
+  <div class="save-row">
+    <button class="save-btn ghost" onclick="document.getElementById('jr-scale-popup').classList.remove('open')">Cancel</button>
+    <button class="save-btn primary" onclick="window._jrScaleSave()">Save</button>
   </div>
 </div>
 <!-- In-app spatial editor — replaces the settings modal on mobile -->
@@ -852,6 +888,63 @@ function _injectJRUI() {
         for (const a of self.anchors) if (a.billboard) a.billboard.visible = self.settings.anchorsVisible;
         refreshBtns();
       });
+      // ─── Scale popup ────────────────────────────────────
+      const scalePresets = {
+        tabletop: { anchor: 0.5, traveller: 0.5, path: 0.5 },
+        room:     { anchor: 1.0, traveller: 1.0, path: 1.0 },
+        gallery:  { anchor: 2.0, traveller: 1.5, path: 1.5 },
+        outdoor:  { anchor: 4.0, traveller: 3.0, path: 2.5 },
+      };
+      const syncScaleUI = () => {
+        if ($$('jr-sc-anchor')) { $$('jr-sc-anchor').value = self.arScale.anchor; $$('jr-sc-anchor-v').textContent = self.arScale.anchor.toFixed(1) + '×'; }
+        if ($$('jr-sc-trav'))   { $$('jr-sc-trav').value = self.arScale.traveller; $$('jr-sc-trav-v').textContent = self.arScale.traveller.toFixed(1) + '×'; }
+        if ($$('jr-sc-path'))   { $$('jr-sc-path').value = self.arScale.path; $$('jr-sc-path-v').textContent = self.arScale.path.toFixed(1) + '×'; }
+        document.querySelectorAll('#jr-scale-popup .preset').forEach(b => {
+          const p = scalePresets[b.dataset.s];
+          b.classList.toggle('active', p && Math.abs(self.arScale.anchor - p.anchor) < 0.05 && Math.abs(self.arScale.traveller - p.traveller) < 0.05);
+        });
+      };
+      window._jrScaleLive = (key, val) => {
+        self.arScale[key] = parseFloat(val);
+        syncScaleUI();
+        self.rebuildAnchors();
+        self.rebuildTraveller();
+        self.rebuildPaths();
+      };
+      window._jrScalePreset = (name) => {
+        const p = scalePresets[name];
+        if (!p) return;
+        Object.assign(self.arScale, p);
+        syncScaleUI();
+        self.rebuildAnchors();
+        self.rebuildTraveller();
+        self.rebuildPaths();
+      };
+      window._jrScaleSave = () => {
+        // Write arScale into the journey and save to Firestore
+        if (window.APP) {
+          if (!window.APP.journey) window.APP.journey = {};
+          window.APP.journey.arScale = { ...self.arScale };
+          window.APP.journey.generatedAt = new Date().toISOString();
+          window.APP.journeys = [window.APP.journey];
+        }
+        const appId = window.APP && window.APP.id;
+        if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
+          const clean = JSON.parse(JSON.stringify(window.APP.journey));
+          firebase.firestore().collection('ar_apps').doc(appId).update({
+            journeys: [clean],
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).then(() => console.log('[journey-runtime] ✓ scale saved to Firestore'))
+            .catch(err => console.error('[journey-runtime] ✗ scale save failed:', err.message));
+        }
+        $$('jr-scale-popup').classList.remove('open');
+      };
+      $$('jr-btn-scale').addEventListener('click', () => {
+        const popup = $$('jr-scale-popup');
+        popup.classList.toggle('open');
+        if (popup.classList.contains('open')) syncScaleUI();
+      });
+
       $$('jr-btn-calibrate').addEventListener('click', () => {
         // Clean up particles before resetting (prevents tickPS crash)
         if (self._particleSystem) {
