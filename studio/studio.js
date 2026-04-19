@@ -421,9 +421,11 @@ Studio.publishProject = async function() {
         }
       });
     });
-    // Image targets
+    // Image targets — only poll luminanceUrl (needed for AR tracking).
+    // originalUrl and thumbnailUrl are nice-to-have but not blocking;
+    // the player falls back to luminanceUrl if others aren't ready.
     (state.targets || []).forEach(t => {
-      addUrl(t.luminanceUrl); addUrl(t.originalUrl); addUrl(t.thumbnailUrl);
+      addUrl(t.luminanceUrl);
     });
     // Splash + PWA
     addUrl(state.splash?.logoUrl);

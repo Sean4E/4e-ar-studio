@@ -91,6 +91,11 @@ const JR_CSS = `
 #jr-editor-overlay.open{display:block}
 #jr-editor-iframe{width:100%;height:100%;border:none;background:#060810}
 #jr-editor-close{position:fixed;bottom:60px;right:14px;z-index:210;width:48px;height:48px;border-radius:24px;background:rgba(248,113,113,.15);border:2px solid rgba(248,113,113,.5);color:#f87171;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+/* In-app image target studio overlay */
+#jr-targets-overlay{position:fixed;inset:0;z-index:200;background:#0a0e1a;display:none}
+#jr-targets-overlay.open{display:block}
+#jr-targets-iframe{width:100%;height:100%;border:none;background:#0a0e1a}
+#jr-targets-close{position:fixed;bottom:60px;right:14px;z-index:210;width:48px;height:48px;border-radius:24px;background:rgba(248,113,113,.15);border:2px solid rgba(248,113,113,.5);color:#f87171;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
 `;
 
 if (!document.getElementById('jr-injected-css')) {
@@ -110,6 +115,7 @@ const JR_HTML = `
     <button class="jr-btn" id="jr-btn-anchors" title="Show / hide anchor billboards">📍</button>
     <button class="jr-btn" id="jr-btn-settings" title="Path + traveller settings">⚙</button>
     <button class="jr-btn" id="jr-btn-scale" title="Scene scale">↔</button>
+    <button class="jr-btn" id="jr-btn-targets" title="Image targets">📷</button>
     <button class="jr-btn" id="jr-btn-calibrate" title="Re-search image targets">🎯</button>
   </div>
 </div>
@@ -409,6 +415,11 @@ const JR_HTML = `
 <div id="jr-editor-overlay">
   <iframe id="jr-editor-iframe" src="" allow="camera; microphone"></iframe>
   <button id="jr-editor-close">✕</button>
+</div>
+<!-- In-app image target studio — add/edit image targets on-device -->
+<div id="jr-targets-overlay">
+  <iframe id="jr-targets-iframe" src="" allow="camera; microphone"></iframe>
+  <button id="jr-targets-close">✕</button>
 </div>
 `;
 
@@ -987,6 +998,27 @@ function _injectJRUI() {
         });
       }
 
+      // ─── In-app Image Target Studio (📷 button) ────────
+      const targetsOverlay = $$('jr-targets-overlay');
+      const targetsIframe  = $$('jr-targets-iframe');
+      const targetsClose   = $$('jr-targets-close');
+      const targetsUrl     = (window.AR_BASE_URL || window.location.origin) +
+                             '/ImageTargetStudio/4e-image-target-studio-v15.html';
+
+      $$('jr-btn-targets').addEventListener('click', () => {
+        if (!targetsOverlay) return;
+        targetsOverlay.classList.add('open');
+        if (!targetsIframe.src || !targetsIframe.src.includes('image-target-studio')) {
+          targetsIframe.src = targetsUrl;
+        }
+      });
+
+      if (targetsClose) {
+        targetsClose.addEventListener('click', () => {
+          targetsOverlay.classList.remove('open');
+        });
+      }
+
       // Listen for the editor's ready signal, then send FULL project data
       window.addEventListener('message', (ev) => {
         const d = ev.data;
@@ -1121,6 +1153,73 @@ function _injectJRUI() {
             }
           } else {
             console.warn('[journey-runtime] ✗ cannot save — appId:', appId, 'firebase:', typeof firebase);
+          }
+        }
+
+        // ── Image Target Studio v15 bridge ──────────────────
+        if (d.type === '4e-targets-ready' && targetsIframe && targetsIframe.contentWindow) {
+          // Send existing targets so v15 can display them
+          const _A = window.APP || {};
+          targetsIframe.contentWindow.postMessage({
+            type: '4e-targets-init',
+            targets: (_A.targets || []).map(t => ({
+              id: t.id, name: t.name || '',
+              luminanceUrl: t.luminanceUrl || '',
+              thumbnailUrl: t._thumbnailDataUrl || t.thumbnailUrl || '',
+              targetType: t.targetType || 'PLANAR',
+              geometry: t.geometry || null,
+              qualityStars: t.qualityStars || 0,
+            })),
+            projectId: _A.id || null,
+          }, '*');
+          console.log('[journey-runtime] sent targets to v15 iframe');
+        }
+
+        if (d.type === '4e-target-compiled' && d.result) {
+          // A new/updated target was compiled in v15 — store it on APP
+          const r = d.result;
+          const _A = window.APP || {};
+          if (!_A.targets) _A.targets = [];
+          const existing = _A.targets.findIndex(t => t.id === r.id);
+          const entry = {
+            id: r.id, name: r.name || '',
+            luminanceUrl: r.luminanceUrl || '',
+            _thumbnailDataUrl: r.thumbnailUrl || '',
+            targetType: r.targetType || 'PLANAR',
+            geometry: r.geometry || null,
+            qualityStars: r.overall || r.qualityStars || 0,
+            generatedAt: Date.now(),
+          };
+          if (existing >= 0) { _A.targets[existing] = { ..._A.targets[existing], ...entry }; }
+          else { _A.targets.push(entry); }
+          console.log('[journey-runtime] target compiled:', entry.name, '(' + entry.id + ')');
+
+          // Persist to Firestore
+          const appId = _A.id;
+          if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
+            const db = firebase.firestore();
+            const cleanTargets = JSON.parse(JSON.stringify(_A.targets));
+            db.collection('ar_apps').doc(appId).update({
+              targets: cleanTargets,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => console.log('[journey-runtime] ✓ targets saved to Firestore'))
+              .catch(e => console.error('[journey-runtime] ✗ target save failed:', e.message));
+          }
+        }
+
+        if (d.type === '4e-target-deleted' && d.targetId) {
+          const _A = window.APP || {};
+          if (_A.targets) {
+            _A.targets = _A.targets.filter(t => t.id !== d.targetId);
+            console.log('[journey-runtime] target deleted:', d.targetId);
+            const appId = _A.id;
+            if (appId && typeof firebase !== 'undefined' && firebase.firestore) {
+              const db = firebase.firestore();
+              db.collection('ar_apps').doc(appId).update({
+                targets: JSON.parse(JSON.stringify(_A.targets)),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              }).catch(e => console.error('[journey-runtime] ✗ target delete save failed:', e.message));
+            }
           }
         }
       });
