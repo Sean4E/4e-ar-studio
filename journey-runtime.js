@@ -450,9 +450,18 @@ function _injectJRUI() {
         this._particleCfg = { ...this._particleCfg, ...firstPath.legTvParticles };
       }
 
-      // Store full paths for per-leg rendering (future: each leg gets
-      // its own duration/easing/traveller)
+      // Store full paths for per-leg rendering
       this._journeyPaths = paths;
+
+      // AR scene scale — multipliers for anchor, traveller, path sizes.
+      // Defaults to 1.0 (unchanged from current behaviour). Stored in
+      // the journey so it syncs across all editors via Firestore.
+      const as = this.journey.arScale || {};
+      this.arScale = {
+        anchor: as.anchor != null ? as.anchor : 1,
+        traveller: as.traveller != null ? as.traveller : 1,
+        path: as.path != null ? as.path : 1,
+      };
 
       this.curves = [];
       this.edgeIdx = 0;
@@ -544,34 +553,41 @@ function _injectJRUI() {
 
     // ─── Three.js builders (mirrors docs/journey-runtime-test.html) ──
     makeAnchorBillboard(name, thumbnailUrl) {
-      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+      const s = this.arScale.anchor;
+      // Scale canvas resolution up with the multiplier so billboards
+      // stay crisp at larger AR scales (256 at 1x, 512 at 2-4x, 1024 at 4x+)
+      const res = s > 4 ? 1024 : s > 1.5 ? 512 : 256;
+      const cv = document.createElement('canvas'); cv.width = res; cv.height = res;
       const ctx = cv.getContext('2d');
       const tex = new THREE.CanvasTexture(cv);
       const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.18), mat);
+      const planeSize = 0.18 * s;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(planeSize, planeSize), mat);
 
       // Draw the billboard — if thumbnailUrl is available, draw the
       // image as a background then overlay the name + crosshair.
+      // Scale all drawing coords to the canvas resolution
+      const r = res / 256; // ratio vs baseline 256
       const drawFrame = (img) => {
-        ctx.clearRect(0, 0, 256, 256);
+        ctx.clearRect(0, 0, res, res);
         if (img) {
           ctx.globalAlpha = 0.6;
-          ctx.drawImage(img, 20, 20, 216, 216);
+          ctx.drawImage(img, 20*r, 20*r, 216*r, 216*r);
           ctx.globalAlpha = 1;
         }
         ctx.strokeStyle = 'rgba(0,229,255,0.55)';
-        ctx.lineWidth = 5; ctx.strokeRect(20, 20, 216, 216);
-        if (!img) { ctx.fillStyle = 'rgba(0,229,255,0.10)'; ctx.fillRect(20, 20, 216, 216); }
+        ctx.lineWidth = 5*r; ctx.strokeRect(20*r, 20*r, 216*r, 216*r);
+        if (!img) { ctx.fillStyle = 'rgba(0,229,255,0.10)'; ctx.fillRect(20*r, 20*r, 216*r, 216*r); }
         ctx.fillStyle = '#00e5ff';
-        ctx.font = "bold 22px ui-monospace, 'Space Mono', monospace";
+        ctx.font = "bold " + Math.round(22*r) + "px ui-monospace, 'Space Mono', monospace";
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(name, 128, 240);
-        ctx.strokeStyle = 'rgba(0,229,255,0.45)'; ctx.lineWidth = 2;
+        ctx.fillText(name, res/2, 240*r);
+        ctx.strokeStyle = 'rgba(0,229,255,0.45)'; ctx.lineWidth = 2*r;
         ctx.beginPath();
-        ctx.moveTo(128, 64); ctx.lineTo(128, 90);
-        ctx.moveTo(128, 192); ctx.lineTo(128, 166);
-        ctx.moveTo(64, 128); ctx.lineTo(90, 128);
-        ctx.moveTo(192, 128); ctx.lineTo(166, 128);
+        ctx.moveTo(res/2, 64*r); ctx.lineTo(res/2, 90*r);
+        ctx.moveTo(res/2, 192*r); ctx.lineTo(res/2, 166*r);
+        ctx.moveTo(64*r, res/2); ctx.lineTo(90*r, res/2);
+        ctx.moveTo(192*r, res/2); ctx.lineTo(166*r, res/2);
         ctx.stroke();
         tex.needsUpdate = true;
       };
@@ -598,9 +614,9 @@ function _injectJRUI() {
       const c = new THREE.Color(this.settings.traveller.color);
       const mat = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 1.4, roughness: 0.2, metalness: 0.5 });
       const m = new THREE.Mesh(G[this.settings.traveller.shape] || G.sphere, mat);
-      m.scale.setScalar(this.settings.traveller.scale);
+      m.scale.setScalar(this.settings.traveller.scale * this.arScale.traveller);
       const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.09, 16, 16),
+        new THREE.SphereGeometry(0.09 * this.arScale.traveller, 16, 16),
         new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.12 })
       );
       m.add(halo);
@@ -692,12 +708,12 @@ function _injectJRUI() {
         const pts = curve.getPoints(64);
         this.pathGroup.add(new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.7 })
+          new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.7, linewidth: Math.max(1, this.arScale.path) })
         ));
         const dots = pts.filter((_, i) => i % 4 === 0);
         this.pathGroup.add(new THREE.Points(
           new THREE.BufferGeometry().setFromPoints(dots),
-          new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.012, transparent: true, opacity: 0.55, sizeAttenuation: true })
+          new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.012 * this.arScale.path, transparent: true, opacity: 0.55, sizeAttenuation: true })
         ));
       }
     },
@@ -967,9 +983,17 @@ function _injectJRUI() {
             self.journey.loop = !!j.loop;
           }
 
+          // ── AR scene scale ──
+          if (j.arScale) {
+            self.arScale.anchor = j.arScale.anchor != null ? j.arScale.anchor : 1;
+            self.arScale.traveller = j.arScale.traveller != null ? j.arScale.traveller : 1;
+            self.arScale.path = j.arScale.path != null ? j.arScale.path : 1;
+          }
+
           // ── Rebuild everything with the new config ──
           self.rebuildTraveller();
           self.rebuildPaths();
+          self.rebuildAnchors();
 
           // Store on APP for persistence
           if (window.APP) {

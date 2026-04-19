@@ -2552,6 +2552,14 @@ function ParticleEditor({
     onClick: () => set("blending", b)
   }, b))))));
 }
+// AR scene scale presets
+const AR_SCALE_PRESETS = [
+  { id: 'tabletop', label: 'Tabletop', anchor: 0.5, traveller: 0.5, path: 0.5 },
+  { id: 'room',     label: 'Room',     anchor: 1.0, traveller: 1.0, path: 1.0 },
+  { id: 'gallery',  label: 'Gallery',  anchor: 2.0, traveller: 1.5, path: 1.5 },
+  { id: 'outdoor',  label: 'Outdoor',  anchor: 4.0, traveller: 3.0, path: 2.5 },
+];
+
 function GlobalJourneyEditor({
   gj,
   onUpdate,
@@ -2560,19 +2568,43 @@ function GlobalJourneyEditor({
   onApplyJP,
   onSyncEdge,
   onSyncAll,
-  anchors
+  anchors,
+  arScale,
+  onArScaleUpdate
 }) {
   const [showPTune, setShowPTune] = useState(false);
   const [showPresets, setShowPresets] = useState(!gj.presetId);
   const hasPreset = !!gj.presetId;
   const col = gj.presetCol || C.cyan;
   const multActive = m => Math.abs(gj.duration / (gj.baseDuration || gj.duration) - m) < 0.05;
-  return React.createElement("div", null, React.createElement("div", {
+  const sc = arScale || { anchor: 1, traveller: 1, path: 1 };
+  const setScale = (k, v) => onArScaleUpdate && onArScaleUpdate({ ...sc, [k]: v });
+  const applyPreset = (p) => onArScaleUpdate && onArScaleUpdate({ anchor: p.anchor, traveller: p.traveller, path: p.path });
+  return React.createElement("div", null,
+  // ─── SCENE SCALE ──────────────────────────────────────
+  React.createElement(SecL, null, "SCENE SCALE"),
+  React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 } },
+    AR_SCALE_PRESETS.map(p => React.createElement(Btn, {
+      key: p.id,
+      active: Math.abs(sc.anchor - p.anchor) < 0.01 && Math.abs(sc.traveller - p.traveller) < 0.01,
+      col: C.cyan, small: true,
+      onClick: () => applyPreset(p)
+    }, p.label))
+  ),
+  React.createElement(Sld, { label: "Anchors", min: 0.2, max: 8, step: 0.1, value: sc.anchor,
+    onChange: v => setScale("anchor", v), col: C.cyan, fmt: v => v.toFixed(1) + "×" }),
+  React.createElement(Sld, { label: "Traveller", min: 0.2, max: 8, step: 0.1, value: sc.traveller,
+    onChange: v => setScale("traveller", v), col: C.amber, fmt: v => v.toFixed(1) + "×" }),
+  React.createElement(Sld, { label: "Paths", min: 0.2, max: 8, step: 0.1, value: sc.path,
+    onChange: v => setScale("path", v), col: C.purple, fmt: v => v.toFixed(1) + "×" }),
+  // ─── JOURNEY PRESETS ──────────────────────────────────
+  React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
       gap: 6,
-      marginBottom: 8
+      marginBottom: 8,
+      marginTop: 14
     }
   }, React.createElement("span", {
     style: {
@@ -3595,6 +3627,7 @@ function App() {
   const [loopJ, setLoopJ] = useState(true);
   const [pathConfigs, setPathConfigs] = useState({});
   const [globalTv, setGlobalTv] = useState(DEF_TV);
+  const [arScale, setArScale] = useState({ anchor: 1, traveller: 1, path: 1 });
   const [selected, setSelected] = useState({
     type: null,
     id: null
@@ -3804,6 +3837,7 @@ function App() {
       if (j.loop !== undefined) setLoopJ(!!j.loop);
       if (j.globalTraveller) setGlobalTv(prev => ({ ...prev, ...j.globalTraveller }));
       if (j.paths && Object.keys(j.paths).length > 0) setPathConfigs(j.paths);
+      if (j.arScale) setArScale({ anchor: j.arScale.anchor || 1, traveller: j.arScale.traveller || 1, path: j.arScale.path || 1 });
     };
     window.addEventListener('firestore-journey-update', handler);
     return () => window.removeEventListener('firestore-journey-update', handler);
@@ -4740,8 +4774,8 @@ function App() {
       loop: !!loopJ,
       globalTraveller: { ...globalTv },
       paths: JSON.parse(JSON.stringify(pathConfigs)), // deep copy, strips undefined
+      arScale: { ...arScale },
     };
-    // Track our own save timestamp so the Firestore listener skips the echo
     _lastSavedTs.current = payload.generatedAt;
     // Save directly to Firestore (single source of truth)
     if (window._4E_saveJourney) {
@@ -5371,7 +5405,9 @@ function App() {
     onApplyJP: applyJourneyPreset,
     onSyncEdge: syncEdgeToGlobal,
     onSyncAll: syncAllToGlobal,
-    anchors: anchors
+    anchors: anchors,
+    arScale: arScale,
+    onArScaleUpdate: setArScale
   }))));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
