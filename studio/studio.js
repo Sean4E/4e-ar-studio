@@ -264,6 +264,7 @@ Studio._loadProjectById = async function(id) {
   document.getElementById('tb-name').value = Studio.Project.state.name;
   // Restore tracking mode UI
   Studio.setTrackingMode(Studio.Project.state.trackingMode);
+  Studio.refreshARStatus();
   Studio.log('Opened: ' + Studio.Project.state.name);
   Studio.toast('Opened: ' + Studio.Project.state.name, 'ok');
 
@@ -274,19 +275,48 @@ Studio._loadProjectById = async function(id) {
   // no reload needed. This makes the spatial editor a true single
   // source of truth across all surfaces.
   Studio._unsubFirestore = Studio.Firebase.listen(id, (remoteData) => {
+    let changed = false;
+
+    // ── Sync journeys ──
     const remoteJourneys = remoteData.journeys || [];
     const localJourneys = Studio.Project.state.journeys || [];
-    const remoteStr = JSON.stringify(remoteJourneys);
-    const localStr = JSON.stringify(localJourneys);
-    // Only update if the journey content actually changed (prevents
-    // echoing our own saves). No timestamp comparison needed — pure
-    // content check is simpler and more reliable.
-    if (remoteStr !== localStr) {
-      Studio.Project.state.journeys = JSON.parse(remoteStr);
+    if (JSON.stringify(remoteJourneys) !== JSON.stringify(localJourneys)) {
+      Studio.Project.state.journeys = JSON.parse(JSON.stringify(remoteJourneys));
       Studio.log('[Sync] journey updated from remote');
-      Studio.toast('Journey synced from app ✓', 'ok');
+      changed = true;
+    }
+
+    // ── Sync targets ──
+    // Compare target IDs + names + quality (lightweight check).
+    // Full data URLs are too large for JSON comparison every snapshot.
+    const remoteTargets = remoteData.targets || [];
+    const localTargets = Studio.Project.state.targets || [];
+    const rKey = remoteTargets.map(t => t.id + '|' + t.name + '|' + (t.quality || 0)).join(',');
+    const lKey = localTargets.map(t => t.id + '|' + t.name + '|' + (t.quality || 0)).join(',');
+    if (rKey !== lKey) {
+      // Merge remote targets — preserve local transient fields
+      // (_imageFile, _luminanceDataUrl from canvas) but adopt remote
+      // metadata (quality, properties, URLs, objectIds).
+      Studio.Project.state.targets = remoteTargets.map(rt => {
+        const local = localTargets.find(lt => lt.id === rt.id);
+        return {
+          ...rt,
+          // Preserve local transient fields if they exist
+          _imageFile: local?._imageFile || null,
+          _luminanceDataUrl: rt._luminanceDataUrl || local?._luminanceDataUrl || '',
+          _thumbnailDataUrl: rt._thumbnailDataUrl || local?._thumbnailDataUrl || '',
+        };
+      });
+      Studio.log('[Sync] targets updated from remote (' + remoteTargets.length + ')');
+      Studio.Targets.render();
+      changed = true;
+    }
+
+    if (changed) {
+      Studio.toast('Project synced from app ✓', 'ok');
       if (Studio.Spatial._ready) Studio.Spatial._sendProject();
       Studio.Hierarchy.render();
+      Studio.refreshARStatus();
     }
   });
 };
@@ -409,6 +439,7 @@ Studio.publishProject = async function() {
       Studio.renderQR(url);
       statusEl.innerHTML = '<div style="color:var(--green);font-size:13px;text-align:center">✅ Live and ready to scan!<br><span style="font-size:10px;color:var(--muted)">All assets propagated · Player v' + Studio.VERSION + '</span></div>';
       Studio.toast('Published & deployed ✓', 'ok');
+      Studio.refreshARStatus();
     };
 
     if (total === 0) {
@@ -528,6 +559,33 @@ Studio.openTokenModal = function() {
 // set. Condensed to just the key icon (+ ✓ when set) so the toolbar
 // has room for Publish on narrower viewports. Full wording lives
 // in the tooltip for anyone unsure what the icon means.
+// ─── AR-Ready Status ──────────────────────────────────────
+// Shows whether image targets are published and trackable in AR.
+// Three states:
+//   "🟢 AR ready"   — all targets have luminanceUrl on GitHub Pages
+//   "🟡 N unpublished" — some targets need publishing
+//   "⚪ No targets" — no image targets in the project
+Studio.refreshARStatus = function() {
+  const el = document.getElementById('tb-status');
+  if (!el) return;
+  const targets = Studio.Project.state.targets || [];
+  if (targets.length === 0) {
+    el.textContent = '';
+    el.title = '';
+    return;
+  }
+  const unpublished = targets.filter(t => !t.luminanceUrl);
+  if (unpublished.length === 0) {
+    el.textContent = '🟢 AR ready';
+    el.title = 'All ' + targets.length + ' target(s) published and trackable';
+    el.style.color = '#4ade80';
+  } else {
+    el.textContent = '🟡 ' + unpublished.length + ' unpublished';
+    el.title = unpublished.length + ' target(s) need publishing before AR tracking works';
+    el.style.color = '#fbbf24';
+  }
+};
+
 Studio.refreshTokenIndicator = function() {
   const btn = document.getElementById('tb-token');
   if (!btn) return;
@@ -614,6 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // should hide Targets + Spatial tabs on boot). Without this, all tabs
   // are visible until the user clicks a mode button.
   Studio.setTrackingMode(Studio.Project.state.trackingMode);
+  Studio.refreshARStatus();
 
   // Token indicator in the toolbar — reflects whether this origin has
   // a saved token. After a hosting change (GH Pages → Firebase) this
