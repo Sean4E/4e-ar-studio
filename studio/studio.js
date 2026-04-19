@@ -404,6 +404,17 @@ Studio.publishProject = async function() {
     statusEl.innerHTML = '<div style="color:var(--orange);font-size:14px;text-align:center;padding:20px">⏳ Publishing…<br><span style="font-size:11px;color:var(--muted)">Uploading assets and waiting for deployment</span></div>';
     document.getElementById('modal-publish').classList.remove('hidden');
 
+    // Sync dev tools toggle with project state
+    const dtCb = document.getElementById('pub-devtools');
+    if (dtCb) {
+      dtCb.checked = Studio.Project.state.devTools !== false;
+      dtCb.onchange = () => {
+        Studio.Project.state.devTools = dtCb.checked;
+        Studio.Project.markDirty();
+        Studio.saveProject();
+      };
+    }
+
     // Gather EVERY GitHub-hosted URL the published app will need —
     // any of these not-yet-propagated = the player can't render. The
     // publish modal isn't "Ready" until they're all live.
@@ -539,6 +550,16 @@ Studio.previewProject = async function() {
     </div>
   `;
   document.getElementById('modal-publish').classList.remove('hidden');
+  // Sync dev tools toggle
+  const dtCb2 = document.getElementById('pub-devtools');
+  if (dtCb2) {
+    dtCb2.checked = Studio.Project.state.devTools !== false;
+    dtCb2.onchange = () => {
+      Studio.Project.state.devTools = dtCb2.checked;
+      Studio.Project.markDirty();
+      Studio.saveProject();
+    };
+  }
 };
 
 // Open the GitHub token modal on demand. Reachable from the toolbar

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4E AR Studio</title>
-<meta name="version" content="3.17.6">
+<meta name="version" content="3.17.7">
 
 <!-- Tell every cache layer (browser, VSCode Live Server, any proxy) that
      this document must be revalidated on every load. Firebase Hosting
@@ -203,6 +203,11 @@
       <label><input type="color" id="qr-light" onchange="Studio.renderQR()"><span>Light</span></label>
       <button class="tb-btn" onclick="Studio.resetQRColors()" title="Reset to splash colors">Reset</button>
     </div>
+    <label id="pub-devtools-row" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 6px;font-size:11px;color:var(--muted);cursor:pointer" title="Show developer tools (wrench icon) in the published experience">
+      <span>Dev tools</span>
+      <input type="checkbox" id="pub-devtools" checked style="display:none">
+      <span id="pub-devtools-sw" class="pub-sw"></span>
+    </label>
     <div class="modal-actions">
       <button class="tb-btn" onclick="navigator.clipboard.writeText(document.getElementById('pub-url').value);Studio.toast('Copied!','ok')">Copy URL</button>
       <button class="tb-btn" onclick="window.open(document.getElementById('pub-url').value,'_blank')">Open</button>
