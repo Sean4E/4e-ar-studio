@@ -20,6 +20,9 @@ const JR_CSS = `
 .jr-btn{width:46px;height:46px;border-radius:23px;background:rgba(10,14,26,.78);border:1px solid rgba(167,139,250,.45);color:#a78bfa;font-size:18px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-family:inherit;transition:all .15s}
 .jr-btn:hover,.jr-btn:active{background:rgba(139,92,246,.25);color:#fff}
 .jr-btn.off{color:#475569;border-color:#2d384a}
+.jr-dev-tools{display:flex;flex-direction:column;gap:10px;max-height:0;overflow:hidden;transition:max-height .25s ease,opacity .2s ease;opacity:0}
+.jr-dev-tools.open{max-height:400px;opacity:1}
+#jr-btn-dev.active{background:rgba(139,92,246,.3);border-color:#8b5cf6;color:#fff}
 .jr-status-pill{position:absolute;top:14px;left:14px;pointer-events:auto;background:rgba(10,14,26,.78);border:1px solid rgba(74,222,128,.4);color:#4ade80;padding:5px 10px;border-radius:12px;font-size:11px;font-family:ui-monospace,monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .jr-status-pill.warn{border-color:rgba(251,191,36,.4);color:#fbbf24}
 .jr-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:auto}
@@ -111,12 +114,15 @@ const JR_HTML = `
 <div id="jr-ui">
   <div class="jr-status-pill" id="jr-status">Locked: 0 / 0</div>
   <div class="jr-side">
-    <button class="jr-btn" id="jr-btn-paths" title="Show / hide path lines">🛣</button>
-    <button class="jr-btn" id="jr-btn-anchors" title="Show / hide anchor billboards">📍</button>
-    <button class="jr-btn" id="jr-btn-settings" title="Path + traveller settings">⚙</button>
-    <button class="jr-btn" id="jr-btn-scale" title="Scene scale">↔</button>
-    <button class="jr-btn" id="jr-btn-targets" title="Image targets">📷</button>
-    <button class="jr-btn" id="jr-btn-calibrate" title="Re-search image targets">🎯</button>
+    <button class="jr-btn" id="jr-btn-dev" title="Developer tools">🔧</button>
+    <div class="jr-dev-tools" id="jr-dev-tools">
+      <button class="jr-btn" id="jr-btn-paths" title="Show / hide path lines">🛣</button>
+      <button class="jr-btn" id="jr-btn-anchors" title="Show / hide anchor billboards">📍</button>
+      <button class="jr-btn" id="jr-btn-settings" title="Path + traveller settings">⚙</button>
+      <button class="jr-btn" id="jr-btn-scale" title="Scene scale">↔</button>
+      <button class="jr-btn" id="jr-btn-targets" title="Image targets">📷</button>
+      <button class="jr-btn" id="jr-btn-calibrate" title="Re-search image targets">🎯</button>
+    </div>
   </div>
 </div>
 <div id="jr-debug"></div>
@@ -702,7 +708,6 @@ function _injectJRUI() {
         c.geometry?.dispose(); c.material?.dispose();
       }
       this.curves = [];
-      if (!this.settings.pathsVisible) return;
       const seq = this.journey.sequence || this.anchors.map(a => a.id);
       const pairs = [];
       for (let i = 0; i < seq.length - 1; i++) pairs.push([seq[i], seq[i + 1]]);
@@ -763,6 +768,8 @@ function _injectJRUI() {
           new THREE.PointsMaterial({ color: 0x00e5ff, size: 0.012 * this.arScale.path, transparent: true, opacity: 0.55, sizeAttenuation: true })
         ));
       }
+      // Visibility — curves are always computed so traveller keeps moving
+      this.pathGroup.visible = this.settings.pathsVisible;
     },
 
     rebuildTraveller() {
@@ -883,6 +890,20 @@ function _injectJRUI() {
         });
       });
 
+      // ─── Dev tools toggle (wrench button) ─────────────────
+      const devToolsPanel = $$('jr-dev-tools');
+      const devBtn = $$('jr-btn-dev');
+      // Hide wrench entirely if devTools is disabled in publish settings
+      const _A = window.APP || {};
+      if (_A.devTools === false) {
+        devBtn.style.display = 'none';
+        $$('jr-status').style.display = 'none';
+      }
+      devBtn.addEventListener('click', () => {
+        devToolsPanel.classList.toggle('open');
+        devBtn.classList.toggle('active');
+      });
+
       // ─── Floating button bar ────────────────────────────
       const refreshBtns = () => {
         $$('jr-btn-paths').classList.toggle('off', !self.settings.pathsVisible);
@@ -891,7 +912,8 @@ function _injectJRUI() {
       $$('jr-btn-paths').addEventListener('click', () => {
         self.settings.pathsVisible = !self.settings.pathsVisible;
         $$('jr-m-show-paths').checked = self.settings.pathsVisible;
-        self.rebuildPaths(); refreshBtns();
+        self.pathGroup.visible = self.settings.pathsVisible;
+        refreshBtns();
       });
       $$('jr-btn-anchors').addEventListener('click', () => {
         self.settings.anchorsVisible = !self.settings.anchorsVisible;
@@ -1390,7 +1412,7 @@ function _injectJRUI() {
       $$('jr-m-show-traveller').checked = true;
       $$('jr-m-show-paths').addEventListener('change', e => {
         self.settings.pathsVisible = e.target.checked;
-        self.rebuildPaths(); refreshBtns();
+        self.pathGroup.visible = e.target.checked; refreshBtns();
       });
       $$('jr-m-show-anchors').addEventListener('change', e => {
         self.settings.anchorsVisible = e.target.checked;

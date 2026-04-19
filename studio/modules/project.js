@@ -64,6 +64,10 @@ Studio.Project = {
     // the prefab from the library.
     prefabs: [],  // { id, name, glbUrl, clips[], file?(transient), sortOrder }
 
+    // Player developer tools (wrench icon). Default true — set false
+    // to hide the dev toolbar in the published experience.
+    devTools: true,
+
     // PWA: URLs of generated app icons (populated on publish)
     pwa: { icon192Url: '', icon512Url: '', appleIconUrl: '' },
 
@@ -356,6 +360,7 @@ Studio.Project = {
         showSubtitle: s.splash.showSubtitle, gradient: s.splash.gradient,
         duration: s.splash.duration || 3
       },
+      devTools: s.devTools !== false, // default true — wrench icon visible in player
       journeys: (s.journeys || []).map(j => JSON.parse(JSON.stringify(j))),
       media: (s.media || []).map(m => ({ name: m.name, url: m.url, type: m.type })),
       pwa: {
@@ -398,6 +403,7 @@ Studio.Project = {
     }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
+    s.devTools = data.devTools !== false; // default true
     s.journeys = (data.journeys || []).map(j => JSON.parse(JSON.stringify(j)));
     s.media = (data.media || []).map(m => ({ name: m.name, url: m.url, type: m.type }));
     s.pwa = {
