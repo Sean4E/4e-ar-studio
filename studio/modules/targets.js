@@ -114,10 +114,16 @@ Studio.Targets = {
         id: t.id, name: t.name,
         quality: t.quality || 0,
         qualityRating: (t.quality || 0) >= 80 ? 'Excellent' : (t.quality || 0) >= 65 ? 'Good' : (t.quality || 0) >= 50 ? 'Fair' : 'Poor',
+        qualityStars: t.qualityStars || 0,
+        qualityCriteria: t.qualityCriteria || null,
+        qualityTips: t.qualityTips || null,
         _thumbnailDataUrl: t._thumbnailDataUrl || '',
         _luminanceDataUrl: t._luminanceDataUrl || '',
+        _originalDataUrl: t._originalDataUrl || '',
         thumbnailUrl: t.thumbnailUrl || '',
         luminanceUrl: t.luminanceUrl || '',
+        targetType: t.targetType || 'PLANAR',
+        geometry: t.geometry || null,
       }))
     }, '*');
     this._v15Iframe.contentWindow.postMessage({

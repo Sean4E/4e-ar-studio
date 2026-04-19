@@ -20,8 +20,9 @@ const JR_CSS = `
 .jr-btn{width:46px;height:46px;border-radius:23px;background:rgba(10,14,26,.78);border:1px solid rgba(167,139,250,.45);color:#a78bfa;font-size:18px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-family:inherit;transition:all .15s}
 .jr-btn:hover,.jr-btn:active{background:rgba(139,92,246,.25);color:#fff}
 .jr-btn.off{color:#475569;border-color:#2d384a}
-.jr-dev-tools{display:flex;flex-direction:column;gap:10px;max-height:0;overflow:hidden;transition:max-height .25s ease,opacity .2s ease;opacity:0}
-.jr-dev-tools.open{max-height:400px;opacity:1}
+.jr-dev-tools{display:flex;flex-direction:column;gap:10px;max-height:0;overflow:hidden;transition:max-height .3s ease,opacity .2s ease;opacity:0;-webkit-mask-image:linear-gradient(to bottom,#000 85%,transparent);mask-image:linear-gradient(to bottom,#000 85%,transparent)}
+.jr-dev-tools.open{max-height:calc(100vh - 180px);overflow-y:auto;opacity:1;scrollbar-width:none}
+.jr-dev-tools.open::-webkit-scrollbar{display:none}
 #jr-btn-dev.active{background:rgba(139,92,246,.3);border-color:#8b5cf6;color:#fff}
 .jr-status-pill{position:absolute;top:14px;left:14px;pointer-events:auto;background:rgba(10,14,26,.78);border:1px solid rgba(74,222,128,.4);color:#4ade80;padding:5px 10px;border-radius:12px;font-size:11px;font-family:ui-monospace,monospace;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .jr-status-pill.warn{border-color:rgba(251,191,36,.4);color:#fbbf24}
@@ -367,6 +368,13 @@ const JR_HTML = `
           🔶 Show traveller
         </label>
 
+        <h4>Tracking</h4>
+        <label class="jr-toggle">
+          <input type="checkbox" id="jr-m-smooth" checked>
+          <span class="sw"></span>
+          Anchor smoothing
+        </label>
+
         <h4>Debug</h4>
         <label class="jr-toggle">
           <input type="checkbox" id="jr-m-debug">
@@ -558,7 +566,31 @@ function _injectJRUI() {
           break;
         }
       };
-      const attach = () => sceneEl.addEventListener('xrimagefound', this._onFound);
+      // xrimageupdated handler — smooth-blend anchor positions using
+      // exponential moving average. Reduces SLAM jitter when targets
+      // are continuously visible. Controlled by anchorSmoothing setting.
+      this.settings.anchorSmoothing = this.journey.anchorSmoothing !== false;
+      this._smoothAlpha = 0.15; // blend factor: lower = smoother, higher = more responsive
+      this._onUpdated = (e) => {
+        if (!this.settings.anchorSmoothing) return;
+        const d = e && e.detail;
+        if (!d) return;
+        for (const a of this.anchors) {
+          if (!a.locked || !a.worldPos) continue;
+          if (!a.targetName || d.name !== a.targetName) continue;
+          // EMA: pos = lerp(current, new, alpha)
+          const newPos = d.position;
+          a.worldPos.lerp(new THREE.Vector3(newPos.x, newPos.y, newPos.z), this._smoothAlpha);
+          if (a.billboard) a.billboard.position.copy(a.worldPos);
+          break;
+        }
+        // Rebuild paths to follow smoothed positions (cheap — just line geometry)
+        if (this.lockedCount >= 2) this.rebuildPaths();
+      };
+      const attach = () => {
+        sceneEl.addEventListener('xrimagefound', this._onFound);
+        sceneEl.addEventListener('xrimageupdated', this._onUpdated);
+      };
       if (sceneEl.hasLoaded) attach(); else sceneEl.addEventListener('loaded', attach);
 
       // Preview-mode shortcut. When running in an iframe (browser
@@ -1187,10 +1219,16 @@ function _injectJRUI() {
             targets: (_A.targets || []).map(t => ({
               id: t.id, name: t.name || '',
               luminanceUrl: t.luminanceUrl || '',
+              _luminanceDataUrl: t._luminanceDataUrl || '',
               thumbnailUrl: t._thumbnailDataUrl || t.thumbnailUrl || '',
+              _thumbnailDataUrl: t._thumbnailDataUrl || '',
+              _originalDataUrl: t._originalDataUrl || '',
               targetType: t.targetType || 'PLANAR',
               geometry: t.geometry || null,
+              quality: t.quality || t.qualityStars * 20 || 0,
               qualityStars: t.qualityStars || 0,
+              qualityCriteria: t.qualityCriteria || null,
+              qualityTips: t.qualityTips || null,
             })),
             projectId: _A.id || null,
           }, '*');
@@ -1206,10 +1244,15 @@ function _injectJRUI() {
           const entry = {
             id: r.id, name: r.name || '',
             luminanceUrl: r.luminanceUrl || '',
-            _thumbnailDataUrl: r.thumbnailUrl || '',
+            _luminanceDataUrl: r._luminanceDataUrl || '',
+            _thumbnailDataUrl: r._thumbnailDataUrl || r.thumbnailUrl || '',
+            _originalDataUrl: r._originalDataUrl || '',
             targetType: r.targetType || 'PLANAR',
             geometry: r.geometry || null,
-            qualityStars: r.overall || r.qualityStars || 0,
+            quality: r.quality || r.overall || 0,
+            qualityStars: r.qualityStars || 0,
+            qualityCriteria: r.qualityCriteria || null,
+            qualityTips: r.qualityTips || null,
             generatedAt: Date.now(),
           };
           if (existing >= 0) { _A.targets[existing] = { ..._A.targets[existing], ...entry }; }
@@ -1423,6 +1466,12 @@ function _injectJRUI() {
         self.settings.travellerVisible = e.target.checked;
         self.travContainer.visible = e.target.checked;
       });
+      // Anchor smoothing toggle
+      $$('jr-m-smooth').checked = self.settings.anchorSmoothing;
+      $$('jr-m-smooth').addEventListener('change', e => {
+        self.settings.anchorSmoothing = e.target.checked;
+      });
+
       $$('jr-m-debug').checked = document.getElementById('jr-debug').classList.contains('show');
       $$('jr-m-debug').addEventListener('change', e => {
         document.getElementById('jr-debug').classList.toggle('show', e.target.checked);
