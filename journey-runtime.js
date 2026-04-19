@@ -1229,6 +1229,9 @@ function _injectJRUI() {
               qualityStars: t.qualityStars || 0,
               qualityCriteria: t.qualityCriteria || null,
               qualityTips: t.qualityTips || null,
+              pointCount: t.pointCount || 0,
+              contrast: t.contrast || 0,
+              trackedPoints: t.trackedPoints || [],
             })),
             projectId: _A.id || null,
           }, '*');
@@ -1253,6 +1256,9 @@ function _injectJRUI() {
             qualityStars: r.qualityStars || 0,
             qualityCriteria: r.qualityCriteria || null,
             qualityTips: r.qualityTips || null,
+            pointCount: r.pointCount || 0,
+            contrast: r.contrast || 0,
+            trackedPoints: r.trackedPoints || [],
             generatedAt: Date.now(),
           };
           if (existing >= 0) { _A.targets[existing] = { ..._A.targets[existing], ...entry }; }

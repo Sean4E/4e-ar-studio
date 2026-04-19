@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0a0e1a">
-<meta name="version" content="3.17.5">
+<meta name="version" content="3.17.6">
 <title>4E Image Target Studio v15</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4016,6 +4016,10 @@
       const cur = getActive();
       if (!cur || !cur.analysis || !cur.analysis.bundle) return;
       const b = cur.analysis.bundle;
+      if (!b.original || !b.metadata) {
+        showToast('Re-analyse target to enable full bundle export', 'warning');
+        return;
+      }
       try {
         const zip = new JSZip();
         zip.file(`${b.name}.json`, JSON.stringify(b.metadata, null, 2));
@@ -4047,6 +4051,7 @@
       const cur = getActive();
       if (!cur || !cur.analysis || !cur.analysis.bundle) return;
       const b = cur.analysis.bundle;
+      if (!b.luminance) { showToast('Re-analyse target to enable luminance export', 'warning'); return; }
       const arr = b.luminance.split(',');
       const bs = atob(arr[1]);
       const u = new Uint8Array(bs.length);
@@ -4222,6 +4227,10 @@
           qualityStars: a.result ? a.result.stars : 0,
           qualityCriteria: a.result ? a.result.criteria : [],
           qualityTips: a.result ? a.result.tips : [],
+          pointCount: a.result ? a.result.pointCount : 0,
+          contrast: a.result ? a.result.contrast : 0,
+          // Feature points for visualization (capped at 200 for storage)
+          trackedPoints: a.lastPreviewPoints ? a.lastPreviewPoints.slice(0, 200) : [],
           // Data URLs for the studio to store
           _luminanceDataUrl: a.bundle.luminance,
           _thumbnailDataUrl: a.bundle.thumbnail,
@@ -4272,11 +4281,14 @@
                 overall: st.quality || 0,
                 rating: st.qualityRating || 'unknown',
                 ratingClass: (st.quality || 0) >= 80 ? 'excellent' : (st.quality || 0) >= 65 ? 'good' : (st.quality || 0) >= 50 ? 'fair' : 'poor',
-                stars: (st.quality || 0) >= 80 ? 5 : (st.quality || 0) >= 65 ? 4 : (st.quality || 0) >= 50 ? 3 : (st.quality || 0) >= 35 ? 2 : 1,
+                stars: st.qualityStars || ((st.quality || 0) >= 80 ? 5 : (st.quality || 0) >= 65 ? 4 : (st.quality || 0) >= 50 ? 3 : (st.quality || 0) >= 35 ? 2 : 1),
                 criteria: st.qualityCriteria || [],
-                tips: st.qualityTips || []
+                tips: st.qualityTips || [],
+                pointCount: st.pointCount || 0,
+                contrast: st.contrast || 0,
               },
               bundle: {
+                name: (st.name || 'target').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'target',
                 luminance: st._luminanceDataUrl || '',
                 thumbnail: st._thumbnailDataUrl || '',
                 original: st._originalDataUrl || '',
@@ -4284,7 +4296,7 @@
                 metadata: null
               },
               lumCanvas: null,
-              lastPreviewPoints: [],
+              lastPreviewPoints: st.trackedPoints || [],
               previewMode: 'original'
             };
           }

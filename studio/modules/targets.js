@@ -71,6 +71,9 @@ Studio.Targets = {
           qualityStars: t.qualityStars || null,
           qualityCriteria: t.qualityCriteria || null,
           qualityTips: t.qualityTips || null,
+          pointCount: t.pointCount || null,
+          contrast: t.contrast || null,
+          trackedPoints: t.trackedPoints || null,
         };
         if (existing >= 0) {
           // Preserve GitHub URLs if already published
@@ -117,6 +120,9 @@ Studio.Targets = {
         qualityStars: t.qualityStars || 0,
         qualityCriteria: t.qualityCriteria || null,
         qualityTips: t.qualityTips || null,
+        pointCount: t.pointCount || 0,
+        contrast: t.contrast || 0,
+        trackedPoints: t.trackedPoints || [],
         _thumbnailDataUrl: t._thumbnailDataUrl || '',
         _luminanceDataUrl: t._luminanceDataUrl || '',
         _originalDataUrl: t._originalDataUrl || '',

@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="samples/logo_WHT.png">
 <link rel="apple-touch-icon" sizes="180x180" href="samples/logo_WHT.png">
 <title>4E AR Player</title>
-<meta name="version" content="3.17.5">
+<meta name="version" content="3.17.6">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=Space+Mono&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <!-- Firebase -->
@@ -61,6 +61,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
 #ar-ui{position:fixed;inset:0;z-index:10;pointer-events:none;display:none}
 #ar-ui.show{display:block}
 .ar-top{position:absolute;top:0;left:0;right:0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;pointer-events:auto;background:linear-gradient(to bottom,rgba(0,0,0,.5),transparent)}
+.in-preview .ar-top{top:36px}
 .ar-title{font-size:14px;font-weight:700}
 .ar-close{background:rgba(255,255,255,.15);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer}
 #scan-hint{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;padding:7px 18px;border-radius:18px;font-size:12px;white-space:nowrap;transition:opacity .3s}
@@ -160,7 +161,7 @@ body{background:var(--navy);color:var(--text);font-family:'Syne',sans-serif;over
   <!-- Preview-only diagnose button. Hidden on real AR devices (PREVIEW_MODE
        flips it on after first render). Dumps scene state to a CSV and posts
        to the parent studio window when running in the preview iframe. -->
-  <button id="preview-diagnose-btn" style="position:fixed;bottom:12px;right:12px;padding:6px 10px;background:rgba(15,20,36,0.85);color:#d4daf0;border:1px solid #2a3456;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;pointer-events:auto;z-index:20;display:none" onclick="diagnosePreview()" title="Dump scene diagnostic CSV">🔍 Diagnose</button>
+  <button id="preview-diagnose-btn" style="position:fixed;bottom:12px;left:12px;padding:6px 10px;background:rgba(15,20,36,0.85);color:#d4daf0;border:1px solid #2a3456;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;pointer-events:auto;z-index:20;display:none" onclick="diagnosePreview()" title="Dump scene diagnostic CSV">🔍 Diagnose</button>
   <div id="anim-bar"></div>
 </div>
 
@@ -233,6 +234,7 @@ const PREVIEW_MODE = (() => {
   } catch (_) { return true; }  // cross-origin iframe throws on self/top comparison
   return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 })();
+if (PREVIEW_MODE) document.body.classList.add('in-preview');
 
 // Keep A-Frame's built-in wasd + look controls. Add Q/E vertical
 // movement and Shift for fast mode. No-op outside preview mode.

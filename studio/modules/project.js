@@ -330,6 +330,9 @@ Studio.Project = {
         qualityStars: t.qualityStars || null,
         qualityCriteria: t.qualityCriteria || null,
         qualityTips: t.qualityTips || null,
+        pointCount: t.pointCount || null,
+        contrast: t.contrast || null,
+        trackedPoints: t.trackedPoints || null,
       })),
       prefabs: (s.prefabs || []).map(p => ({
         id: p.id, name: p.name, glbUrl: p.glbUrl, thumbUrl: p.thumbUrl || '',
@@ -400,6 +403,9 @@ Studio.Project = {
       qualityStars: t.qualityStars || null,
       qualityCriteria: t.qualityCriteria || null,
       qualityTips: t.qualityTips || null,
+      pointCount: t.pointCount || null,
+      contrast: t.contrast || null,
+      trackedPoints: t.trackedPoints || null,
     }));
     s.scene = { ...s.scene, ...(data.scene || {}) };
     s.splash = { ...s.splash, ...(data.splash || {}) };
